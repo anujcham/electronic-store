@@ -1,0 +1,60 @@
+:root {
+  /* Color tokens */
+  --color-primary: #0f172a;
+  --color-primary-hover: #1e293b;
+  --color-secondary: #2563eb;
+  --color-accent: #14b8a6;
+  --color-dark-background: #08131f;
+  --color-light-background: #f5f7fb;
+  --color-surface: #ffffff;
+  --color-primary-text: #0f172a;
+  --color-secondary-text: #475569;
+  --color-muted-text: #64748b;
+  --color-border: #d9e2ec;
+  --color-success: #1f9d65;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+
+  /* Typography */
+  --font-sans: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-size-base: 1rem;
+  --font-size-sm: 0.875rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --font-size-3xl: 2.5rem;
+  --font-size-4xl: 3rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-base: 1.5;
+  --line-height-relaxed: 1.7;
+
+  /* Spacing */
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+
+  /* Border radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 10px 25px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 20px 45px rgba(15, 23, 42, 0.12);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 350ms ease;
+}
