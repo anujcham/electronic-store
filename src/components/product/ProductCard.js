@@ -6,18 +6,23 @@ import { useRouter } from "next/navigation";
 import { Heart, ShoppingCart, Star } from "lucide-react";
 
 import { useCart } from "../../features/cart/useCart";
+import { useWishlist } from "../../features/wishlist/useWishlist";
 import { Badge, Button } from "../ui";
 
 export const ProductCard = memo(function ProductCard({ product, onWishlistClick, onAddToCart }) {
   const router = useRouter();
   const { addItem } = useCart();
-  const imageUrl = product?.images?.[0] || "https://placehold.co/800x800/EEF2F7/0F172A?text=Product";
+  const { toggleWishlist, isWishlisted } = useWishlist();
+  const isSaved = isWishlisted(product);
+
+  const imageUrl = product?.images?.[0] || product?.image || "https://placehold.co/800x800/EEF2F7/0F172A?text=Product";
 
   const handleWishlistClick = (event) => {
     event.stopPropagation();
-
     if (onWishlistClick) {
       onWishlistClick(product);
+    } else {
+      toggleWishlist(product);
     }
   };
 
@@ -81,13 +86,13 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
 
         <button
           type="button"
-          className="btn btn-light btn-sm position-absolute top-0 end-0 m-3 rounded-circle d-flex align-items-center justify-content-center p-2"
+          className="btn btn-light btn-sm position-absolute top-0 end-0 m-3 rounded-circle d-flex align-items-center justify-content-center p-2 shadow-sm"
           style={{ width: "2.5rem", height: "2.5rem" }}
           onClick={handleWishlistClick}
           aria-label={product?.name ? `Add ${product.name} to wishlist` : "Add item to wishlist"}
           suppressHydrationWarning
         >
-          <Heart size={16} className="text-primary" />
+          <Heart size={16} fill={isSaved ? "currentColor" : "none"} className={isSaved ? "text-danger" : "text-primary"} />
         </button>
 
         {product?.featured ? (

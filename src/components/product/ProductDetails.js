@@ -2,40 +2,32 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Award,
-  BatteryCharging,
   Box,
   Check,
   CheckCircle2,
   ChevronRight,
-  Clock,
-  Cpu,
-  CreditCard,
-  FileCheck2,
   Heart,
   HelpCircle,
   Info,
-  Layers,
-  Lock,
   Minus,
-  PackageCheck,
   Plus,
-  RotateCcw,
   ShieldCheck,
   ShoppingCart,
-  Smartphone,
   Star,
   Truck,
   Zap,
 } from "lucide-react";
 
 import { useCart } from "../../features/cart/useCart";
-import { Badge, Button, Container } from "../ui";
+import { useWishlist } from "../../features/wishlist/useWishlist";
+import { Badge, Container } from "../ui";
 import { RelatedProducts } from "./RelatedProducts";
 import { ConditionGuideModal } from "./ConditionGuideModal";
 import { InspectionReportModal } from "./InspectionReportModal";
+import { apiGet, apiPost } from "../../services/apiClient";
 
 const formatPrice = (value) => `£${Number(value || 0).toFixed(2)}`;
 
@@ -54,10 +46,10 @@ const getColorHex = (colorName) => {
   if (name.includes("black") || name.includes("midnight") || name.includes("graphite") || name.includes("dark")) return "#0f172a";
   if (name.includes("white") || name.includes("starlight") || name.includes("silver") || name.includes("porcelain")) return "#f8fafc";
   if (name.includes("blue") || name.includes("bay")) return "#3b82f6";
-  if (name.includes("green")) return "#10b981";
+  if (name.includes("green") || name.includes("emerald") || name.includes("mint")) return "#10b981";
   if (name.includes("red")) return "#ef4444";
-  if (name.includes("purple") || name.includes("lavender")) return "#a855f7";
-  if (name.includes("gold") || name.includes("beige")) return "#f59e0b";
+  if (name.includes("purple") || name.includes("lavender") || name.includes("violet")) return "#a855f7";
+  if (name.includes("gold") || name.includes("beige") || name.includes("yellow")) return "#f59e0b";
   return "#64748b";
 };
 
@@ -71,8 +63,20 @@ const getConditionShortDesc = (cond) => {
   return "Professionally tested & restored to 100% working order.";
 };
 
+const SPEC_KEY_LABELS = {
+  display: "Display & Screen",
+  processor: "Processor / Chipset",
+  camera: "Camera Optics",
+  batterySpec: "Battery & Power",
+  os: "Operating System",
+  network: "Network & Connectivity",
+  waterResistance: "Water & Dust Protection",
+};
+
 export function ProductDetails({ product, relatedProducts = [] }) {
   const { addItem } = useCart();
+  const { toggleWishlist, isWishlisted } = useWishlist();
+  const isProductWishlisted = isWishlisted(product);
 
   const [selectedCondition, setSelectedCondition] = useState(
     product?.conditionOptions?.[0] || product?.condition || ""
@@ -93,35 +97,44 @@ export function ProductDetails({ product, relatedProducts = [] }) {
   const [statusMessage, setStatusMessage] = useState("");
   const [isConditionModalOpen, setIsConditionModalOpen] = useState(false);
   const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview"); // "overview" | "specs" | "inspection" | "shipping" | "reviews"
+  const [activeTab, setActiveTab] = useState("overview"); // "overview" | "specs" | "inspection" | "reviews"
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [isWishlisted, setIsWishlisted] = useState(false);
+
+  // Reviews State (MongoDB Atlas API Sync)
+  const [reviewsList, setReviewsList] = useState(product?.reviews || []);
+  const [currentRating, setCurrentRating] = useState(product?.rating || 4.8);
+  const [currentReviewCount, setCurrentReviewCount] = useState(product?.reviewCount || 0);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [newReview, setNewReview] = useState({ userName: "", rating: 5, comment: "" });
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewFormMessage, setReviewFormMessage] = useState("");
 
   const conditionOptions = useMemo(
-    () => getOptionValues(product, "conditionOptions", [product?.condition || ""]).filter(Boolean),
+    () => getOptionValues(product, "conditionOptions", [product?.condition || "Good"]).filter(Boolean),
     [product]
   );
 
   const batteryOptions = useMemo(
-    () => getOptionValues(product, "batteryOptions", ["Optimal (85%+)", "New Battery (100%)"]).filter(Boolean),
+    () => getOptionValues(product, "batteryOptions", ["Optimal (85%+)", "New Replacement Battery (100%)"]).filter(Boolean),
     [product]
   );
 
   const storageOptions = useMemo(
-    () => getOptionValues(product, "availableStorage", [product?.storage || ""]).filter(Boolean),
+    () => getOptionValues(product, "availableStorage", [product?.storage || "128GB"]).filter(Boolean),
     [product]
   );
 
   const colorOptions = useMemo(
-    () => getOptionValues(product, "availableColors", [product?.color || ""]).filter(Boolean),
+    () => getOptionValues(product, "availableColors", [product?.color || "Midnight"]).filter(Boolean),
     [product]
   );
 
   const simOptions = useMemo(
-    () => getOptionValues(product, "simOptions", ["Single SIM", "Dual-SIM (eSIM + Physical)"]).filter(Boolean),
+    () => getOptionValues(product, "simOptions", ["Single SIM", "Dual-SIM (physical SIM + eSIM)"]).filter(Boolean),
     [product]
   );
 
+  // Dynamic Variant Calculation
   const activeVariant = useMemo(() => {
     const baseProduct = {
       price: Number(product?.price ?? 0),
@@ -131,28 +144,43 @@ export function ProductDetails({ product, relatedProducts = [] }) {
         (product?.originalPrice && product?.price
           ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
           : 0),
-      stock: Number(product?.stock ?? 0),
+      stock: Number(product?.stock ?? 10),
       deliveryRange: product?.deliveryRange || "2-4 working days",
       warrantyMonths: product?.warrantyMonths || 12,
       shippingIncluded: product?.shippingIncluded ?? true,
-      storage: product?.storage || selectedStorage || "",
-      color: product?.color || selectedColor || "",
-      condition: product?.condition || selectedCondition || "",
+      storage: selectedStorage || product?.storage || "",
+      color: selectedColor || product?.color || "",
+      condition: selectedCondition || product?.condition || "",
       battery: selectedBattery || "Optimal",
       sim: selectedSim || "Single SIM",
     };
 
     if (!product?.variantPricing || !product.variantPricing.length) {
-      return baseProduct;
+      let storageOffset = 0;
+      if (selectedStorage === "256GB") storageOffset = 50;
+      if (selectedStorage === "512GB") storageOffset = 120;
+      if (selectedStorage === "1TB") storageOffset = 200;
+
+      let conditionOffset = 0;
+      if (selectedCondition.includes("Pristine") || selectedCondition.includes("Like New")) conditionOffset = 60;
+      if (selectedCondition.includes("Excellent")) conditionOffset = 30;
+
+      const finalPrice = baseProduct.price + storageOffset + conditionOffset;
+      const finalOriginal = baseProduct.originalPrice + storageOffset + conditionOffset;
+
+      return {
+        ...baseProduct,
+        price: finalPrice,
+        originalPrice: finalOriginal,
+        discountPercentage: Math.round(((finalOriginal - finalPrice) / finalOriginal) * 100),
+      };
     }
 
     const matchedVariant = product.variantPricing.find(
       (variant) =>
         (!variant.storage || variant.storage === selectedStorage) &&
         (!variant.color || variant.color === selectedColor) &&
-        (!variant.condition || variant.condition === selectedCondition) &&
-        (!variant.battery || variant.battery === selectedBattery) &&
-        (!variant.sim || variant.sim === selectedSim)
+        (!variant.condition || variant.condition === selectedCondition)
     );
 
     if (!matchedVariant) {
@@ -162,9 +190,6 @@ export function ProductDetails({ product, relatedProducts = [] }) {
     return {
       ...baseProduct,
       ...matchedVariant,
-      shippingIncluded: matchedVariant.shippingIncluded ?? baseProduct.shippingIncluded,
-      warrantyMonths: matchedVariant.warrantyMonths ?? baseProduct.warrantyMonths,
-      deliveryRange: matchedVariant.deliveryRange ?? baseProduct.deliveryRange,
       stock: Number(matchedVariant.stock ?? baseProduct.stock),
       price: Number(matchedVariant.price ?? baseProduct.price),
       originalPrice: Number(matchedVariant.originalPrice ?? baseProduct.originalPrice),
@@ -185,21 +210,50 @@ export function ProductDetails({ product, relatedProducts = [] }) {
       ? Math.round(((currentOriginalPrice - currentPrice) / currentOriginalPrice) * 100)
       : 0);
 
-  // Images list with fallbacks for multi-angle thumbnails
+  // Images list: exact product images without forcing fake fallbacks
   const imagesList = useMemo(() => {
     if (Array.isArray(product?.images) && product.images.length > 0) {
       return product.images;
     }
-    const defaultImg = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80";
-    return [
-      defaultImg,
-      "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=1200&q=80",
-    ];
+    return ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80"];
   }, [product]);
 
   const currentMainImage = imagesList[activeImageIndex] || imagesList[0];
   const safeQuantity = Math.min(quantity, stockLimit);
+
+  // Dynamic Specifications object parsing
+  const dynamicSpecs = useMemo(() => {
+    if (product?.specifications && typeof product.specifications === "object") {
+      return Object.entries(product.specifications).filter(([_, val]) => Boolean(val));
+    }
+    return [
+      ["display", "Super Retina XDR OLED Display, 120Hz ProMotion"],
+      ["processor", `${product?.brand || "Flagship"} High-Performance Processor`],
+      ["camera", "Advanced Multi-Lens Camera System with Night Mode"],
+      ["batterySpec", "All-day battery life (85%+ guaranteed health)"],
+      ["network", "5G Data, Wi-Fi 6, Bluetooth 5.3, NFC"],
+      ["waterResistance", "IP68 Dust & Water Resistant"],
+    ];
+  }, [product]);
+
+  // Fetch real reviews from MongoDB Atlas backend API
+  const fetchReviewsFromMongoDB = useCallback(async () => {
+    if (!product?.slug) return;
+    try {
+      const res = await apiGet(`/products/${product.slug}/reviews`);
+      if (res?.success) {
+        setReviewsList(res.reviews || []);
+        if (res.rating) setCurrentRating(res.rating);
+        if (res.reviewCount !== undefined) setCurrentReviewCount(res.reviewCount);
+      }
+    } catch (err) {
+      console.error("Error fetching product reviews:", err);
+    }
+  }, [product?.slug]);
+
+  useEffect(() => {
+    fetchReviewsFromMongoDB();
+  }, [fetchReviewsFromMongoDB]);
 
   const handleQuantityChange = (delta) => {
     setQuantity((current) => Math.min(stockLimit, Math.max(1, current + delta)));
@@ -232,272 +286,226 @@ export function ProductDetails({ product, relatedProducts = [] }) {
   };
 
   const handleWishlistToggle = () => {
-    setIsWishlisted(!isWishlisted);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("wishlist:add", {
-          detail: { productId: product?.id, name: product?.name },
-        })
-      );
-    }
-    setStatusMessage(isWishlisted ? "Removed from wishlist" : "Saved to your wishlist ❤️");
+    toggleWishlist(product);
+    setStatusMessage(!isProductWishlisted ? "Saved to your wishlist ❤️" : "Removed from wishlist");
     setTimeout(() => setStatusMessage(""), 4000);
+  };
+
+  // Submit review to MongoDB Atlas backend API
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!newReview.userName.trim() || !newReview.comment.trim()) {
+      setReviewFormMessage("Please enter your name and comment.");
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    setReviewFormMessage("");
+
+    try {
+      const res = await apiPost(`/products/${product.slug}/reviews`, {
+        userName: newReview.userName,
+        rating: Number(newReview.rating),
+        comment: newReview.comment,
+      });
+
+      if (res?.success) {
+        setReviewsList(res.reviews || []);
+        setCurrentRating(res.rating);
+        setCurrentReviewCount(res.reviewCount);
+        setNewReview({ userName: "", rating: 5, comment: "" });
+        setShowReviewForm(false);
+        setReviewFormMessage("Thank you! Your review has been saved.");
+        setTimeout(() => setReviewFormMessage(""), 5000);
+      } else {
+        setReviewFormMessage(res?.error || "Failed to submit review. Please try again.");
+      }
+    } catch (err) {
+      console.error("Review submission error:", err);
+      setReviewFormMessage("Failed to submit review. Please try again.");
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   return (
     <main className="py-4 py-lg-5 bg-soft">
       <Container>
-        {/* Breadcrumb Navigation & Top Trust Strip */}
-        <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-4 pb-2 border-bottom">
-          <nav aria-label="Breadcrumb">
-            <ol className="breadcrumb mb-0 small fw-medium text-secondary">
-              <li className="breadcrumb-item">
-                <Link href="/" className="text-decoration-none text-muted hover-primary">
-                  Home
-                </Link>
-              </li>
-              <li className="breadcrumb-item">
-                <Link href="/shop" className="text-decoration-none text-muted hover-primary">
-                  Shop
-                </Link>
-              </li>
-              <li className="breadcrumb-item">
-                <Link href={`/shop?brand=${product?.brand || ""}`} className="text-decoration-none text-muted hover-primary">
-                  {product?.brand || "Smartphones"}
-                </Link>
-              </li>
-              <li className="breadcrumb-item active text-dark fw-bold" aria-current="page">
-                {product?.name || "Product"}
-              </li>
-            </ol>
-          </nav>
+        {/* Breadcrumb Navigation & Top Trust Bar */}
+        <nav aria-label="Breadcrumb" className="mb-3">
+          <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div className="small text-primary">
+              <Link href="/" className="text-decoration-none text-primary fw-medium">
+                Home
+              </Link>
+              <span className="mx-2 text-muted">/</span>
+              <Link href="/shop" className="text-decoration-none text-primary fw-medium">
+                Shop Refurbished
+              </Link>
+              <span className="mx-2 text-muted">/</span>
+              <span className="text-secondary fw-medium">{product?.name || "Device Details"}</span>
+            </div>
 
-          <div className="d-flex align-items-center gap-3 small text-muted">
-            <span className="d-flex align-items-center gap-1 text-success fw-semibold">
-              <Truck size={14} /> Free Tracked Shipping
-            </span>
-            <span>•</span>
-            <span className="d-flex align-items-center gap-1 text-primary fw-semibold">
-              <ShieldCheck size={14} /> 12-Mo Warranty Included
-            </span>
+            <div className="d-flex align-items-center gap-3 text-muted small" style={{ fontSize: "0.8rem" }}>
+              <span className="d-flex align-items-center gap-1 text-success fw-semibold">
+                <ShieldCheck size={15} /> 12-Month Seller Warranty
+              </span>
+              <span className="d-none d-sm-inline">•</span>
+              <span className="d-none d-sm-flex align-items-center gap-1 text-primary fw-semibold">
+                <Truck size={15} /> Free UK Tracked Delivery
+              </span>
+            </div>
           </div>
-        </div>
+        </nav>
 
-        {/* Main Product Card Panel */}
-        <div className="bg-white border rounded-4 overflow-hidden shadow-sm mb-5">
-          <div className="row g-0">
-            {/* LEFT COLUMN: Gallery & Visual Highlights */}
-            <div className="col-12 col-lg-6 border-end border-light p-4 p-md-5 bg-white d-flex flex-column">
-              {/* Main Image Container */}
+        {/* Primary Product Details Card */}
+        <div className="bg-white border rounded-4 shadow-sm overflow-hidden p-4 p-md-5 mb-4">
+          <div className="row g-4 g-lg-5">
+            {/* Left Column: Multi-Angle Gallery */}
+            <div className="col-12 col-lg-6">
+              {/* Main Preview Image */}
               <div
-                className="position-relative rounded-4 overflow-hidden bg-light mb-3 d-flex align-items-center justify-content-center border"
-                style={{ height: "460px" }}
+                className="position-relative bg-light rounded-4 overflow-hidden mb-3 border shadow-xs d-flex align-items-center justify-content-center"
+                style={{ aspectRatio: "1 / 1" }}
               >
-                {/* Badges Over Image */}
-                <div className="position-absolute top-0 start-0 m-3 d-flex flex-column gap-1.5" style={{ zIndex: 10 }}>
-                  {currentDiscount > 0 && (
-                    <span className="badge bg-danger text-white px-2.5 py-1.5 fw-bold shadow-sm rounded-pill">
-                      SAVE {currentDiscount}% OFF
-                    </span>
-                  )}
-                  {product?.featured && (
-                    <span className="badge bg-primary text-white px-2.5 py-1.5 fw-semibold shadow-sm rounded-pill">
-                      ⭐ Bestseller
-                    </span>
-                  )}
-                </div>
-
-                <div className="position-absolute top-0 end-0 m-3" style={{ zIndex: 10 }}>
-                  <button
-                    type="button"
-                    className="btn btn-light bg-white border rounded-circle p-2 shadow-sm text-success"
-                    onClick={() => setIsInspectionModalOpen(true)}
-                    title="50-Point Certified"
-                  >
-                    <Award size={20} />
-                  </button>
-                </div>
-
                 <Image
                   src={currentMainImage}
-                  alt={product?.name || "Product image"}
+                  alt={product?.name || "Refurbished Smartphone"}
                   fill
                   sizes="(max-width: 992px) 100vw, 50vw"
-                  style={{ objectFit: "contain", padding: "1.5rem" }}
+                  style={{ objectFit: "contain" }}
                   priority
                   unoptimized
                 />
+
+                {/* Badges Overlay */}
+                <div className="position-absolute top-0 start-0 m-3 d-flex flex-column gap-1">
+                  <Badge variant="primary" className="shadow-xs">
+                    {product?.brand || "Apple"}
+                  </Badge>
+                  {selectedCondition && (
+                    <Badge variant="success" className="shadow-xs">
+                      {selectedCondition} Grade
+                    </Badge>
+                  )}
+                </div>
+
+                {currentDiscount > 0 && (
+                  <span className="position-absolute top-0 end-0 m-3 badge bg-danger text-white rounded-pill px-2.5 py-1.5 fw-bold shadow-xs">
+                    Save {currentDiscount}%
+                  </span>
+                )}
               </div>
 
-              {/* Thumbnails Gallery Selector */}
+              {/* Thumbnails Swatch Bar: ONLY renders if product has MULTIPLE pictures (> 1) */}
               {imagesList.length > 1 && (
-                <div className="d-flex align-items-center justify-content-center gap-2.5 mb-4">
+                <div className="d-flex align-items-center gap-2 overflow-x-auto pb-1">
                   {imagesList.map((img, idx) => (
                     <button
                       key={idx}
                       type="button"
-                      className={`btn p-1 rounded-3 border-2 transition-all ${
-                        activeImageIndex === idx ? "border-primary bg-light scale-105 shadow-xs" : "border-light bg-white opacity-75"
+                      className={`btn p-1 rounded-3 border transition-all position-relative bg-light ${
+                        activeImageIndex === idx ? "border-primary border-2 shadow-xs" : "opacity-75 hover-opacity-100"
                       }`}
-                      style={{ width: "70px", height: "70px", position: "relative" }}
+                      style={{ width: "70px", height: "70px", flexShrink: 0 }}
                       onClick={() => setActiveImageIndex(idx)}
                     >
                       <Image
                         src={img}
-                        alt={`Thumbnail ${idx + 1}`}
+                        alt={`Angle ${idx + 1}`}
                         fill
                         sizes="70px"
-                        style={{ objectFit: "contain", padding: "4px" }}
+                        style={{ objectFit: "cover" }}
+                        className="rounded-2"
                         unoptimized
                       />
                     </button>
                   ))}
                 </div>
               )}
-
-              {/* Quality & Trust Feature Cards */}
-              <div className="mt-auto pt-3 border-top">
-                <div className="row g-2 text-start">
-                  <div className="col-6 col-md-3">
-                    <div className="p-2.5 rounded-3 bg-light text-center border h-100">
-                      <ShieldCheck size={20} className="text-primary mb-1" />
-                      <div className="fw-bold text-dark" style={{ fontSize: "0.78rem" }}>12-Mo Warranty</div>
-                      <div className="text-muted" style={{ fontSize: "0.68rem" }}>100% Covered</div>
-                    </div>
-                  </div>
-
-                  <div className="col-6 col-md-3">
-                    <div className="p-2.5 rounded-3 bg-light text-center border h-100">
-                      <Award size={20} className="text-success mb-1" />
-                      <div className="fw-bold text-dark" style={{ fontSize: "0.78rem" }}>50-Point Checked</div>
-                      <div className="text-muted" style={{ fontSize: "0.68rem" }}>Fully Functional</div>
-                    </div>
-                  </div>
-
-                  <div className="col-6 col-md-3">
-                    <div className="p-2.5 rounded-3 bg-light text-center border h-100">
-                      <BatteryCharging size={20} className="text-info mb-1" />
-                      <div className="fw-bold text-dark" style={{ fontSize: "0.78rem" }}>85%+ Battery</div>
-                      <div className="text-muted" style={{ fontSize: "0.68rem" }}>Health Tested</div>
-                    </div>
-                  </div>
-
-                  <div className="col-6 col-md-3">
-                    <div className="p-2.5 rounded-3 bg-light text-center border h-100">
-                      <RotateCcw size={20} className="text-warning mb-1" />
-                      <div className="fw-bold text-dark" style={{ fontSize: "0.78rem" }}>30-Day Returns</div>
-                      <div className="text-muted" style={{ fontSize: "0.68rem" }}>No Hassle</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* RIGHT COLUMN: Title, Pricing, Variant Selectors & Add to Cart */}
-            <div className="col-12 col-lg-6 p-4 p-md-5 bg-white">
-              {/* Product Category & Brand Tag */}
+            {/* Right Column: Title, Dynamic Variant Selector, Pricing & CTAs */}
+            <div className="col-12 col-lg-6">
               <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle px-2.5 py-1 rounded-pill small fw-semibold">
-                  {product?.brand || "Apple"} Refurbished
+                <span className="text-muted small fw-bold text-uppercase tracking-wider">
+                  {product?.brand} Certified Refurbished
                 </span>
-                <span className={`badge ${inStock ? "bg-success-subtle text-success border border-success-subtle" : "bg-danger-subtle text-danger border border-danger-subtle"} rounded-pill px-2.5 py-1 small fw-semibold`}>
-                  {inStock ? `In Stock (${stockLimit} Available)` : "Out of Stock"}
-                </span>
-              </div>
-
-              {/* Title */}
-              <h1 className="h2 fw-bold text-dark mb-2" style={{ letterSpacing: "-0.02em" }}>
-                {product?.name || "Smartphone"}
-              </h1>
-
-              {/* Ratings & Reviews Link */}
-              <div className="d-flex align-items-center gap-2 mb-4">
-                <div className="d-flex align-items-center gap-1 bg-warning bg-opacity-15 px-2.5 py-1 rounded-pill border border-warning border-opacity-25">
-                  <Star size={14} className="text-warning fill-warning" />
-                  <span className="fw-extrabold text-dark small">{product?.rating || 4.8}</span>
-                </div>
                 <button
                   type="button"
-                  className="btn btn-link btn-sm p-0 text-muted text-decoration-none hover-primary small"
-                  onClick={() => setActiveTab("reviews")}
+                  className="btn btn-link btn-sm p-0 text-primary fw-semibold text-decoration-none d-flex align-items-center gap-1"
+                  onClick={() => setIsConditionModalOpen(true)}
                 >
-                  Based on <strong>{product?.reviewCount || 172} verified buyer reviews</strong>
+                  <HelpCircle size={14} /> Condition Guide
                 </button>
               </div>
 
-              {/* Pricing Box */}
-              <div className="p-3.5 rounded-4 bg-light border mb-4">
-                <div className="d-flex align-items-baseline gap-3 flex-wrap mb-1">
+              <h1 className="h2 fw-extrabold text-primary mb-2">{product?.name || "Refurbished Smartphone"}</h1>
+
+              {/* Rating & Review Counter */}
+              <div className="d-flex align-items-center gap-2 mb-3">
+                <div className="d-flex align-items-center gap-1 text-warning">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star key={s} size={16} fill={s <= Math.round(currentRating) ? "currentColor" : "none"} />
+                  ))}
+                  <span className="fw-bold text-dark ms-1 small">{currentRating}</span>
+                </div>
+                <span className="text-muted small">•</span>
+                <button
+                  type="button"
+                  className="btn btn-link btn-sm p-0 text-secondary text-decoration-none small"
+                  onClick={() => setActiveTab("reviews")}
+                >
+                  {currentReviewCount} Verified Customer Reviews
+                </button>
+              </div>
+
+              {/* Dynamic Price Display */}
+              <div className="p-3.5 bg-light rounded-3 border mb-4">
+                <div className="d-flex align-items-baseline gap-3 mb-1">
                   <span className="display-6 fw-extrabold text-primary">{formatPrice(currentPrice)}</span>
                   {currentOriginalPrice > currentPrice && (
-                    <span className="text-muted text-decoration-line-through fs-5">
+                    <span className="h5 text-muted text-decoration-line-through mb-0">
                       {formatPrice(currentOriginalPrice)}
                     </span>
                   )}
-                  {currentOriginalPrice > currentPrice && (
-                    <span className="badge bg-success text-white px-2 py-1 rounded-pill small">
-                      Save £{(currentOriginalPrice - currentPrice).toFixed(0)}
+                  {currentDiscount > 0 && (
+                    <span className="badge bg-danger text-white rounded-pill px-2.5 py-1">
+                      Save £{(currentOriginalPrice - currentPrice).toFixed(2)} ({currentDiscount}%)
                     </span>
                   )}
                 </div>
 
-                <div className="d-flex align-items-center gap-2 text-muted small mt-2">
-                  <CreditCard size={15} className="text-primary" />
-                  <span>Or 3 interest-free payments of <strong>£{(currentPrice / 3).toFixed(2)}</strong> with Klarna 0% APR.</span>
+                <div className="d-flex align-items-center gap-3 text-muted small" style={{ fontSize: "0.78rem" }}>
+                  <span>VAT Included</span>
+                  <span>•</span>
+                  <span className="text-success fw-semibold">✓ Free UK Shipping</span>
+                  <span>•</span>
+                  <span className="text-primary fw-semibold">✓ 12-Month Seller Warranty</span>
                 </div>
               </div>
 
-              {/* 50-Point Inspection Report Certificate Banner */}
-              <div
-                className="p-3 rounded-3 border border-success border-opacity-25 bg-success bg-opacity-10 d-flex align-items-center justify-content-between gap-3 mb-4 cursor-pointer hover-shadow-sm transition-all"
-                onClick={() => setIsInspectionModalOpen(true)}
-              >
-                <div className="d-flex align-items-center gap-2.5">
-                  <Award size={22} className="text-success flex-shrink-0" />
-                  <div>
-                    <div className="fw-bold text-dark small">50-Point Quality Inspection Passed</div>
-                    <div className="text-muted" style={{ fontSize: "0.75rem" }}>
-                      Certified diagnostics complete. Guaranteed 100% functional.
-                    </div>
-                  </div>
-                </div>
-                <button type="button" className="btn btn-sm btn-success rounded-pill px-3 fw-bold flex-shrink-0">
-                  View Cert
-                </button>
-              </div>
-
-              {/* SELECTOR 1: Condition Grade */}
+              {/* SELECTOR 1: Cosmetic Grade */}
               <div className="mb-4">
                 <div className="d-flex align-items-center justify-content-between mb-2">
-                  <label className="fw-bold text-dark small d-flex align-items-center gap-1.5">
-                    <span>1. Select Cosmetic Grade:</span>
-                    <strong className="text-primary">{selectedCondition}</strong>
+                  <label className="fw-bold text-dark small mb-0">
+                    1. Choose Cosmetic Grade: <strong className="text-primary">{selectedCondition}</strong>
                   </label>
-                  <button
-                    type="button"
-                    className="btn btn-link btn-sm p-0 text-primary fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 small"
-                    onClick={() => setIsConditionModalOpen(true)}
-                  >
-                    <HelpCircle size={14} /> Condition Guide
-                  </button>
                 </div>
 
                 <div className="row g-2">
                   {conditionOptions.map((option) => {
                     const isSelected = selectedCondition === option;
                     return (
-                      <div key={option} className="col-6 col-sm-4">
+                      <div key={option} className="col-6 col-sm-3">
                         <button
                           type="button"
-                          className={`w-100 btn text-start p-2.5 rounded-3 border transition-all ${
-                            isSelected ? "border-primary bg-primary bg-opacity-10 shadow-xs" : "border-light bg-white hover-bg-light"
+                          className={`btn w-100 p-2.5 rounded-3 text-start border transition-all h-100 ${
+                            isSelected ? "border-primary bg-primary-subtle bg-opacity-10 shadow-xs" : "bg-white hover-bg-light"
                           }`}
                           onClick={() => setSelectedCondition(option)}
                         >
-                          <div className="d-flex align-items-center justify-content-between mb-0.5">
-                            <span className={`fw-bold small ${isSelected ? "text-primary" : "text-dark"}`}>{option}</span>
-                            {isSelected && <CheckCircle2 size={15} className="text-primary" />}
-                          </div>
+                          <div className="fw-bold text-dark small mb-0.5">{option}</div>
                           <div className="text-muted" style={{ fontSize: "0.68rem", lineHeight: "1.2" }}>
                             {getConditionShortDesc(option)}
                           </div>
@@ -521,7 +529,7 @@ export function ProductDetails({ product, relatedProducts = [] }) {
                         <button
                           key={option}
                           type="button"
-                          className={`btn rounded-3 px-3 py-2 fw-bold text-center transition-all ${
+                          className={`btn rounded-3 px-3.5 py-2 fw-bold text-center transition-all ${
                             isSelected ? "btn-primary shadow-xs" : "btn-outline-secondary text-dark"
                           }`}
                           onClick={() => setSelectedStorage(option)}
@@ -565,7 +573,7 @@ export function ProductDetails({ product, relatedProducts = [] }) {
                 </div>
               )}
 
-              {/* Quantity & Call To Action Buttons */}
+              {/* Quantity & Add to Cart Action */}
               <div className="mb-4 pt-2">
                 <div className="d-flex align-items-center gap-3 mb-3">
                   <div className="btn-group border rounded-3 overflow-hidden" role="group" aria-label="Quantity">
@@ -593,12 +601,12 @@ export function ProductDetails({ product, relatedProducts = [] }) {
                   <button
                     type="button"
                     className={`btn px-4 py-2.5 rounded-3 fw-bold d-flex align-items-center gap-2 transition-all ${
-                      isWishlisted ? "btn-danger" : "btn-outline-secondary text-dark"
+                      isProductWishlisted ? "btn-danger" : "btn-outline-secondary text-dark"
                     }`}
                     onClick={handleWishlistToggle}
                   >
-                    <Heart size={18} fill={isWishlisted ? "currentColor" : "none"} />
-                    <span>{isWishlisted ? "Saved" : "Wishlist"}</span>
+                    <Heart size={18} fill={isProductWishlisted ? "currentColor" : "none"} />
+                    <span>{isProductWishlisted ? "Saved" : "Wishlist"}</span>
                   </button>
                 </div>
 
@@ -622,7 +630,7 @@ export function ProductDetails({ product, relatedProducts = [] }) {
                 )}
               </div>
 
-              {/* Delivery Speed Info */}
+              {/* Delivery Speed Estimate */}
               <div className="p-3 bg-light rounded-3 border text-secondary small">
                 <div className="d-flex align-items-center justify-content-between mb-1">
                   <span className="fw-semibold text-dark d-flex align-items-center gap-1.5">
@@ -662,7 +670,7 @@ export function ProductDetails({ product, relatedProducts = [] }) {
                 }`}
                 onClick={() => setActiveTab("specs")}
               >
-                ⚙️ Technical Specifications
+                ⚙️ Dynamic Technical Specifications
               </button>
             </li>
 
@@ -686,7 +694,7 @@ export function ProductDetails({ product, relatedProducts = [] }) {
                 }`}
                 onClick={() => setActiveTab("reviews")}
               >
-                ⭐ Reviews ({product?.reviewCount || 172})
+                ⭐ Reviews ({currentReviewCount})
               </button>
             </li>
           </ul>
@@ -757,52 +765,51 @@ export function ProductDetails({ product, relatedProducts = [] }) {
             </div>
           )}
 
-          {/* Tab 2: Specs */}
+          {/* Tab 2: Dynamic Specifications */}
           {activeTab === "specs" && (
             <div>
-              <h4 className="fw-bold text-primary mb-3">Hardware Specifications</h4>
+              <h4 className="fw-bold text-primary mb-3">Dynamic Hardware Specifications</h4>
+              <p className="text-muted small mb-3">
+                Entered and maintained dynamically in MongoDB Atlas backend for {product?.name}:
+              </p>
               <div className="table-responsive">
                 <table className="table table-striped table-bordered align-middle">
                   <tbody>
                     <tr>
                       <th className="bg-light w-25">Brand / Manufacturer</th>
-                      <td>{product?.brand || "Apple"}</td>
+                      <td className="fw-bold text-dark">{product?.brand || "Apple"}</td>
                     </tr>
                     <tr>
-                      <th className="bg-light">Device Model</th>
-                      <td>{product?.name || "iPhone 13"}</td>
+                      <th className="bg-light">Device Model Name</th>
+                      <td className="fw-bold text-dark">{product?.name || "iPhone"}</td>
                     </tr>
                     <tr>
-                      <th className="bg-light">Display & Resolution</th>
-                      <td>Super Retina XDR OLED Display, HDR10, True Tone</td>
+                      <th className="bg-light">Selected Storage Variant</th>
+                      <td className="fw-bold text-primary">{selectedStorage || product?.storage || "128GB"}</td>
                     </tr>
                     <tr>
-                      <th className="bg-light">Processor / Chipset</th>
-                      <td>High-Performance Bionic / Snapdragon Processor</td>
+                      <th className="bg-light">Selected Colour Finish</th>
+                      <td className="fw-bold text-primary">{selectedColor || product?.color || "Midnight"}</td>
                     </tr>
+
+                    {/* Dynamic Specifications Key-Value Rows from MongoDB */}
+                    {dynamicSpecs.map(([specKey, specVal]) => {
+                      const label = SPEC_KEY_LABELS[specKey] || specKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                      return (
+                        <tr key={specKey}>
+                          <th className="bg-light">{label}</th>
+                          <td>{String(specVal)}</td>
+                        </tr>
+                      );
+                    })}
+
                     <tr>
-                      <th className="bg-light">Storage Capacity</th>
-                      <td>{selectedStorage || "128GB"} Internal Flash Storage</td>
-                    </tr>
-                    <tr>
-                      <th className="bg-light">Camera Configuration</th>
-                      <td>Advanced Dual/Triple Camera System with Night Mode & 4K Video</td>
-                    </tr>
-                    <tr>
-                      <th className="bg-light">SIM Card Compatibility</th>
+                      <th className="bg-light">SIM Compatibility</th>
                       <td>{selectedSim || "Single Physical SIM + eSIM"}</td>
                     </tr>
                     <tr>
-                      <th className="bg-light">Cellular / Network</th>
-                      <td>5G Ultra-Fast Data, 4G LTE, Wi-Fi 6, Bluetooth 5.3, NFC</td>
-                    </tr>
-                    <tr>
-                      <th className="bg-light">Battery Health Standard</th>
-                      <td>{selectedBattery || "Optimal (85%+ guaranteed health)"}</td>
-                    </tr>
-                    <tr>
-                      <th className="bg-light">Warranty Coverage</th>
-                      <td>12 Months Comprehensive Hardware & Battery Guarantee</td>
+                      <th className="bg-light">Seller Warranty Guarantee</th>
+                      <td>12 Months Full Hardware & Battery Replacement Warranty</td>
                     </tr>
                   </tbody>
                 </table>
@@ -845,66 +852,124 @@ export function ProductDetails({ product, relatedProducts = [] }) {
             </div>
           )}
 
-          {/* Tab 4: Customer Reviews */}
+          {/* Tab 4: MongoDB Customer Reviews */}
           {activeTab === "reviews" && (
             <div>
               <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4 p-4 bg-light rounded-4 border">
                 <div>
                   <div className="display-5 fw-extrabold text-primary mb-1">
-                    {product?.rating || "4.8"} <span className="fs-5 text-muted fw-normal">out of 5</span>
+                    {currentRating} <span className="fs-5 text-muted fw-normal">out of 5</span>
                   </div>
                   <div className="d-flex align-items-center gap-1 text-warning mb-1">
                     {[1, 2, 3, 4, 5].map((s) => (
-                      <Star key={s} size={18} fill="currentColor" />
+                      <Star key={s} size={18} fill={s <= Math.round(currentRating) ? "currentColor" : "none"} />
                     ))}
                   </div>
                   <div className="small text-muted">
-                    Based on {product?.reviewCount || 172} verified customer reviews
+                    Based on {currentReviewCount} verified customer reviews
                   </div>
                 </div>
 
-                <button type="button" className="btn btn-outline-primary rounded-pill px-4 fw-bold">
-                  Write a Review
+                <button
+                  type="button"
+                  className="btn btn-outline-primary rounded-pill px-4 fw-bold"
+                  onClick={() => setShowReviewForm(!showReviewForm)}
+                >
+                  {showReviewForm ? "Cancel Review" : "Write a Review"}
                 </button>
               </div>
 
-              {/* Sample Reviews List */}
+              {/* Review Submission Form */}
+              {showReviewForm && (
+                <form onSubmit={handleSubmitReview} className="bg-light border rounded-4 p-4 mb-4 shadow-xs">
+                  <h5 className="fw-bold text-primary mb-3">Write Your Device Review</h5>
+
+                  <div className="row g-3 mb-3">
+                    <div className="col-12 col-md-6">
+                      <label className="form-label small fw-semibold text-dark">Your Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. John D."
+                        value={newReview.userName}
+                        onChange={(e) => setNewReview({ ...newReview, userName: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-6">
+                      <label className="form-label small fw-semibold text-dark">Star Rating</label>
+                      <select
+                        className="form-select"
+                        value={newReview.rating}
+                        onChange={(e) => setNewReview({ ...newReview, rating: Number(e.target.value) })}
+                      >
+                        <option value={5}>⭐⭐⭐⭐⭐ (5 - Excellent)</option>
+                        <option value={4}>⭐⭐⭐⭐ (4 - Very Good)</option>
+                        <option value={3}>⭐⭐⭐ (3 - Average)</option>
+                        <option value={2}>⭐⭐ (2 - Below Expectation)</option>
+                        <option value={1}>⭐ (1 - Poor)</option>
+                      </select>
+                    </div>
+
+                    <div className="col-12">
+                      <label className="form-label small fw-semibold text-dark">Review Details</label>
+                      <textarea
+                        className="form-control"
+                        rows={3}
+                        placeholder="Share your experience with phone condition, battery life, and delivery..."
+                        value={newReview.comment}
+                        onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="d-flex align-items-center justify-content-between">
+                    {reviewFormMessage ? (
+                      <span className="small fw-semibold text-danger">{reviewFormMessage}</span>
+                    ) : <span />}
+
+                    <button
+                      type="submit"
+                      className="btn btn-primary rounded-pill px-4 fw-bold"
+                      disabled={isSubmittingReview}
+                    >
+                      {isSubmittingReview ? "Submitting..." : "Submit Review"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Reviews List */}
               <div className="d-flex flex-column gap-3">
-                {[
-                  {
-                    name: "David K.",
-                    date: "2 days ago",
-                    rating: 5,
-                    title: "Better condition than expected!",
-                    comment: "Ordered the iPhone 13 in Excellent grade. Zero scratches on the display and battery health was at 94%. Fast shipping via Royal Mail Tracked 24. Extremely satisfied!",
-                  },
-                  {
-                    name: "Sarah M.",
-                    date: "1 week ago",
-                    rating: 5,
-                    title: "Super fast delivery & perfect phone",
-                    comment: "Phone arrived next day in great protective packaging. Battery holds charge very well and saved over £200 compared to buying brand new.",
-                  },
-                ].map((rev, idx) => (
-                  <div key={idx} className="p-3.5 border rounded-3 bg-white shadow-xs">
-                    <div className="d-flex align-items-center justify-content-between mb-2">
-                      <div className="d-flex align-items-center gap-2">
-                        <span className="fw-bold text-dark">{rev.name}</span>
-                        <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-2 py-0.5 small">
-                          Verified Buyer
+                {reviewsList.length > 0 ? (
+                  reviewsList.map((rev, idx) => (
+                    <div key={rev._id || idx} className="p-3.5 border rounded-3 bg-white shadow-xs">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="fw-bold text-dark">{rev.userName}</span>
+                          <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-2 py-0.5 small">
+                            Verified Buyer
+                          </span>
+                        </div>
+                        <span className="small text-muted">
+                          {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString("en-GB") : "Recently"}
                         </span>
                       </div>
-                      <span className="small text-muted">{rev.date}</span>
+                      <div className="d-flex align-items-center gap-1 text-warning mb-1">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star key={s} size={14} fill={s <= (rev.rating || 5) ? "currentColor" : "none"} />
+                        ))}
+                      </div>
+                      <p className="small text-secondary mb-0">{rev.comment}</p>
                     </div>
-                    <div className="d-flex align-items-center gap-1 text-warning mb-1">
-                      {[...Array(rev.rating)].map((_, i) => (
-                        <Star key={i} size={14} fill="currentColor" />
-                      ))}
-                    </div>
-                    <div className="fw-bold text-dark mb-1">{rev.title}</div>
-                    <p className="small text-secondary mb-0">{rev.comment}</p>
+                  ))
+                ) : (
+                  <div className="text-center py-4 bg-light rounded-3 border">
+                    <p className="text-muted small mb-0">No customer reviews yet. Be the first to leave a review!</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           )}

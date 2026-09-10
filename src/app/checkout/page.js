@@ -22,12 +22,14 @@ import {
   Home,
   User,
   Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 import { Button, Container, Badge } from "../../components/ui";
 import { useCart } from "../../features/cart/useCart";
 import { getSavedAddresses, saveAddress, deleteAddress } from "../../services/addressService";
 import { createOrder } from "../../services/orderService";
+import { getCurrentUser } from "../../services/authService";
 
 const paymentOptions = [
   {
@@ -76,10 +78,11 @@ export default function CheckoutPage() {
 
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [validationError, setValidationError] = useState("");
 
   // Address Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingAddressId, setEditingAddressId] = useState(null); // null when adding new
+  const [editingAddressId, setEditingAddressId] = useState(null);
   const [modalFormData, setModalFormData] = useState(emptyAddressForm);
 
   const [formValues, setFormValues] = useState({
@@ -95,28 +98,60 @@ export default function CheckoutPage() {
 
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [addProtectionPlan, setAddProtectionPlan] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  // Load saved addresses via addressService
+  function handleSelectSavedAddress(addr) {
+    if (!addr) return;
+    const addrId = addr.id || addr._id;
+    setSelectedAddressId(addrId);
+
+    let firstName = addr.firstName || "";
+    let lastName = addr.lastName || "";
+    if (!firstName && addr.fullName) {
+      const parts = addr.fullName.trim().split(" ");
+      firstName = parts[0] || "";
+      lastName = parts.slice(1).join(" ") || "";
+    }
+
+    setFormValues({
+      email: addr.email || currentUser?.email || "",
+      firstName,
+      lastName,
+      phone: addr.phone || currentUser?.phone || "",
+      address: addr.address || addr.addressLine1 || "",
+      city: addr.city || "",
+      postcode: addr.postcode || "",
+      country: addr.country || "United Kingdom",
+    });
+    setValidationError("");
+  }
+
+  // Load saved addresses for user & pre-select address
   useEffect(() => {
-    async function loadAddresses() {
-      const addresses = await getSavedAddresses();
+    async function loadData() {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+
+      let addresses = [];
+      if (user && (user.id || user._id)) {
+        addresses = await getSavedAddresses(user.id || user._id);
+      }
       setSavedAddresses(addresses);
+
       if (addresses.length > 0) {
-        const first = addresses[0];
-        setSelectedAddressId(first.id);
-        setFormValues({
-          email: first.email || "",
-          firstName: first.firstName || "",
-          lastName: first.lastName || "",
-          phone: first.phone || "",
-          address: first.address || "",
-          city: first.city || "",
-          postcode: first.postcode || "",
-          country: first.country || "United Kingdom",
-        });
+        const first = addresses.find((a) => a.isDefault) || addresses[0];
+        handleSelectSavedAddress(first);
+      } else if (user) {
+        setFormValues((prev) => ({
+          ...prev,
+          email: user.email || "",
+          firstName: user.name?.split(" ")[0] || "",
+          lastName: user.name?.split(" ")[1] || "",
+          phone: user.phone || "",
+        }));
       }
     }
-    loadAddresses();
+    loadData();
   }, []);
 
   const fallbackItems = [
@@ -144,41 +179,38 @@ export default function CheckoutPage() {
   const deliveryFee = 0;
   const orderTotal = checkoutSubtotal + protectionFee + deliveryFee;
 
-  function handleSelectSavedAddress(addr) {
-    setSelectedAddressId(addr.id);
-    setFormValues({
-      email: addr.email || "",
-      firstName: addr.firstName || "",
-      lastName: addr.lastName || "",
-      phone: addr.phone || "",
-      address: addr.address || "",
-      city: addr.city || "",
-      postcode: addr.postcode || "",
-      country: addr.country || "United Kingdom",
-    });
-  }
-
-  // Open modal to add a brand new address
   function handleOpenAddModal() {
     setEditingAddressId(null);
     setModalFormData({
       ...emptyAddressForm,
+      email: currentUser?.email || formValues.email || "",
+      firstName: currentUser?.name?.split(" ")[0] || formValues.firstName || "",
+      lastName: currentUser?.name?.split(" ")[1] || formValues.lastName || "",
+      phone: currentUser?.phone || formValues.phone || "",
       isDefault: savedAddresses.length === 0,
     });
     setIsModalOpen(true);
   }
 
-  // Open modal to edit an existing address
   function handleOpenEditModal(addr, event) {
-    event.stopPropagation();
-    setEditingAddressId(addr.id);
+    if (event && event.stopPropagation) event.stopPropagation();
+    setEditingAddressId(addr.id || addr._id);
+
+    let firstName = addr.firstName || "";
+    let lastName = addr.lastName || "";
+    if (!firstName && addr.fullName) {
+      const parts = addr.fullName.trim().split(" ");
+      firstName = parts[0] || "";
+      lastName = parts.slice(1).join(" ") || "";
+    }
+
     setModalFormData({
       label: addr.label || "Home Address",
-      firstName: addr.firstName || "",
-      lastName: addr.lastName || "",
-      email: addr.email || "",
-      phone: addr.phone || "",
-      address: addr.address || "",
+      firstName,
+      lastName,
+      email: addr.email || currentUser?.email || "",
+      phone: addr.phone || currentUser?.phone || "",
+      address: addr.address || addr.addressLine1 || "",
       city: addr.city || "",
       postcode: addr.postcode || "",
       country: addr.country || "United Kingdom",
@@ -187,42 +219,65 @@ export default function CheckoutPage() {
     setIsModalOpen(true);
   }
 
-  // Save address via addressService
   async function handleSaveAddressFromModal(e) {
     e.preventDefault();
 
-    const payload = {
+    const userId = currentUser?.id || currentUser?._id;
+    let updatedList = [];
+
+    const fullName = `${modalFormData.firstName} ${modalFormData.lastName}`.trim();
+    const formattedData = {
       ...modalFormData,
-      ...(editingAddressId ? { id: editingAddressId } : {}),
+      fullName,
+      addressLine1: modalFormData.address,
     };
 
-    const updatedList = await saveAddress(payload);
+    if (userId) {
+      const payload = {
+        ...formattedData,
+        ...(editingAddressId ? { id: editingAddressId } : {}),
+      };
+      const res = await saveAddress(userId, payload);
+      updatedList = res?.success && Array.isArray(res.addresses) ? res.addresses : savedAddresses;
+    } else {
+      const newAddr = {
+        id: editingAddressId || `addr-${Date.now()}`,
+        ...formattedData,
+      };
+      if (editingAddressId) {
+        updatedList = savedAddresses.map((a) => ((a.id || a._id) === editingAddressId ? newAddr : a));
+      } else {
+        updatedList = [...savedAddresses, newAddr];
+      }
+    }
+
     setSavedAddresses(updatedList);
 
     const activeAddr = editingAddressId
-      ? updatedList.find((item) => item.id === editingAddressId)
+      ? updatedList.find((item) => (item.id || item._id) === editingAddressId)
       : updatedList[updatedList.length - 1];
 
     if (activeAddr) {
-      setSelectedAddressId(activeAddr.id);
-      setFormValues({
-        email: activeAddr.email || "",
-        firstName: activeAddr.firstName || "",
-        lastName: activeAddr.lastName || "",
-        phone: activeAddr.phone || "",
-        address: activeAddr.address || "",
-        city: activeAddr.city || "",
-        postcode: activeAddr.postcode || "",
-        country: activeAddr.country || "United Kingdom",
-      });
+      handleSelectSavedAddress(activeAddr);
+    } else if (updatedList.length > 0) {
+      handleSelectSavedAddress(updatedList[0]);
     }
 
     setIsModalOpen(false);
   }
 
   async function handleDeleteAddress(addrId, event) {
-    event.stopPropagation();
-    const updatedList = await deleteAddress(addrId);
+    if (event && event.stopPropagation) event.stopPropagation();
+    const userId = currentUser?.id || currentUser?._id;
+    let updatedList = [];
+
+    if (userId) {
+      const res = await deleteAddress(userId, addrId);
+      updatedList = res?.success && Array.isArray(res.addresses) ? res.addresses : [];
+    } else {
+      updatedList = savedAddresses.filter((a) => (a.id || a._id) !== addrId);
+    }
+
     setSavedAddresses(updatedList);
 
     if (selectedAddressId === addrId) {
@@ -230,32 +285,81 @@ export default function CheckoutPage() {
         handleSelectSavedAddress(updatedList[0]);
       } else {
         setSelectedAddressId(null);
+        setFormValues({
+          email: currentUser?.email || "",
+          firstName: "",
+          lastName: "",
+          phone: "",
+          address: "",
+          city: "",
+          postcode: "",
+          country: "United Kingdom",
+        });
       }
     }
   }
 
   async function handleSubmitOrder(event) {
-    event.preventDefault();
+    if (event && event.preventDefault) {
+      event.preventDefault();
+    }
+    setValidationError("");
+
+    const activeAddr = savedAddresses.find((a) => (a.id || a._id) === selectedAddressId) || (savedAddresses.length > 0 ? savedAddresses[0] : null);
+
+    if (!activeAddr && (!formValues.address && !formValues.city && !formValues.postcode)) {
+      setValidationError("⚠️ Delivery address required! Please click '+ Add Delivery Address' to enter your shipping details.");
+      handleOpenAddModal();
+      return;
+    }
+
+    let firstName = formValues.firstName || activeAddr?.firstName || "";
+    let lastName = formValues.lastName || activeAddr?.lastName || "";
+    if (!firstName && activeAddr?.fullName) {
+      const parts = activeAddr.fullName.trim().split(" ");
+      firstName = parts[0] || "";
+      lastName = parts.slice(1).join(" ") || "";
+    }
+    const fullName = `${firstName} ${lastName}`.trim() || activeAddr?.fullName || currentUser?.name || "Customer";
+
+    const email = formValues.email || activeAddr?.email || currentUser?.email || "customer@example.co.uk";
+    const phone = formValues.phone || activeAddr?.phone || currentUser?.phone || "+44 7700 900077";
+    const addressLine1 = formValues.address || activeAddr?.address || activeAddr?.addressLine1;
+    const city = formValues.city || activeAddr?.city;
+    const postcode = formValues.postcode || activeAddr?.postcode;
+    const country = formValues.country || activeAddr?.country || "United Kingdom";
+
+    if (!addressLine1 || !city || !postcode) {
+      setValidationError("⚠️ Selected delivery address is incomplete. Please edit your address.");
+      if (activeAddr) handleOpenEditModal(activeAddr, event);
+      else handleOpenAddModal();
+      return;
+    }
 
     const orderPayload = {
       userId: currentUser?.id || currentUser?._id || null,
-      guestEmail: formValues.email,
+      guestEmail: email,
       shippingAddress: {
-        fullName: `${formValues.firstName} ${formValues.lastName}`,
-        email: formValues.email,
-        phone: formValues.phone,
-        addressLine1: formValues.address1,
-        addressLine2: formValues.address2 || "",
-        city: formValues.city,
-        postcode: formValues.postcode,
+        fullName,
+        email,
+        phone,
+        addressLine1,
+        addressLine2: "",
+        city,
+        postcode,
+        country,
       },
       items: checkoutItems.map((item) => ({
         name: item.name,
         slug: item.slug,
         image: item.images?.[0] || item.image,
         price: item.price,
-        quantity: item.quantity,
-        selectedOptions: item.selectedOptions || {},
+        quantity: item.quantity || 1,
+        selectedOptions: item.selectedOptions || {
+          condition: item.condition,
+          storage: item.storage,
+          color: item.color,
+        },
       })),
       paymentMethod,
       subtotal: checkoutSubtotal,
@@ -264,13 +368,19 @@ export default function CheckoutPage() {
       totalAmount: orderTotal,
     };
 
-    await createOrder(orderPayload);
-    clearCart();
-    router.push("/order-confirmation");
+    const res = await createOrder(orderPayload);
+    if (res?.success) {
+      clearCart();
+      router.push("/order-confirmation");
+    } else {
+      setValidationError(res?.error || "Order placement failed. Please verify your delivery details.");
+    }
   }
 
+  const activeSelectedAddress = savedAddresses.find((a) => (a.id || a._id) === selectedAddressId) || (savedAddresses.length > 0 ? savedAddresses[0] : null);
+
   return (
-    <main className="py-5 py-lg-6 bg-soft">
+    <main className="py-5 py-lg-6 bg-soft min-vh-100">
       <Container>
         {/* Breadcrumb Nav */}
         <nav aria-label="Breadcrumb" className="mb-3">
@@ -301,7 +411,7 @@ export default function CheckoutPage() {
 
         <form onSubmit={handleSubmitOrder} noValidate>
           <div className="row g-4">
-            {/* Left Column: Express Pay + Saved Address Cards + Payment */}
+            {/* Left Column: Express Pay + Delivery Address Cards + Payment */}
             <div className="col-12 col-lg-7">
               {/* Express Checkout Options */}
               <div className="bg-white border rounded-4 p-4 mb-4 shadow-sm">
@@ -332,27 +442,41 @@ export default function CheckoutPage() {
                 <div className="text-center text-muted small mt-2">or select delivery address below</div>
               </div>
 
-              {/* Saved Addresses Section */}
-              <div className="bg-white border rounded-4 p-4 p-md-5 mb-4 shadow-sm">
+              {/* Delivery Address Section */}
+              <div id="delivery-address-section" className="bg-white border rounded-4 p-4 p-md-5 mb-4 shadow-sm">
                 <div className="d-flex align-items-center justify-content-between mb-3">
-                  <h5 className="fw-bold text-primary mb-0">1. Select Delivery Address</h5>
+                  <h5 className="fw-bold text-primary mb-0 d-flex align-items-center gap-2">
+                    <MapPin size={20} /> 1. Select Delivery Address <span className="text-danger">*</span>
+                  </h5>
                   <button
                     type="button"
-                    className="btn btn-sm btn-primary rounded-pill px-3 py-1.5 fw-bold d-flex align-items-center gap-1.5 shadow-sm"
+                    className="btn btn-sm btn-primary rounded-pill px-3.5 py-1.5 fw-bold d-flex align-items-center gap-1.5 shadow-sm"
                     onClick={handleOpenAddModal}
                   >
-                    <Plus size={15} /> Add New Address
+                    <Plus size={15} /> Add Delivery Address
                   </button>
                 </div>
 
-                {/* Display Saved Address Cards */}
+                {/* Validation Error Alert */}
+                {validationError && (
+                  <div className="alert alert-danger border-danger border-2 rounded-3 mb-4 d-flex align-items-start gap-2 shadow-sm">
+                    <AlertTriangle size={20} className="flex-shrink-0 mt-0.5" />
+                    <div className="small fw-semibold">{validationError}</div>
+                  </div>
+                )}
+
+                {/* Saved Address Cards */}
                 {savedAddresses.length > 0 ? (
-                  <div className="mb-3">
-                    <div className="row g-3">
+                  <div>
+                    <div className="row g-3 mb-3">
                       {savedAddresses.map((addr) => {
-                        const isSelected = selectedAddressId === addr.id;
+                        const addrId = addr.id || addr._id;
+                        const isSelected = selectedAddressId === addrId;
+                        const displayName = addr.fullName || `${addr.firstName || ""} ${addr.lastName || ""}`.trim() || "Delivery Address";
+                        const displayStreet = addr.address || addr.addressLine1 || "";
+
                         return (
-                          <div key={addr.id} className="col-12 col-md-6">
+                          <div key={addrId} className="col-12 col-md-6">
                             <div
                               className={`card h-100 p-3 border-2 transition-all cursor-pointer ${
                                 isSelected
@@ -362,18 +486,17 @@ export default function CheckoutPage() {
                               style={{ cursor: "pointer" }}
                               onClick={() => handleSelectSavedAddress(addr)}
                             >
-                              {/* Card Header: Radio + Label + Default Badge + Edit Icon */}
                               <div className="d-flex align-items-center justify-content-between mb-2">
                                 <div className="d-flex align-items-center gap-2">
                                   <input
                                     type="radio"
                                     name="savedAddressSelect"
-                                    id={addr.id}
+                                    id={addrId}
                                     checked={isSelected}
                                     onChange={() => handleSelectSavedAddress(addr)}
                                     className="form-check-input mt-0"
                                   />
-                                  <label htmlFor={addr.id} className="fw-bold text-dark mb-0 cursor-pointer">
+                                  <label htmlFor={addrId} className="fw-bold text-dark mb-0 cursor-pointer">
                                     {addr.label || "Address"}
                                   </label>
                                   {addr.isDefault && (
@@ -386,81 +509,77 @@ export default function CheckoutPage() {
                                   )}
                                 </div>
 
-                                {/* Edit Button for specific address card */}
                                 <div className="d-flex align-items-center gap-1">
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-secondary p-1 border-0 rounded-circle"
                                     onClick={(e) => handleOpenEditModal(addr, e)}
-                                    title="Edit this address"
+                                    title="Edit address"
                                   >
                                     <Pencil size={14} className="text-primary" />
                                   </button>
-                                  {savedAddresses.length > 1 && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-danger p-1 border-0 rounded-circle"
-                                      onClick={(e) => handleDeleteAddress(addr.id, e)}
-                                      title="Delete address"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  )}
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-danger p-1 border-0 rounded-circle"
+                                    onClick={(e) => handleDeleteAddress(addrId, e)}
+                                    title="Delete address"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
                                 </div>
                               </div>
 
-                              {/* Card Body */}
                               <div className="small text-dark fw-semibold mb-1">
-                                {addr.firstName} {addr.lastName}
+                                {displayName}
                               </div>
                               <div className="small text-muted mb-1">
-                                {addr.address}, {addr.city}, {addr.postcode}
+                                {displayStreet}, {addr.city}, {addr.postcode}
                               </div>
                               <div className="small text-muted" style={{ fontSize: "0.78rem" }}>
-                                📞 {addr.phone} • ✉️ {addr.email}
+                                📞 {addr.phone || "+44 7700 900077"} • ✉️ {addr.email || currentUser?.email || "customer@example.co.uk"}
                               </div>
                             </div>
                           </div>
                         );
                       })}
                     </div>
+
+                    {/* Active Selected Address Confirmation Box */}
+                    {activeSelectedAddress && (
+                      <div className="bg-light border border-success border-opacity-25 rounded-3 p-3 mt-3 d-flex align-items-center justify-content-between">
+                        <div className="d-flex align-items-center gap-2 text-dark small">
+                          <CheckCircle2 size={18} className="text-success flex-shrink-0" />
+                          <span>
+                            Delivering to: <strong>{activeSelectedAddress.fullName || `${formValues.firstName} ${formValues.lastName}`}</strong> (
+                            {formValues.address || activeSelectedAddress.address || activeSelectedAddress.addressLine1}, {formValues.city || activeSelectedAddress.city}, {formValues.postcode || activeSelectedAddress.postcode})
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-link btn-sm text-primary p-0 fw-bold text-decoration-none ms-2 flex-shrink-0 d-flex align-items-center gap-1"
+                          onClick={(e) => handleOpenEditModal(activeSelectedAddress, e)}
+                        >
+                          <Pencil size={13} /> Edit Address
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="text-center py-4 bg-light rounded-3 border">
-                    <p className="text-muted small mb-3">No saved addresses found.</p>
+                  <div className="text-center py-5 bg-light rounded-4 border border-dashed">
+                    <div className="d-inline-flex align-items-center justify-content-center bg-primary-subtle text-primary p-3 rounded-circle mb-3">
+                      <MapPin size={32} />
+                    </div>
+                    <h6 className="fw-bold text-dark mb-1">No Delivery Address Added</h6>
+                    <p className="text-secondary small mb-4 mx-auto" style={{ maxWidth: "24rem" }}>
+                      Please click the button below to add your shipping address in our secure modal before placing your order.
+                    </p>
                     <button
                       type="button"
-                      className="btn btn-primary btn-sm px-4 rounded-pill fw-bold"
+                      className="btn btn-primary px-4 py-2.5 rounded-pill fw-bold d-inline-flex align-items-center gap-2 shadow-sm"
                       onClick={handleOpenAddModal}
                     >
-                      <Plus size={15} /> Add Delivery Address
+                      <Plus size={18} /> Add Delivery Address
                     </button>
-                  </div>
-                )}
-
-                {/* Active Address Confirmation Bar */}
-                {formValues.address && (
-                  <div className="bg-light border rounded-3 p-3 mt-3 d-flex align-items-center justify-content-between">
-                    <div className="d-flex align-items-center gap-2 text-dark small">
-                      <CheckCircle2 size={18} className="text-success flex-shrink-0" />
-                      <span>
-                        Delivering to: <strong>{formValues.firstName} {formValues.lastName}</strong> (
-                        {formValues.address}, {formValues.city}, {formValues.postcode})
-                      </span>
-                    </div>
-                    {selectedAddressId && (
-                      <button
-                        type="button"
-                        className="btn btn-link btn-sm text-primary p-0 fw-semibold text-decoration-none ms-2 flex-shrink-0 d-flex align-items-center gap-1"
-                        onClick={(e) => {
-                          const currentAddr = savedAddresses.find((a) => a.id === selectedAddressId);
-                          if (currentAddr) handleOpenEditModal(currentAddr, e);
-                          else handleOpenAddModal();
-                        }}
-                      >
-                        <Pencil size={13} /> Edit Address
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -514,9 +633,9 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* Right Column: Order Summary & Refurbished Protection */}
+            {/* Right Column: Order Summary & Protection Plan */}
             <div className="col-12 col-lg-5">
-              {/* Accidental Damage Protection Plan Add-On Card */}
+              {/* Protection Plan Add-On */}
               <div className="bg-gradient border-2 border-primary rounded-4 p-4 mb-4 bg-white shadow-sm">
                 <div className="d-flex align-items-start gap-3">
                   <div className="bg-warning text-dark p-2.5 rounded-circle flex-shrink-0">
@@ -546,21 +665,20 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Order Items & Totals Card */}
+              {/* Order Summary Card */}
               <div className="bg-white border rounded-4 p-4 shadow-sm sticky-top" style={{ top: "100px" }}>
                 <div className="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3">
                   <h5 className="fw-bold text-primary mb-0">Order Summary</h5>
                   <span className="badge bg-primary rounded-pill">{checkoutItemCount} {checkoutItemCount === 1 ? "Item" : "Items"}</span>
                 </div>
 
-                {/* Items List */}
                 <div className="d-flex flex-column gap-3 mb-4 max-h-300 overflow-y-auto">
                   {checkoutItems.map((item) => (
-                    <div key={item.itemKey} className="d-flex align-items-center gap-3">
+                    <div key={item.itemKey || item.id} className="d-flex align-items-center gap-3">
                       <div className="position-relative bg-light rounded-3 flex-shrink-0" style={{ width: "60px", height: "60px" }}>
-                        {item.image && (
+                        {(item.image || item.images?.[0]) && (
                           <Image
-                            src={item.image}
+                            src={item.image || item.images?.[0]}
                             alt={item.name}
                             fill
                             sizes="60px"
@@ -573,20 +691,19 @@ export default function CheckoutPage() {
                       <div className="flex-grow-1">
                         <div className="fw-bold text-dark small mb-0">{item.name}</div>
                         <div className="text-muted" style={{ fontSize: "0.75rem" }}>
-                          Grade: <strong className="text-primary">{item.condition || "Good"}</strong> • {item.storage || "128GB"} • Qty: {item.quantity}
+                          Grade: <strong className="text-primary">{item.condition || "Good"}</strong> • {item.storage || "128GB"} • Qty: {item.quantity || 1}
                         </div>
                         <div className="text-success" style={{ fontSize: "0.75rem" }}>
                           ✓ Passed 50-Point Diagnostic Check
                         </div>
                       </div>
                       <div className="fw-bold text-primary text-end small">
-                        {formatCurrency(Number(item.price) * Number(item.quantity))}
+                        {formatCurrency(Number(item.price) * Number(item.quantity || 1))}
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Pricing Summary */}
                 <div className="border-top pt-3 text-secondary small d-flex flex-column gap-2">
                   <div className="d-flex justify-content-between">
                     <span>Items Subtotal</span>
@@ -610,23 +727,12 @@ export default function CheckoutPage() {
                     <span className="fw-bold text-primary">{formatCurrency(orderTotal)}</span>
                   </div>
                 </div>
-
-                {/* Trust Badges Bar */}
-                <div className="bg-light border rounded-3 p-3 mt-4 text-secondary small">
-                  <div className="d-flex align-items-center gap-2 mb-1 text-dark fw-bold">
-                    <Award size={18} className="text-success" />
-                    <span>Includes Official Inspection Certificate</span>
-                  </div>
-                  <p className="mb-0 text-muted" style={{ fontSize: "0.75rem" }}>
-                    Your digital 50-Point Diagnostic Certificate with IMEI verification will be generated immediately on the next page.
-                  </p>
-                </div>
               </div>
             </div>
           </div>
         </form>
 
-        {/* Add / Edit Address Modal Overlay */}
+        {/* Modal Overlay for Adding/Editing Address */}
         {isModalOpen && (
           <div className="modal-backdrop-custom">
             <div
@@ -639,7 +745,6 @@ export default function CheckoutPage() {
                 style={{ maxWidth: "560px", animation: "modalPop 0.25s ease-out forwards" }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Modal Header */}
                 <div className="p-4 border-bottom bg-light d-flex align-items-center justify-content-between">
                   <div className="d-flex align-items-center gap-2">
                     <div className="bg-primary text-white p-2 rounded-3">
@@ -647,7 +752,7 @@ export default function CheckoutPage() {
                     </div>
                     <div>
                       <h5 className="fw-bold text-primary mb-0">
-                        {editingAddressId ? "Edit Delivery Address" : "Add New Delivery Address"}
+                        {editingAddressId ? "Edit Delivery Address" : "Add Delivery Address"}
                       </h5>
                       <small className="text-muted">Enter accurate shipping details for tracked dispatch</small>
                     </div>
@@ -662,7 +767,6 @@ export default function CheckoutPage() {
                   </button>
                 </div>
 
-                {/* Modal Form */}
                 <form onSubmit={handleSaveAddressFromModal} className="p-4">
                   <div className="row g-3">
                     <div className="col-12">
@@ -678,7 +782,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-dark">First Name</label>
+                      <label className="form-label small fw-semibold text-dark">First Name <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         className="form-control"
@@ -690,7 +794,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-dark">Last Name</label>
+                      <label className="form-label small fw-semibold text-dark">Last Name <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         className="form-control"
@@ -702,7 +806,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-dark">Email Address</label>
+                      <label className="form-label small fw-semibold text-dark">Email Address <span className="text-danger">*</span></label>
                       <input
                         type="email"
                         className="form-control"
@@ -714,7 +818,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-dark">Phone Number</label>
+                      <label className="form-label small fw-semibold text-dark">Phone Number <span className="text-danger">*</span></label>
                       <input
                         type="tel"
                         className="form-control"
@@ -726,7 +830,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="col-12">
-                      <label className="form-label small fw-semibold text-dark">Street Address</label>
+                      <label className="form-label small fw-semibold text-dark">Street Address <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         className="form-control"
@@ -738,7 +842,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="col-12 col-md-5">
-                      <label className="form-label small fw-semibold text-dark">City / Town</label>
+                      <label className="form-label small fw-semibold text-dark">City / Town <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         className="form-control"
@@ -750,7 +854,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="col-12 col-md-4">
-                      <label className="form-label small fw-semibold text-dark">Postcode</label>
+                      <label className="form-label small fw-semibold text-dark">Postcode <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         className="form-control"
@@ -770,24 +874,8 @@ export default function CheckoutPage() {
                         readOnly
                       />
                     </div>
-
-                    <div className="col-12 mt-3">
-                      <div className="form-check">
-                        <input
-                          type="checkbox"
-                          className="form-check-input"
-                          id="isDefaultModalCheck"
-                          checked={modalFormData.isDefault}
-                          onChange={(e) => setModalFormData({ ...modalFormData, isDefault: e.target.checked })}
-                        />
-                        <label className="form-check-label small text-dark cursor-pointer fw-medium" htmlFor="isDefaultModalCheck">
-                          Set as default delivery address
-                        </label>
-                      </div>
-                    </div>
                   </div>
 
-                  {/* Modal Footer Actions */}
                   <div className="d-flex align-items-center justify-content-end gap-2 mt-4 pt-3 border-top">
                     <button
                       type="button"
@@ -798,28 +886,14 @@ export default function CheckoutPage() {
                     </button>
                     <button
                       type="submit"
-                      className="btn btn-primary px-4 py-2 rounded-3 fw-bold shadow-sm d-flex align-items-center gap-2"
+                      className="btn btn-primary px-4 py-2 rounded-3 fw-bold"
                     >
-                      <span>Save Address</span>
-                      <ArrowRight size={16} />
+                      Save & Use Address
                     </button>
                   </div>
                 </form>
               </div>
             </div>
-
-            <style jsx global>{`
-              @keyframes modalPop {
-                from {
-                  opacity: 0;
-                  transform: scale(0.95);
-                }
-                to {
-                  opacity: 1;
-                  transform: scale(1);
-                }
-              }
-            `}</style>
           </div>
         )}
       </Container>

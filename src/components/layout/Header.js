@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import {
   CircleUserRound,
@@ -15,11 +16,14 @@ import {
   Sparkles,
   Award,
   ChevronDown,
-  Smartphone,
-  Check,
+  Loader2,
+  ArrowRight,
 } from "lucide-react";
 
 import { useCart } from "../../features/cart/useCart";
+import { useWishlist } from "../../features/wishlist/useWishlist";
+import { useDebounce } from "../../hooks/useDebounce";
+import { apiGet } from "../../services/apiClient";
 import { Badge, Container } from "../ui";
 import { MobileMenu } from "./MobileMenu";
 import { CartDrawer } from "../cart/CartDrawer";
@@ -39,20 +43,20 @@ const categoryDropdownMap = {
     brand: "Apple",
     items: [
       { label: "iPhone 15 Series", desc: "iPhone 15, 15 Pro, 15 Pro Max", href: "/shop?brand=Apple&search=15" },
-      { label: "iPhone 14 Series", desc: "iPhone 14, 14 Pro, 14 Plus", href: "/shop?brand=Apple&search=14" },
+      { label: "iPhone 14 Series", desc: "iPhone 14, 14 Pro, 14 Pro Max", href: "/shop?brand=Apple&search=14" },
       { label: "iPhone 13 Series", desc: "iPhone 13, 13 Mini, 13 Pro", href: "/shop?brand=Apple&search=13" },
-      { label: "iPhone 12 & Older", desc: "iPhone 12, SE, 11 Series", href: "/shop?brand=Apple&search=12" },
-      { label: "View All iPhones", desc: "Full collection of Apple handsets", href: "/shop?brand=Apple" },
+      { label: "iPhone 12 & SE", desc: "iPhone 12, SE 3rd Gen", href: "/shop?brand=Apple&search=12" },
+      { label: "View All iPhones", desc: "Full collection of pre-owned Apple handsets", href: "/shop?brand=Apple" },
     ],
   },
   "Samsung": {
     brand: "Samsung",
     items: [
+      { label: "Galaxy S24 Series", desc: "S24 Ultra, S24+, S24", href: "/shop?brand=Samsung&search=S24" },
       { label: "Galaxy S23 Series", desc: "S23 Ultra, S23+, S23", href: "/shop?brand=Samsung&search=S23" },
       { label: "Galaxy S22 Series", desc: "S22 Ultra, S22+, S22", href: "/shop?brand=Samsung&search=S22" },
-      { label: "Galaxy Z Fold & Flip", desc: "Foldable & Flip smartphones", href: "/shop?brand=Samsung&search=Fold" },
-      { label: "Galaxy Tab & Watches", desc: "Tab S9, Tab S8 & Smartwatches", href: "/shop?brand=Samsung" },
-      { label: "View All Samsung", desc: "Full collection of Samsung tech", href: "/shop?brand=Samsung" },
+      { label: "Galaxy Z Fold & Flip", desc: "Foldable Z Fold 5 & Z Flip 5", href: "/shop?brand=Samsung&search=Fold" },
+      { label: "View All Samsung", desc: "Full collection of Samsung smartphones", href: "/shop?brand=Samsung" },
     ],
   },
   "Google Pixel": {
@@ -67,10 +71,10 @@ const categoryDropdownMap = {
   "OnePlus": {
     brand: "OnePlus",
     items: [
-      { label: "OnePlus 11 / 11R", desc: "Flagship 11 & 11R series", href: "/shop?brand=OnePlus&search=11" },
-      { label: "OnePlus 10 Pro / 10T", desc: "Hasselblad Camera & Fast Charge", href: "/shop?brand=OnePlus&search=10" },
-      { label: "OnePlus Nord Series", desc: "Nord 3, Nord CE & Budget", href: "/shop?brand=OnePlus&search=Nord" },
-      { label: "View All OnePlus", desc: "Full OnePlus collection", href: "/shop?brand=OnePlus" },
+      { label: "OnePlus 12 Series", desc: "Flagship 12 & Snapdragon 8 Gen 3", href: "/shop?brand=OnePlus&search=12" },
+      { label: "OnePlus 11 / 11R", desc: "Fast charge 11 & 11R series", href: "/shop?brand=OnePlus&search=11" },
+      { label: "OnePlus Nord Series", desc: "Nord 3 & Budget models", href: "/shop?brand=OnePlus&search=Nord" },
+      { label: "View All OnePlus", desc: "Full OnePlus phone collection", href: "/shop?brand=OnePlus" },
     ],
   },
   "Xiaomi": {
@@ -79,17 +83,16 @@ const categoryDropdownMap = {
       { label: "Xiaomi 13 / 13 Pro", desc: "Leica Camera & Snapdragon 8 Gen 2", href: "/shop?brand=Xiaomi&search=13" },
       { label: "Poco F & X Series", desc: "Gaming & High-performance", href: "/shop?brand=Xiaomi&search=Poco" },
       { label: "Redmi Note Series", desc: "Redmi Note 12 & 11", href: "/shop?brand=Xiaomi&search=Redmi" },
-      { label: "View All Xiaomi", desc: "Full Xiaomi collection", href: "/shop?brand=Xiaomi" },
+      { label: "View All Xiaomi", desc: "Full Xiaomi smartphone catalog", href: "/shop?brand=Xiaomi" },
     ],
   },
   "Other Brands": {
     brand: "Other",
     items: [
-      { label: "Motorola Edge & Razr", desc: "Foldables & Edge series", href: "/shop?brand=Motorola" },
-      { label: "Sony Xperia & PlayStation", desc: "PS5, Portal & Xperia", href: "/shop?brand=Sony" },
-      { label: "Lenovo ThinkPad", desc: "Business Laptops & X1 Carbon", href: "/shop?brand=Lenovo" },
-      { label: "ASUS ROG Gaming", desc: "Gaming Laptops & ROG Strix", href: "/shop?brand=ASUS" },
-      { label: "View All Store Products", desc: "Browse full product catalog", href: "/shop" },
+      { label: "Nothing Phone Series", desc: "Nothing Phone (2) & (1) Glyph LEDs", href: "/shop?search=Nothing" },
+      { label: "Motorola Edge & Razr", desc: "Edge 40 Pro & Foldables", href: "/shop?search=Motorola" },
+      { label: "Sony Xperia Series", desc: "Xperia 1 V & 5 V", href: "/shop?search=Sony" },
+      { label: "View All Refurbished Phones", desc: "Browse full phone catalog", href: "/shop" },
     ],
   },
 };
@@ -105,12 +108,17 @@ const defaultCategories = [
 
 export function Header({
   brandName = "Electronic Store",
-  wishlistCount = 0,
+  wishlistCount: propWishlistCount,
   navItems = defaultNavItems,
   categories = defaultCategories,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchContainerRef = useRef(null);
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [hoveredCategory, setHoveredCategory] = useState(null);
@@ -118,6 +126,11 @@ export function Header({
   const router = useRouter();
   const pathname = usePathname();
   const { itemCount, openCartDrawer } = useCart();
+  const { wishlistCount: contextWishlistCount } = useWishlist();
+  const wishlistCount = propWishlistCount !== undefined ? propWishlistCount : contextWishlistCount;
+
+  // 300ms Debounce for live search API queries
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   useEffect(() => {
     const syncUser = async () => {
@@ -136,6 +149,52 @@ export function Header({
     };
   }, []);
 
+  // Fetch live search results when debounced query changes
+  useEffect(() => {
+    async function performSearch() {
+      const query = debouncedSearchQuery.trim();
+      if (query.length < 2) {
+        setSearchResults([]);
+        setShowSearchDropdown(false);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      setShowSearchDropdown(true);
+
+      try {
+        const res = await apiGet(`/products?search=${encodeURIComponent(query)}`);
+        if (res?.success && Array.isArray(res.products)) {
+          setSearchResults(res.products.slice(0, 5));
+        } else {
+          setSearchResults([]);
+        }
+      } catch (err) {
+        console.error("Live search API error:", err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }
+
+    performSearch();
+  }, [debouncedSearchQuery]);
+
+  // Click outside to close search popover
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setShowSearchDropdown(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const handleAccountClick = () => {
     if (currentUser) {
       router.push("/account");
@@ -147,8 +206,15 @@ export function Header({
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      setShowSearchDropdown(false);
       router.push(`/shop?search=${encodeURIComponent(searchQuery.trim())}`);
     }
+  };
+
+  const handleSelectSearchResult = (slug) => {
+    setShowSearchDropdown(false);
+    setSearchQuery("");
+    router.push(`/product/${slug}`);
   };
 
   const isNavActive = (href, hasDropdown) => {
@@ -208,6 +274,7 @@ export function Header({
                 className="btn btn-light p-2 d-lg-none rounded-3 border"
                 onClick={() => setMenuOpen(true)}
                 aria-label="Open mobile menu"
+                suppressHydrationWarning
               >
                 <Menu size={22} />
               </button>
@@ -240,21 +307,117 @@ export function Header({
 
             {/* Search Form & User Actions */}
             <div className="d-flex align-items-center gap-2">
-              {/* Search Bar */}
-              <form onSubmit={handleSearchSubmit} className="d-none d-md-flex align-items-center me-2">
-                <div className="input-group input-group-sm" style={{ width: "240px" }}>
-                  <input
-                    type="search"
-                    className="form-control bg-light border-end-0 rounded-start-pill ps-3"
-                    placeholder="Search phones..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  <button type="submit" className="btn btn-outline-secondary border-start-0 rounded-end-pill px-3">
-                    <Search size={14} />
-                  </button>
-                </div>
-              </form>
+              {/* Live Debounced Search Bar */}
+              <div ref={searchContainerRef} className="position-relative d-none d-md-block me-2">
+                <form onSubmit={handleSearchSubmit} className="d-flex align-items-center">
+                  <div className="input-group input-group-sm" style={{ width: "260px" }}>
+                    <input
+                      type="search"
+                      className="form-control bg-light border-end-0 rounded-start-pill ps-3"
+                      placeholder="Search phones..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onFocus={() => {
+                        if (searchQuery.trim().length >= 2) setShowSearchDropdown(true);
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      className="btn btn-outline-secondary border-start-0 rounded-end-pill px-3"
+                      aria-label="Search"
+                      suppressHydrationWarning
+                    >
+                      {isSearching ? (
+                        <Loader2 size={14} className="spinner-border spinner-border-sm p-0 border-2" />
+                      ) : (
+                        <Search size={14} />
+                      )}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Instant Search Results Autocomplete Dropdown Popover */}
+                {showSearchDropdown && (
+                  <div
+                    className="position-absolute start-0 top-100 bg-white border rounded-4 shadow-lg mt-2 overflow-hidden"
+                    style={{
+                      width: "340px",
+                      zIndex: 1060,
+                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                    }}
+                  >
+                    <div className="bg-light px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
+                      <span className="small fw-bold text-muted text-uppercase" style={{ letterSpacing: "0.05em", fontSize: "0.7rem" }}>
+                        Matching Products ({searchResults.length})
+                      </span>
+                      {isSearching && <span className="spinner-border spinner-border-sm text-primary" style={{ width: "12px", height: "12px" }} />}
+                    </div>
+
+                    <div className="p-1">
+                      {isSearching && searchResults.length === 0 ? (
+                        <div className="p-3 text-center text-muted small">
+                          Searching live catalog...
+                        </div>
+                      ) : searchResults.length === 0 ? (
+                        <div className="p-3 text-center text-muted small">
+                          No phones matching "<strong>{searchQuery}</strong>" found.
+                        </div>
+                      ) : (
+                        searchResults.map((product) => (
+                          <div
+                            key={product._id || product.slug}
+                            className="p-2 rounded-3 hover-bg-light cursor-pointer transition-all d-flex align-items-center gap-2.5 border-bottom border-light"
+                            onClick={() => handleSelectSearchResult(product.slug)}
+                            style={{ cursor: "pointer" }}
+                          >
+                            <div className="position-relative border rounded-2 overflow-hidden flex-shrink-0 bg-white" style={{ width: "42px", height: "42px" }}>
+                              <Image
+                                src={product.images?.[0] || "https://placehold.co/800x800/EEF2F7/0F172A?text=Phone"}
+                                alt={product.name}
+                                fill
+                                sizes="42px"
+                                style={{ objectFit: "cover" }}
+                                unoptimized
+                              />
+                            </div>
+
+                            <div className="flex-fill overflow-hidden">
+                              <div className="fw-bold text-dark text-truncate" style={{ fontSize: "0.85rem" }}>
+                                {product.name}
+                              </div>
+                              <div className="d-flex align-items-center gap-1.5 small text-muted" style={{ fontSize: "0.72rem" }}>
+                                <span>{product.brand}</span>
+                                <span>•</span>
+                                <span className="text-primary fw-semibold">£{product.price}</span>
+                                {product.condition && (
+                                  <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-1 py-0" style={{ fontSize: "0.62rem" }}>
+                                    {product.condition}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {searchQuery.trim().length >= 2 && (
+                      <div className="bg-light p-2 text-center border-top">
+                        <button
+                          type="button"
+                          className="btn btn-link btn-sm text-primary fw-bold text-decoration-none p-0 d-inline-flex align-items-center gap-1"
+                          style={{ fontSize: "0.78rem" }}
+                          onClick={handleSearchSubmit}
+                          suppressHydrationWarning
+                        >
+                          <span>View all results for "{searchQuery}"</span>
+                          <ArrowRight size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Account Button (Triggers AuthModal if logged out) */}
               <button
@@ -262,6 +425,7 @@ export function Header({
                 className="btn btn-outline-light text-dark p-2 border-0 rounded-3 d-flex align-items-center gap-2"
                 onClick={handleAccountClick}
                 title={currentUser ? `Account (${currentUser.name})` : "Log In / Register"}
+                suppressHydrationWarning
               >
                 <div className="position-relative">
                   <CircleUserRound size={22} className="text-primary" />
@@ -301,6 +465,7 @@ export function Header({
                 className="btn btn-primary px-3 py-2 rounded-3 d-flex align-items-center gap-2 shadow-sm border-0"
                 onClick={openCartDrawer}
                 title="Shopping Cart"
+                suppressHydrationWarning
               >
                 <div className="position-relative">
                   <ShoppingCart size={20} />
@@ -442,4 +607,3 @@ export function Header({
     </header>
   );
 }
-

@@ -81,33 +81,71 @@ export function CartProvider({ children }) {
   const closeCartDrawer = useCallback(() => setIsCartDrawerOpen(false), []);
   const toggleCartDrawer = useCallback(() => setIsCartDrawerOpen((prev) => !prev), []);
 
-  // Listen for auth changes and sync cart from MongoDB
+  // Sync cart from MongoDB or LocalStorage with auto-merging for logged-in users
   useEffect(() => {
     async function loadCartData() {
       const user = await getCurrentUser();
       setCurrentUser(user);
 
+      let localCartItems = [];
+      if (typeof window !== "undefined") {
+        try {
+          const storedCart = window.localStorage.getItem(STORAGE_KEY);
+          if (storedCart) {
+            const parsed = JSON.parse(storedCart);
+            if (parsed && Array.isArray(parsed.items)) {
+              localCartItems = parsed.items;
+            }
+          }
+        } catch {}
+      }
+
       if (user) {
         try {
           const res = await apiGet(`/cart?userId=${user.id || user._id}`);
-          if (res?.success && Array.isArray(res.items) && res.items.length > 0) {
-            dispatch({ type: "HYDRATE", payload: { items: res.items } });
+          let dbItems = (res?.success && Array.isArray(res.items)) ? res.items : [];
+
+          // Merge guest cart items with MongoDB cart items upon login
+          if (localCartItems.length > 0) {
+            const itemMap = new Map();
+            dbItems.forEach((item) => {
+              const key = item.itemKey || item.id || item.slug;
+              if (key) itemMap.set(key, { ...item });
+            });
+
+            localCartItems.forEach((item) => {
+              const key = item.itemKey || item.id || item.slug;
+              if (key) {
+                if (itemMap.has(key)) {
+                  const existing = itemMap.get(key);
+                  existing.quantity = (existing.quantity || 1) + (item.quantity || 1);
+                } else {
+                  itemMap.set(key, { ...item });
+                }
+              }
+            });
+
+            dbItems = Array.from(itemMap.values());
+
+            // Clear guest local storage cart after successful merge
+            if (typeof window !== "undefined") {
+              window.localStorage.removeItem(STORAGE_KEY);
+            }
+
+            // Persist merged cart to MongoDB Atlas
+            await apiPost("/cart", {
+              userId: user.id || user._id,
+              items: dbItems,
+            });
           }
+
+          dispatch({ type: "HYDRATE", payload: { items: dbItems } });
         } catch (e) {
           console.error("Cart sync error:", e);
+          dispatch({ type: "HYDRATE", payload: { items: localCartItems } });
         }
       } else {
-        if (typeof window !== "undefined") {
-          try {
-            const storedCart = window.localStorage.getItem(STORAGE_KEY);
-            if (storedCart) {
-              const parsed = JSON.parse(storedCart);
-              if (parsed && Array.isArray(parsed.items)) {
-                dispatch({ type: "HYDRATE", payload: { items: parsed.items } });
-              }
-            }
-          } catch {}
-        }
+        dispatch({ type: "HYDRATE", payload: { items: localCartItems } });
       }
       setHydrated(true);
     }
@@ -128,7 +166,7 @@ export function CartProvider({ children }) {
     };
   }, []);
 
-  // Persist cart to MongoDB when logged in, or localStorage when guest
+  // Persist cart updates to MongoDB when logged in, or localStorage when guest
   useEffect(() => {
     if (!hydrated) return;
 

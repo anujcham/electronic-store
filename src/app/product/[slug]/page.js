@@ -12,7 +12,10 @@ export default async function ProductPage({ params }) {
     notFound();
   }
 
-  const relatedProducts = (await getProducts())
+  const productsResult = await getProducts();
+  const allProducts = Array.isArray(productsResult) ? productsResult : (productsResult?.products || []);
+
+  const relatedProducts = allProducts
     .filter((item) => item.slug !== product.slug && item.category === product.category)
     .slice(0, 4);
 

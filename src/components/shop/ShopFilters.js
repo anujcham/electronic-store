@@ -1,42 +1,44 @@
 "use client";
 
-import { Check, RotateCcw, ShieldCheck, Tag, Zap } from "lucide-react";
+import { Tag, ShieldCheck } from "lucide-react";
 
 export function ShopFilters({
-  categoryOptions,
-  selectedCategories,
-  onCategoryToggle,
-  brandOptions,
-  selectedBrands,
+  brandOptions = [],
+  selectedBrands = [],
   onBrandToggle,
-  minPrice,
-  maxPrice,
+  minPrice = "",
+  maxPrice = "",
   onMinPriceChange,
   onMaxPriceChange,
-  conditionOptions,
-  selectedConditions,
+  conditionOptions = [],
+  selectedConditions = [],
   onConditionToggle,
-  storageOptions,
-  selectedStorages,
+  storageOptions = [],
+  selectedStorages = [],
   onStorageToggle,
   inStockOnly = false,
   onInStockToggle,
 }) {
   const pricePresets = [
-    { label: "Under £200", min: "", max: "200" },
-    { label: "£200 – £400", min: "200", max: "400" },
-    { label: "£400 – £600", min: "400", max: "600" },
-    { label: "£600+", min: "600", max: "" },
+    { label: "Under £300", min: "", max: "300" },
+    { label: "£300 – £500", min: "300", max: "500" },
+    { label: "£500 – £800", min: "500", max: "800" },
+    { label: "£800+", min: "800", max: "" },
   ];
 
   const handlePricePreset = (preset) => {
-    onMinPriceChange(preset.min);
-    onMaxPriceChange(preset.max);
+    if (String(minPrice || "") === String(preset.min || "") && String(maxPrice || "") === String(preset.max || "")) {
+      onMinPriceChange("");
+      onMaxPriceChange("");
+    } else {
+      onMinPriceChange(preset.min);
+      onMaxPriceChange(preset.max);
+    }
   };
 
   return (
     <aside className="bg-white border rounded-4 p-4 h-100 shadow-sm" style={{ borderColor: "rgba(148, 163, 184, 0.2)" }}>
-      {/* Title */}
+      {/* Header */}
       <div className="d-flex align-items-center justify-content-between border-bottom pb-3 mb-4">
         <h5 className="fw-bold text-primary mb-0 d-flex align-items-center gap-2">
           <Tag size={18} /> Filter Devices
@@ -58,21 +60,23 @@ export function ShopFilters({
         </div>
       </div>
 
-      {/* Phone Categories */}
+      {/* Phone Brands */}
       <div className="mb-4 pb-4 border-bottom">
-        <label className="form-label fw-bold text-dark small text-uppercase tracking-wider mb-2">
-          Brand Category
+        <label className="form-label fw-bold text-dark small text-uppercase tracking-wider mb-2.5">
+          Smartphone Brand
         </label>
         <div className="d-flex flex-column gap-2">
-          {categoryOptions.map((option) => {
-            const isSelected = selectedCategories.includes(option.value);
+          {brandOptions.map((brand) => {
+            const isSelected = selectedBrands.includes(brand);
             return (
               <div
-                key={option.value}
+                key={brand}
                 className={`d-flex align-items-center justify-content-between rounded-3 px-3 py-2.5 border transition-all cursor-pointer ${
-                  isSelected ? "border-primary bg-primary-subtle bg-opacity-10 shadow-sm fw-bold text-primary" : "border-light-subtle bg-white text-dark hover-bg-light"
+                  isSelected
+                    ? "border-primary bg-primary-subtle bg-opacity-10 shadow-sm fw-bold text-primary"
+                    : "border-light-subtle bg-white text-dark hover-bg-light"
                 }`}
-                onClick={() => onCategoryToggle(option.value)}
+                onClick={() => onBrandToggle && onBrandToggle(brand)}
                 style={{ cursor: "pointer", fontSize: "0.9rem" }}
               >
                 <div className="d-flex align-items-center gap-2.5">
@@ -80,9 +84,10 @@ export function ShopFilters({
                     type="checkbox"
                     className="form-check-input mt-0"
                     checked={isSelected}
-                    onChange={() => onCategoryToggle(option.value)}
+                    readOnly
+                    style={{ pointerEvents: "none" }}
                   />
-                  <span>{option.label}</span>
+                  <span>{brand}</span>
                 </div>
               </div>
             );
@@ -95,17 +100,22 @@ export function ShopFilters({
         <label className="form-label fw-bold text-dark small text-uppercase tracking-wider mb-2.5">
           Price Range (£)
         </label>
-        
+
         {/* Presets */}
         <div className="d-flex flex-wrap gap-2 mb-3">
           {pricePresets.map((preset) => {
-            const isPresetActive = minPrice === preset.min && maxPrice === preset.max;
+            const isPresetActive =
+              (minPrice !== "" || maxPrice !== "") &&
+              String(minPrice || "") === String(preset.min || "") &&
+              String(maxPrice || "") === String(preset.max || "");
             return (
               <button
                 key={preset.label}
                 type="button"
                 className={`btn btn-xs rounded-pill px-3 py-1.5 transition-all ${
-                  isPresetActive ? "btn-primary fw-bold shadow-xs text-white" : "btn-outline-secondary text-dark hover-bg-light"
+                  isPresetActive
+                    ? "btn-primary fw-bold shadow-xs text-white"
+                    : "btn-outline-secondary text-dark hover-bg-light"
                 }`}
                 style={{ fontSize: "0.78rem" }}
                 onClick={() => handlePricePreset(preset)}
@@ -141,16 +151,16 @@ export function ShopFilters({
         </div>
       </div>
 
-      {/* Refurbished Cosmetic Condition Grade */}
+      {/* Cosmetic Condition Tier */}
       <div className="mb-4 pb-4 border-bottom">
         <label className="form-label fw-bold text-dark small text-uppercase tracking-wider mb-2.5">
-          Cosmetic Condition Tier
+          Cosmetic Grade
         </label>
         <div className="d-flex flex-column gap-2">
           {conditionOptions.map((condition) => {
             const isSelected = selectedConditions.includes(condition);
             let gradeBadgeClass = "bg-primary-subtle text-primary border-primary";
-            if (condition.toLowerCase().includes("pristine") || condition.toLowerCase().includes("excellent")) {
+            if (condition.toLowerCase().includes("pristine") || condition.toLowerCase().includes("excellent") || condition.toLowerCase().includes("like new")) {
               gradeBadgeClass = "bg-success-subtle text-success border-success-subtle";
             } else if (condition.toLowerCase().includes("good")) {
               gradeBadgeClass = "bg-info-subtle text-info border-info-subtle";
@@ -160,9 +170,11 @@ export function ShopFilters({
               <div
                 key={condition}
                 className={`d-flex align-items-center justify-content-between rounded-3 px-3 py-2.5 border transition-all cursor-pointer ${
-                  isSelected ? "border-primary bg-primary-subtle bg-opacity-10 shadow-sm" : "border-light-subtle bg-white hover-bg-light"
+                  isSelected
+                    ? "border-primary bg-primary-subtle bg-opacity-10 shadow-sm"
+                    : "border-light-subtle bg-white hover-bg-light"
                 }`}
-                onClick={() => onConditionToggle(condition)}
+                onClick={() => onConditionToggle && onConditionToggle(condition)}
                 style={{ cursor: "pointer" }}
               >
                 <div className="d-flex align-items-center gap-2.5">
@@ -170,14 +182,15 @@ export function ShopFilters({
                     type="checkbox"
                     className="form-check-input mt-0"
                     checked={isSelected}
-                    onChange={() => onConditionToggle(condition)}
+                    readOnly
+                    style={{ pointerEvents: "none" }}
                   />
                   <span className={`small fw-bold ${isSelected ? "text-primary" : "text-dark"}`}>
                     {condition}
                   </span>
                 </div>
                 <span className={`badge border px-2 py-1 ${gradeBadgeClass}`} style={{ fontSize: "0.65rem" }}>
-                  Verified Grade
+                  Certified Grade
                 </span>
               </div>
             );
@@ -201,7 +214,7 @@ export function ShopFilters({
                   isSelected ? "btn-primary shadow-xs" : "btn-light border text-dark hover-bg-light"
                 }`}
                 style={{ fontSize: "0.8rem" }}
-                onClick={() => onStorageToggle(storage)}
+                onClick={() => onStorageToggle && onStorageToggle(storage)}
               >
                 {storage}
               </button>
@@ -210,14 +223,13 @@ export function ShopFilters({
         </div>
       </div>
 
-      {/* Quality Notice */}
+      {/* Assurance Notice */}
       <div className="bg-light border rounded-3 p-3 text-muted small mt-4" style={{ fontSize: "0.78rem" }}>
         <div className="d-flex align-items-center gap-1.5 fw-bold text-dark mb-1">
-          <ShieldCheck size={16} className="text-success" /> Quality Assured
+          <ShieldCheck size={16} className="text-success" /> Quality Guarantee
         </div>
-        Every refurbished phone includes a 12-Month Seller Warranty, 85%+ Battery Guarantee, and 50-Point Diagnostic Certificate.
+        All pre-owned phones pass 50-point diagnostic checks with 12-month seller warranty and 85%+ battery health.
       </div>
     </aside>
   );
 }
-
