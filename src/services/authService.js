@@ -18,9 +18,6 @@ function notifyUserChanged() {
 }
 
 export async function getCurrentUser() {
-  const apiResult = await apiGet("/auth/me").catch(() => null);
-  if (apiResult) return apiResult;
-
   if (typeof window !== "undefined") {
     try {
       const stored = window.localStorage.getItem(USER_STORAGE_KEY);
@@ -33,33 +30,22 @@ export async function getCurrentUser() {
 }
 
 export async function loginUser({ email, password }) {
-  const apiResult = await apiPost("/auth/login", { email, password }).catch(() => null);
-  if (apiResult?.user) {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(apiResult.user));
-      if (apiResult.token) {
-        window.localStorage.setItem("electroVault.authToken", apiResult.token);
+  try {
+    const apiResult = await apiPost("/auth/login", { email, password });
+    if (apiResult?.success && apiResult?.user) {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(apiResult.user));
+        if (apiResult.token) {
+          window.localStorage.setItem("electroVault.authToken", apiResult.token);
+        }
       }
+      notifyUserChanged();
+      return { success: true, user: apiResult.user };
     }
-    notifyUserChanged();
-    return apiResult.user;
+    return { success: false, error: apiResult?.error || "Account not found or invalid credentials." };
+  } catch (err) {
+    return { success: false, error: err.message || "Invalid credentials. Please check or create an account." };
   }
-
-  // Fallback demo authentication
-  const user = {
-    id: "user-" + Date.now(),
-    name: email.split("@")[0].replace(".", " ") || "John Doe",
-    email: email || "john.doe@example.co.uk",
-    phone: "+44 7700 900077",
-    memberSince: "Just Now",
-    isVerified: true,
-  };
-
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-  }
-  notifyUserChanged();
-  return user;
 }
 
 export async function loginDemoUser() {
@@ -71,34 +57,46 @@ export async function loginDemoUser() {
 }
 
 export async function registerUser(userData) {
-  const apiResult = await apiPost("/auth/register", userData).catch(() => null);
-  if (apiResult?.user) {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(apiResult.user));
+  try {
+    const apiResult = await apiPost("/auth/register", userData);
+    if (apiResult?.success) {
+      return {
+        success: true,
+        user: apiResult.user,
+        otp: apiResult.otp, // Dev OTP returned for instant testing
+      };
     }
-    notifyUserChanged();
-    return apiResult.user;
+    return { success: false, error: apiResult?.error || "Registration failed." };
+  } catch (err) {
+    return { success: false, error: err.message || "Registration failed." };
   }
+}
 
-  const user = {
-    id: "user-" + Date.now(),
-    name: userData.name || "John Doe",
-    email: userData.email || "john.doe@example.co.uk",
-    phone: userData.phone || "+44 7700 900077",
-    memberSince: "Just Now",
-    isVerified: true,
-  };
-
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+export async function sendOtpApi({ email, phone }) {
+  try {
+    return await apiPost("/auth/send-otp", { email, phone });
+  } catch (err) {
+    return { success: false, error: err.message };
   }
-  notifyUserChanged();
-  return user;
+}
+
+export async function verifyOtpApi({ email, phone, otp }) {
+  try {
+    const apiResult = await apiPost("/auth/verify-otp", { email, phone, otp });
+    if (apiResult?.success && apiResult?.user) {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(apiResult.user));
+      }
+      notifyUserChanged();
+      return { success: true, user: apiResult.user };
+    }
+    return { success: false, error: apiResult?.error || "Invalid OTP entered." };
+  } catch (err) {
+    return { success: false, error: err.message || "OTP verification failed." };
+  }
 }
 
 export async function logoutUser() {
-  await apiPost("/auth/logout", {}).catch(() => null);
-
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(USER_STORAGE_KEY);
     window.localStorage.removeItem("electroVault.authToken");
@@ -106,4 +104,3 @@ export async function logoutUser() {
   notifyUserChanged();
   return true;
 }
-
