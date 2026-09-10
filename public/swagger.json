@@ -1,0 +1,141 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Electronic Store API Blueprint",
+    "version": "1.0.0",
+    "description": "Full REST API specification for Electronic Store e-commerce platform built with Next.js & MongoDB Atlas."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/products": {
+      "get": {
+        "summary": "Get all products or search/filter catalog",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filter products by category name"
+          },
+          {
+            "name": "brand",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filter products by brand name"
+          },
+          {
+            "name": "featured",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["true", "false"] },
+            "description": "Fetch only featured products"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Search keyword for product name, brand, or description"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of products retrieved from MongoDB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "count": { "type": "integer" },
+                    "products": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Product" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products/{slug}": {
+      "get": {
+        "summary": "Get product details by slug",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Unique product slug (e.g. iphone-15-pro-max)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Single product details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "product": { "$ref": "#/components/schemas/Product" }
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Product not found"
+            }
+          }
+        }
+      }
+    },
+    "/products/seed": {
+      "get": {
+        "summary": "Seed database with initial catalog products",
+        "responses": {
+          "200": {
+            "description": "Database seeded successfully"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "slug": { "type": "string" },
+          "name": { "type": "string" },
+          "brand": { "type": "string" },
+          "category": { "type": "string" },
+          "subcategory": { "type": "string" },
+          "price": { "type": "number" },
+          "originalPrice": { "type": "number" },
+          "condition": { "type": "string" },
+          "rating": { "type": "number" },
+          "reviewCount": { "type": "integer" },
+          "images": { "type": "array", "items": { "type": "string" } },
+          "shortDescription": { "type": "string" },
+          "description": { "type": "string" },
+          "storage": { "type": "string" },
+          "color": { "type": "string" },
+          "stock": { "type": "integer" },
+          "featured": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

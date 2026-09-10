@@ -1,0 +1,118 @@
+{
+  "info": {
+    "_postman_id": "electronic-store-api-v1",
+    "name": "Electronic Store API Collection",
+    "description": "Complete REST API collection for Electronic Store e-commerce platform.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Products API",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"]
+            },
+            "description": "Fetch all catalog products from MongoDB database."
+          }
+        },
+        {
+          "name": "Filter Products by Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?category=Smartphones",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Smartphones"
+                }
+              ]
+            },
+            "description": "Filter products by category name."
+          }
+        },
+        {
+          "name": "Filter Featured Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?featured=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"],
+              "query": [
+                {
+                  "key": "featured",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Fetch featured products for home page."
+          }
+        },
+        {
+          "name": "Search Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?search=iPhone",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "iPhone"
+                }
+              ]
+            },
+            "description": "Search products by keyword in name, brand or description."
+          }
+        },
+        {
+          "name": "Get Product by Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/iphone-15-pro-max",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "iphone-15-pro-max"]
+            },
+            "description": "Fetch single product details by slug."
+          }
+        },
+        {
+          "name": "Seed Products Database",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/seed",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "seed"]
+            },
+            "description": "Reset and populate database with sample catalog."
+          }
+        }
+      ]
+    }
+  ]
+}
