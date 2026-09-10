@@ -29,7 +29,15 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     await dbConnect();
-    const { userId, fullName, phone, addressLine1, addressLine2, city, postcode, country, isDefault } = await request.json();
+    const body = await request.json();
+    const { userId, isDefault } = body;
+    const fullName = body.fullName || `${body.firstName || ''} ${body.lastName || ''}`.trim();
+    const phone = body.phone || '';
+    const addressLine1 = body.addressLine1 || body.address || '';
+    const addressLine2 = body.addressLine2 || '';
+    const city = body.city || '';
+    const postcode = body.postcode || '';
+    const country = body.country || 'United Kingdom';
 
     if (!userId || !fullName || !phone || !addressLine1 || !city || !postcode) {
       return NextResponse.json(

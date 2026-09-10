@@ -17,6 +17,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Trash2,
+  FileCheck2,
+  Clock,
 } from "lucide-react";
 
 import { Container, Badge, Button } from "../../components/ui";
@@ -172,7 +174,7 @@ export default function AccountPage() {
   }
 
   return (
-    <main className="py-5 py-lg-6 bg-soft">
+    <main className="py-5 py-lg-6 bg-soft min-vh-100">
       <Container>
         {/* Breadcrumb Nav */}
         <nav aria-label="Breadcrumb" className="mb-3">
@@ -285,100 +287,173 @@ export default function AccountPage() {
                 {/* TAB 1: ORDERS */}
                 {activeTab === "orders" && (
                   <div className="bg-white border rounded-4 p-4 p-md-5 shadow-sm">
-                    <h5 className="fw-bold text-primary mb-4">Refurbished Phone Orders</h5>
+                    <div className="d-flex align-items-center justify-content-between mb-4">
+                      <div>
+                        <h5 className="fw-bold text-primary mb-1">Refurbished Phone Orders</h5>
+                        <p className="text-secondary small mb-0">Track active shipments and view diagnostic inspection reports from MongoDB.</p>
+                      </div>
+                      <Badge variant="primary">{orders.length} {orders.length === 1 ? "Order" : "Orders"}</Badge>
+                    </div>
 
                     {orders.length === 0 ? (
-                      <div className="text-center py-5">
-                        <Package size={48} className="text-muted mb-3 opacity-50" />
+                      <div className="text-center py-5 bg-light rounded-4 border border-dashed">
+                        <Package size={48} className="text-muted mb-3 opacity-50 mx-auto" />
                         <h6 className="fw-bold text-dark mb-1">No Orders Placed Yet</h6>
-                        <p className="text-muted small mb-3">Your order history and live shipping updates will appear here.</p>
-                        <Link href="/shop" className="btn btn-primary rounded-pill px-4 fw-bold">
+                        <p className="text-muted small mb-4 mx-auto" style={{ maxWidth: "22rem" }}>
+                          Your order history and step-by-step delivery progress will appear here when you place an order.
+                        </p>
+                        <Link href="/shop" className="btn btn-primary rounded-pill px-4 py-2.5 fw-bold">
                           Explore Refurbished Phones
                         </Link>
                       </div>
                     ) : (
                       <div className="d-flex flex-column gap-4">
-                        {orders.map((order) => (
-                          <div key={order._id || order.orderNumber} className="border rounded-4 overflow-hidden shadow-xs">
-                            <div className="bg-light p-3 p-md-4 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3">
-                              <div>
-                                <span className="small text-muted d-block">Order Reference</span>
-                                <strong className="text-dark font-monospace">{order.orderNumber}</strong>
-                              </div>
-                              <div>
-                                <span className="small text-muted d-block">Placed On</span>
-                                <span className="small text-dark fw-medium">
-                                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-GB") : "Recently"}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="small text-muted d-block">Total Amount</span>
-                                <strong className="text-primary">£{order.totalAmount}</strong>
-                              </div>
-                              <div>
-                                <span className={`badge ${order.orderStatus === "Delivered" ? "bg-success" : "bg-warning text-dark"} px-3 py-1.5 fs-7`}>
-                                  {order.orderStatus || "Processing"}
-                                </span>
-                              </div>
-                            </div>
+                        {orders.map((order) => {
+                          const isShipped = order.orderStatus === "Shipped" || order.orderStatus === "Delivered";
+                          const isDelivered = order.orderStatus === "Delivered";
+                          const recipientName = order.shippingAddress?.fullName || currentUser.name;
+                          const recipientAddress = order.shippingAddress
+                            ? `${order.shippingAddress.addressLine1}, ${order.shippingAddress.city}, ${order.shippingAddress.postcode}`
+                            : "Standard UK Delivery";
 
-                            <div className="p-3 p-md-4">
-                              <div className="d-flex flex-column gap-3">
-                                {order.items?.map((item, idx) => (
-                                  <div key={idx} className="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 pb-3 border-bottom border-light">
-                                    <div className="d-flex align-items-center gap-3">
-                                      <div className="position-relative border rounded-3 overflow-hidden bg-white flex-shrink-0" style={{ width: "64px", height: "64px" }}>
-                                        <Image
-                                          src={item.image || "https://placehold.co/800x800/EEF2F7/0F172A?text=Phone"}
-                                          alt={item.name}
-                                          fill
-                                          sizes="64px"
-                                          style={{ objectFit: "cover" }}
-                                          unoptimized
-                                        />
-                                      </div>
-                                      <div>
-                                        <h6 className="fw-bold text-dark mb-1">{item.name}</h6>
-                                        <div className="d-flex flex-wrap gap-1 mb-1">
-                                          {item.selectedOptions?.condition && (
-                                            <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-1.5 py-0.5" style={{ fontSize: "0.68rem" }}>
-                                              Grade: {item.selectedOptions.condition}
-                                            </span>
-                                          )}
-                                          {item.selectedOptions?.storage && (
-                                            <span className="badge bg-white text-dark border px-1.5 py-0.5" style={{ fontSize: "0.68rem" }}>
-                                              {item.selectedOptions.storage}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <small className="text-muted" style={{ fontSize: "0.75rem" }}>
-                                          12-Month Seller Warranty Included
-                                        </small>
-                                      </div>
-                                    </div>
+                          return (
+                            <div key={order._id || order.orderNumber} className="border rounded-4 overflow-hidden shadow-sm bg-white">
+                              {/* Order Header Summary Bar */}
+                              <div className="bg-light p-3 p-md-4 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3">
+                                <div>
+                                  <span className="small text-muted d-block" style={{ fontSize: "0.75rem" }}>Order Reference</span>
+                                  <strong className="text-dark font-monospace">{order.orderNumber || order._id}</strong>
+                                </div>
+                                <div>
+                                  <span className="small text-muted d-block" style={{ fontSize: "0.75rem" }}>Placed On</span>
+                                  <span className="small text-dark fw-semibold">
+                                    {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "Recently"}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="small text-muted d-block" style={{ fontSize: "0.75rem" }}>Total Paid</span>
+                                  <strong className="text-primary">£{order.totalAmount}</strong>
+                                </div>
+                                <div>
+                                  <span className={`badge ${isDelivered ? "bg-success" : isShipped ? "bg-primary" : "bg-warning text-dark"} px-3 py-1.5 fs-7 rounded-pill`}>
+                                    Status: {order.orderStatus || "Processing"}
+                                  </span>
+                                </div>
+                              </div>
 
-                                    <div className="text-sm-end">
-                                      <button
-                                        type="button"
-                                        className="btn btn-outline-primary btn-sm rounded-pill px-3 py-1.5 fw-bold d-inline-flex align-items-center gap-1.5 shadow-sm"
-                                        onClick={() => handleOpenCertModal(item)}
-                                        suppressHydrationWarning
-                                      >
-                                        <Award size={15} className="text-warning" />
-                                        <span>Inspection Cert</span>
-                                      </button>
+                              {/* Interactive Live Delivery Progress Step Timeline Bar */}
+                              <div className="p-3 p-md-4 border-bottom bg-light bg-opacity-40">
+                                <div className="d-flex align-items-center justify-content-between mb-3">
+                                  <span className="small fw-bold text-primary d-flex align-items-center gap-1.5">
+                                    <Truck size={16} /> Live Shipment Tracking & Dispatch Status
+                                  </span>
+                                  <span className="small text-muted" style={{ fontSize: "0.78rem" }}>
+                                    Tracking ID: <strong className="text-dark font-monospace">{order.trackingNumber || "GB-EV-992100"}</strong>
+                                  </span>
+                                </div>
+
+                                <div className="row g-2 text-center">
+                                  {/* Step 1 */}
+                                  <div className="col-3">
+                                    <div className="p-2.5 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 h-100">
+                                      <div className="badge bg-success mb-1" style={{ fontSize: "0.65rem" }}>✓ Done</div>
+                                      <div className="fw-bold text-dark small" style={{ fontSize: "0.78rem" }}>1. Placed</div>
+                                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>Saved</div>
                                     </div>
                                   </div>
-                                ))}
+
+                                  {/* Step 2 */}
+                                  <div className="col-3">
+                                    <div className="p-2.5 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 h-100">
+                                      <div className="badge bg-success mb-1" style={{ fontSize: "0.65rem" }}>✓ Passed</div>
+                                      <div className="fw-bold text-dark small" style={{ fontSize: "0.78rem" }}>2. 50-Point Checked</div>
+                                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>Verified</div>
+                                    </div>
+                                  </div>
+
+                                  {/* Step 3 */}
+                                  <div className="col-3">
+                                    <div className={`p-2.5 rounded-3 h-100 border ${isShipped ? "bg-success bg-opacity-10 border-success border-opacity-25" : "bg-primary bg-opacity-10 border-primary border-opacity-25"}`}>
+                                      <div className={`badge ${isShipped ? "bg-success" : "bg-primary"} mb-1`} style={{ fontSize: "0.65rem" }}>
+                                        {isShipped ? "✓ Dispatched" : "In Progress"}
+                                      </div>
+                                      <div className="fw-bold text-dark small" style={{ fontSize: "0.78rem" }}>3. Eco Sealed</div>
+                                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>Packaged</div>
+                                    </div>
+                                  </div>
+
+                                  {/* Step 4 */}
+                                  <div className="col-3">
+                                    <div className={`p-2.5 rounded-3 h-100 border ${isDelivered ? "bg-success bg-opacity-10 border-success border-opacity-25" : "bg-light border-light-subtle"}`}>
+                                      <div className={`badge ${isDelivered ? "bg-success" : "bg-secondary"} mb-1`} style={{ fontSize: "0.65rem" }}>
+                                        {isDelivered ? "✓ Delivered" : "Scheduled"}
+                                      </div>
+                                      <div className="fw-bold text-dark small" style={{ fontSize: "0.78rem" }}>4. Delivery</div>
+                                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>{order.estimatedDelivery || "2-4 Days"}</div>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
 
-                              <div className="mt-3 pt-3 border-top d-flex flex-wrap align-items-center justify-content-between text-muted small" style={{ fontSize: "0.78rem" }}>
-                                <span>🚚 Shipping via Royal Mail / DPD Tracked</span>
-                                <span>Tracking: <strong className="text-dark font-monospace">{order.trackingNumber || "GB-EV-94028104"}</strong></span>
+                              {/* Order Items Breakdown */}
+                              <div className="p-3 p-md-4">
+                                <div className="d-flex flex-column gap-3 mb-3">
+                                  {order.items?.map((item, idx) => (
+                                    <div key={idx} className="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 pb-3 border-bottom border-light">
+                                      <div className="d-flex align-items-center gap-3">
+                                        <div className="position-relative border rounded-3 overflow-hidden bg-light flex-shrink-0" style={{ width: "64px", height: "64px" }}>
+                                          <Image
+                                            src={item.image || "https://placehold.co/800x800/EEF2F7/0F172A?text=Phone"}
+                                            alt={item.name}
+                                            fill
+                                            sizes="64px"
+                                            style={{ objectFit: "cover" }}
+                                            unoptimized
+                                          />
+                                        </div>
+                                        <div>
+                                          <h6 className="fw-bold text-dark mb-1">{item.name}</h6>
+                                          <div className="d-flex flex-wrap gap-1.5 mb-1">
+                                            {item.selectedOptions?.condition && (
+                                              <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-0.5" style={{ fontSize: "0.7rem" }}>
+                                                Grade: {item.selectedOptions.condition}
+                                              </span>
+                                            )}
+                                            {item.selectedOptions?.storage && (
+                                              <span className="badge bg-white text-dark border px-2 py-0.5" style={{ fontSize: "0.7rem" }}>
+                                                {item.selectedOptions.storage}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <small className="text-muted d-block" style={{ fontSize: "0.75rem" }}>
+                                            Qty: {item.quantity || 1} • Price: £{item.price} • 12-Month Seller Warranty Active
+                                          </small>
+                                        </div>
+                                      </div>
+
+                                      <div className="text-sm-end">
+                                        <button
+                                          type="button"
+                                          className="btn btn-outline-primary btn-sm rounded-pill px-3 py-1.5 fw-bold d-inline-flex align-items-center gap-1.5 shadow-sm"
+                                          onClick={() => handleOpenCertModal(item)}
+                                          suppressHydrationWarning
+                                        >
+                                          <FileCheck2 size={15} className="text-warning" />
+                                          <span>Inspection Cert</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 text-muted small pt-1" style={{ fontSize: "0.78rem" }}>
+                                  <span>📍 Delivered to: <strong>{recipientName}</strong> ({recipientAddress})</span>
+                                  <span>🚚 Courier: <strong>Tracked UK Express (Royal Mail / DPD)</strong></span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -390,9 +465,9 @@ export default function AccountPage() {
                     <div className="d-flex align-items-center justify-content-between mb-4">
                       <div>
                         <h5 className="fw-bold text-primary mb-1">12-Month Seller Warranty Coverage</h5>
-                        <p className="text-secondary small mb-0">Every refurbished phone purchased is fully covered against hardware defects.</p>
+                        <p className="text-secondary small mb-0">Every refurbished smartphone purchased is fully protected against hardware & battery defects.</p>
                       </div>
-                      <span className="badge bg-success fs-6 px-3 py-1.5">Full Protection</span>
+                      <span className="badge bg-success fs-6 px-3 py-1.5">Full Coverage</span>
                     </div>
 
                     {orders.length === 0 ? (
@@ -407,12 +482,12 @@ export default function AccountPage() {
                               </div>
                               <div>
                                 <h6 className="fw-bold text-dark mb-0">{item.name} ({item.selectedOptions?.storage || "128GB"})</h6>
-                                <small className="text-muted">Serial/IMEI Certified • 12 Months Warranty Active</small>
+                                <small className="text-muted">Serial/IMEI Diagnostic Certified • 12 Months Active Coverage</small>
                               </div>
                             </div>
 
                             <div className="d-flex align-items-center gap-2">
-                              <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1">
+                              <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-1.5">
                                 ✓ 100% Covered
                               </span>
                             </div>
@@ -427,26 +502,38 @@ export default function AccountPage() {
                 {activeTab === "addresses" && (
                   <div className="bg-white border rounded-4 p-4 p-md-5 shadow-sm">
                     <div className="d-flex align-items-center justify-content-between mb-4">
-                      <h5 className="fw-bold text-primary mb-0">Saved Shipping Addresses</h5>
+                      <div>
+                        <h5 className="fw-bold text-primary mb-1">Saved Shipping Addresses</h5>
+                        <p className="text-secondary small mb-0">Manage delivery addresses saved in MongoDB Atlas for express checkout.</p>
+                      </div>
                       <button
                         type="button"
-                        className="btn btn-sm btn-primary rounded-pill px-3 fw-bold d-flex align-items-center gap-1"
+                        className="btn btn-sm btn-primary rounded-pill px-3 py-1.5 fw-bold d-flex align-items-center gap-1 shadow-sm"
                         onClick={() => setIsAddAddressModalOpen(true)}
                         suppressHydrationWarning
                       >
-                        <Plus size={14} /> Add New Address
+                        <Plus size={15} /> Add New Address
                       </button>
                     </div>
 
                     <div className="row g-3">
                       {addresses.length === 0 ? (
-                        <div className="col-12 text-muted py-4 text-center">
-                          No saved delivery addresses found. Click <strong>"+ Add New Address"</strong> above to add one!
+                        <div className="col-12 text-muted py-5 text-center bg-light rounded-4 border border-dashed">
+                          <MapPin size={32} className="text-muted mb-2 opacity-50 mx-auto" />
+                          <h6 className="fw-bold text-dark mb-1">No Saved Delivery Addresses</h6>
+                          <p className="small text-muted mb-3">Click below to add your shipping address to MongoDB.</p>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm px-4 rounded-pill fw-bold"
+                            onClick={() => setIsAddAddressModalOpen(true)}
+                          >
+                            <Plus size={15} /> Add Delivery Address
+                          </button>
                         </div>
                       ) : (
                         addresses.map((addr) => (
                           <div key={addr._id || addr.addressLine1} className="col-12 col-md-6">
-                            <div className="border rounded-3 p-3 bg-white shadow-xs position-relative h-100 d-flex flex-column justify-content-between">
+                            <div className="border rounded-4 p-4 bg-white shadow-xs position-relative h-100 d-flex flex-column justify-content-between">
                               <div>
                                 <div className="d-flex align-items-center justify-content-between mb-2">
                                   <span className="fw-bold text-dark">{addr.fullName}</span>
@@ -455,7 +542,7 @@ export default function AccountPage() {
                                   ) : (
                                     <button
                                       type="button"
-                                      className="btn btn-link btn-sm p-0 small text-primary text-decoration-none"
+                                      className="btn btn-link btn-sm p-0 small text-primary text-decoration-none fw-semibold"
                                       onClick={() => handleSetDefaultAddress(addr._id)}
                                       suppressHydrationWarning
                                     >
@@ -472,14 +559,14 @@ export default function AccountPage() {
                                 <p className="small text-muted mb-0">📞 {addr.phone}</p>
                               </div>
 
-                              <div className="pt-2 mt-2 border-top text-end">
+                              <div className="pt-3 mt-3 border-top text-end">
                                 <button
                                   type="button"
-                                  className="btn btn-link btn-sm text-danger p-0 text-decoration-none d-inline-flex align-items-center gap-1"
+                                  className="btn btn-link btn-sm text-danger p-0 text-decoration-none d-inline-flex align-items-center gap-1 font-weight-bold"
                                   onClick={() => handleDeleteAddress(addr._id)}
                                   suppressHydrationWarning
                                 >
-                                  <Trash2 size={14} /> Delete
+                                  <Trash2 size={14} /> Delete Address
                                 </button>
                               </div>
                             </div>
@@ -522,7 +609,7 @@ export default function AccountPage() {
                             className="form-control"
                             value={profilePhone}
                             onChange={(e) => setProfilePhone(e.target.value)}
-                            placeholder="+91 98765 43210"
+                            placeholder="+44 7700 900077"
                           />
                         </div>
                       </div>
@@ -583,7 +670,8 @@ export default function AccountPage() {
       <InspectionReportModal
         isOpen={isCertModalOpen}
         onClose={() => setIsCertModalOpen(false)}
-        product={selectedCertProduct}
+        productName={selectedCertProduct?.name || "Refurbished Smartphone"}
+        serialOrImei={selectedCertProduct?.inspectionCertId || "CERT-928371"}
       />
     </main>
   );
