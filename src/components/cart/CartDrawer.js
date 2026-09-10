@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   X,
   ShoppingBag,
@@ -16,8 +17,14 @@ import {
   Lock,
 } from "lucide-react";
 import { useCart } from "../../features/cart/useCart";
+import { AuthModal } from "../modals/AuthModal";
+import { getCurrentUser } from "../../services/authService";
 
 export function CartDrawer() {
+  const router = useRouter();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
   const {
     items,
     itemCount,
@@ -32,6 +39,31 @@ export function CartDrawer() {
   const FREE_SHIPPING_THRESHOLD = 50;
   const amountNeeded = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
   const shippingProgress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
+
+  useEffect(() => {
+    async function syncUser() {
+      const u = await getCurrentUser();
+      setCurrentUser(u);
+    }
+    syncUser();
+    window.addEventListener("electroVault-user-changed", syncUser);
+    window.addEventListener("storage", syncUser);
+    return () => {
+      window.removeEventListener("electroVault-user-changed", syncUser);
+      window.removeEventListener("storage", syncUser);
+    };
+  }, []);
+
+  const handleProceedToCheckout = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const user = await getCurrentUser();
+    if (user) {
+      closeCartDrawer();
+      router.push("/checkout");
+    } else {
+      setIsAuthModalOpen(true);
+    }
+  };
 
   // Close drawer on ESC key press
   useEffect(() => {
@@ -302,14 +334,14 @@ export function CartDrawer() {
 
             {/* Main Action Buttons */}
             <div className="d-flex flex-column gap-2 mb-3">
-              <Link
-                href="/checkout"
-                className="btn btn-primary btn-lg w-100 fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2 rounded-3"
-                onClick={closeCartDrawer}
+              <button
+                type="button"
+                className="btn btn-primary btn-lg w-100 fw-bold py-2.5 shadow-sm d-flex align-items-center justify-content-center gap-2 rounded-3 border-0"
+                onClick={handleProceedToCheckout}
               >
                 <span>Proceed to Checkout</span>
                 <ArrowRight size={18} />
-              </Link>
+              </button>
               <Link
                 href="/cart"
                 className="btn btn-outline-secondary btn-sm w-100 fw-semibold py-2 rounded-3 text-center"
@@ -332,6 +364,17 @@ export function CartDrawer() {
           </div>
         )}
       </aside>
+
+      {/* Auth Modal Triggered on Checkout when not logged in */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onLoginSuccess={(user) => {
+          setIsAuthModalOpen(false);
+          closeCartDrawer();
+          router.push("/checkout");
+        }}
+      />
 
       {/* Keyframe animation for slide in */}
       <style jsx global>{`

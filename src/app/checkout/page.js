@@ -30,6 +30,7 @@ import { useCart } from "../../features/cart/useCart";
 import { getSavedAddresses, saveAddress, deleteAddress } from "../../services/addressService";
 import { createOrder } from "../../services/orderService";
 import { getCurrentUser } from "../../services/authService";
+import { AuthModal } from "../../components/modals/AuthModal";
 
 const paymentOptions = [
   {
@@ -99,6 +100,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [addProtectionPlan, setAddProtectionPlan] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   function handleSelectSavedAddress(addr) {
     if (!addr) return;
@@ -132,6 +134,11 @@ export default function CheckoutPage() {
       const user = await getCurrentUser();
       setCurrentUser(user);
 
+      if (!user) {
+        setIsAuthModalOpen(true);
+        return;
+      }
+
       let addresses = [];
       if (user && (user.id || user._id)) {
         addresses = await getSavedAddresses(user.id || user._id);
@@ -153,6 +160,31 @@ export default function CheckoutPage() {
     }
     loadData();
   }, []);
+
+  async function handleLoginSuccess(user) {
+    setCurrentUser(user);
+    setIsAuthModalOpen(false);
+    setValidationError("");
+
+    let addresses = [];
+    if (user && (user.id || user._id)) {
+      addresses = await getSavedAddresses(user.id || user._id);
+    }
+    setSavedAddresses(addresses);
+
+    if (addresses.length > 0) {
+      const first = addresses.find((a) => a.isDefault) || addresses[0];
+      handleSelectSavedAddress(first);
+    } else {
+      setFormValues((prev) => ({
+        ...prev,
+        email: user.email || "",
+        firstName: user.name?.split(" ")[0] || "",
+        lastName: user.name?.split(" ")[1] || "",
+        phone: user.phone || "",
+      }));
+    }
+  }
 
   const fallbackItems = [
     {
@@ -305,6 +337,12 @@ export default function CheckoutPage() {
     }
     setValidationError("");
 
+    if (!currentUser) {
+      setValidationError("🔒 Login required! Please log in or create an account to place your order.");
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     const activeAddr = savedAddresses.find((a) => (a.id || a._id) === selectedAddressId) || (savedAddresses.length > 0 ? savedAddresses[0] : null);
 
     if (!activeAddr && (!formValues.address && !formValues.city && !formValues.postcode)) {
@@ -408,6 +446,25 @@ export default function CheckoutPage() {
             <Lock size={16} /> 256-Bit SSL Encrypted
           </div>
         </div>
+
+        {!currentUser && (
+          <div className="alert alert-warning border-warning border-2 rounded-4 mb-4 p-3.5 d-flex align-items-center justify-content-between shadow-sm">
+            <div className="d-flex align-items-center gap-2.5 text-dark">
+              <Lock size={20} className="text-warning flex-shrink-0" />
+              <div>
+                <strong className="d-block">Login Required for Checkout</strong>
+                <span className="small text-muted">You are currently browsing as guest. Please log in or create an account to proceed.</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-warning btn-sm px-3.5 py-1.5 rounded-pill fw-bold shadow-sm"
+              onClick={() => setIsAuthModalOpen(true)}
+            >
+              Log In / Register
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmitOrder} noValidate>
           <div className="row g-4">
@@ -896,6 +953,13 @@ export default function CheckoutPage() {
             </div>
           </div>
         )}
+
+        {/* Auth Login Modal Popup for Checkout */}
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onLoginSuccess={handleLoginSuccess}
+        />
       </Container>
     </main>
   );

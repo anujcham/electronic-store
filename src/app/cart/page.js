@@ -1,13 +1,21 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, ShieldCheck, ShoppingCart, Trash2, Truck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Minus, Plus, ShieldCheck, ShoppingCart, Trash2, Truck, ArrowRight } from "lucide-react";
 
 import { Badge, Button, Container } from "../../components/ui";
 import { useCart } from "../../features/cart/useCart";
+import { AuthModal } from "../../components/modals/AuthModal";
+import { getCurrentUser } from "../../services/authService";
 
 export default function CartPage() {
+  const router = useRouter();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
   const {
     items,
     itemCount,
@@ -19,6 +27,30 @@ export default function CartPage() {
     setQuantity,
     clearCart,
   } = useCart();
+
+  useEffect(() => {
+    async function syncUser() {
+      const u = await getCurrentUser();
+      setCurrentUser(u);
+    }
+    syncUser();
+    window.addEventListener("electroVault-user-changed", syncUser);
+    window.addEventListener("storage", syncUser);
+    return () => {
+      window.removeEventListener("electroVault-user-changed", syncUser);
+      window.removeEventListener("storage", syncUser);
+    };
+  }, []);
+
+  const handleProceedToCheckout = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const user = await getCurrentUser();
+    if (user) {
+      router.push("/checkout");
+    } else {
+      setIsAuthModalOpen(true);
+    }
+  };
 
   const hasItems = items.length > 0;
 
@@ -226,9 +258,14 @@ export default function CartPage() {
                     <Link href="/shop" className="btn btn-outline-primary btn-lg">
                       Continue Shopping
                     </Link>
-                    <Link href="/checkout" className="btn btn-primary btn-lg">
-                      Proceed to Checkout
-                    </Link>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-lg fw-bold d-inline-flex align-items-center justify-content-center gap-2 border-0 shadow-sm"
+                      onClick={handleProceedToCheckout}
+                    >
+                      <span>Proceed to Checkout</span>
+                      <ArrowRight size={18} />
+                    </button>
                   </div>
                 </div>
 
@@ -246,6 +283,16 @@ export default function CartPage() {
             </div>
           </div>
         )}
+
+        {/* Auth Login Modal Popup for Checkout */}
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onLoginSuccess={(user) => {
+            setIsAuthModalOpen(false);
+            router.push("/checkout");
+          }}
+        />
       </Container>
     </main>
   );
