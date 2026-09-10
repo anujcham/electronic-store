@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PRODUCT_CATEGORIES } from "../../constants/productConstants";
 import { getFeaturedProducts } from "../../services/productService";
 import { ProductGrid } from "../product/ProductGrid";
@@ -19,9 +20,11 @@ export async function FeaturedPhones() {
             className="mb-0"
           />
 
-          <Button variant="outline" size="lg">
-            View All Phones
-          </Button>
+          <Link href="/shop">
+            <Button variant="outline" size="lg">
+              View All Phones
+            </Button>
+          </Link>
         </div>
 
         {phoneProducts.length > 0 ? (

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Button, Container } from "../ui";
 
 export function FinalCTA({
@@ -27,12 +28,16 @@ export function FinalCTA({
 
             <div className="col-12 col-lg-4">
               <div className="d-flex flex-column flex-sm-row justify-content-lg-end gap-3">
-                <Button variant="light" size="lg">
-                  {primaryCtaText}
-                </Button>
-                <Button variant="outline" size="lg" className="text-white border-white-50">
-                  {secondaryCtaText}
-                </Button>
+                <Link href="/shop">
+                  <Button variant="light" size="lg">
+                    {primaryCtaText}
+                  </Button>
+                </Link>
+                <Link href="/shop">
+                  <Button variant="outline" size="lg" className="text-white border-white-50">
+                    {secondaryCtaText}
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>
