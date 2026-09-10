@@ -219,14 +219,15 @@ export function Footer({ brandName = "ElectroStore Refurbished" }) {
               <p className="text-white-50 small mb-0">Subscribe for exclusive flash sales, new stock drops, and tech tips.</p>
             </div>
             <div className="col-12 col-md-6">
-              <form onSubmit={(e) => e.preventDefault()} className="d-flex gap-2">
+              <form onSubmit={(e) => e.preventDefault()} className="d-flex gap-2" suppressHydrationWarning>
                 <input
                   type="email"
                   className="form-control form-control-dark bg-dark border-secondary text-white"
                   placeholder="Enter your email address..."
                   required
+                  suppressHydrationWarning
                 />
-                <button type="submit" className="btn btn-primary px-4 fw-bold text-nowrap">
+                <button type="submit" className="btn btn-primary px-4 fw-bold text-nowrap" suppressHydrationWarning>
                   Subscribe
                 </button>
               </form>

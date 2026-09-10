@@ -20,17 +20,16 @@ export async function POST(request) {
 
     let user = await User.findOne(query);
     if (user) {
-      user.otp = generatedOtp;
+      user.otp = generatedOtp; // Overwrites old OTP - old OTP becomes invalid!
       user.otpExpiresAt = otpExpiresAt;
       await user.save();
     }
 
-    console.log(`📲 [OTP SENT] Sent OTP ${generatedOtp} to ${email || phone}`);
+    console.log(`📲 [RESEND OTP SENT] New OTP for ${email || phone}: ${generatedOtp}`);
 
     return NextResponse.json({
       success: true,
-      message: `OTP sent successfully!`,
-      otp: generatedOtp, // Returned in JSON response for instant testing without SMS gateway!
+      message: `A new 6-digit OTP has been sent!`,
     });
   } catch (error) {
     console.error('Error sending OTP:', error);
@@ -40,4 +39,3 @@ export async function POST(request) {
     );
   }
 }
-

@@ -1,20 +1,15 @@
 /**
  * Centralized API Client Abstraction
- * Switch USE_MOCK_API = false or set NEXT_PUBLIC_API_URL to point to a live backend.
+ * Pointing directly to our Next.js App Router live backend API endpoints (/api)
  */
 
-export const USE_MOCK_API = true;
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.electronicstore.co.uk/v1";
+export const USE_MOCK_API = false;
+export const API_BASE_URL = "/api";
 
 /**
  * Generic HTTP Fetch wrapper for API integration
  */
 export async function apiRequest(endpoint, options = {}) {
-  if (USE_MOCK_API) {
-    // Returns null to signal services to use local fallback logic during demo/offline state
-    return null;
-  }
-
   const token = typeof window !== "undefined" ? window.localStorage.getItem("electroVault.authToken") : null;
 
   const headers = {
@@ -24,17 +19,19 @@ export async function apiRequest(endpoint, options = {}) {
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const response = await fetch(url, {
     ...options,
     headers,
   });
 
+  const data = await response.json().catch(() => ({}));
+
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `API Error: ${response.status} ${response.statusText}`);
+    throw new Error(data.error || data.message || `API Error: ${response.status} ${response.statusText}`);
   }
 
-  return response.json();
+  return data;
 }
 
 export function apiGet(endpoint) {
@@ -52,4 +49,3 @@ export function apiPut(endpoint, data) {
 export function apiDelete(endpoint) {
   return apiRequest(endpoint, { method: "DELETE" });
 }
-

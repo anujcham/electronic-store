@@ -31,16 +31,25 @@ export async function POST(request) {
       );
     }
 
-    // Verify OTP matching (or allow universal test OTP 123456)
-    if (user.otp !== otp && otp !== '123456') {
+    // Strictly verify OTP matching stored latest OTP in database
+    if (!user.otp || user.otp !== otp) {
       return NextResponse.json(
-        { success: false, error: 'Invalid OTP entered. Please check and try again.' },
+        { success: false, error: 'Invalid OTP code. Please enter the latest OTP sent to you.' },
+        { status: 400 }
+      );
+    }
+
+    // Check expiration
+    if (user.otpExpiresAt && new Date() > new Date(user.otpExpiresAt)) {
+      return NextResponse.json(
+        { success: false, error: 'OTP has expired. Please click Resend OTP to get a new code.' },
         { status: 400 }
       );
     }
 
     user.isVerified = true;
     user.otp = undefined;
+    user.otpExpiresAt = undefined;
     await user.save();
 
     return NextResponse.json({
@@ -62,4 +71,3 @@ export async function POST(request) {
     );
   }
 }
-

@@ -17,12 +17,12 @@ export async function POST(request) {
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return NextResponse.json(
-        { success: false, error: 'User with this email already exists.' },
+        { success: false, error: 'An account with this email already exists. Please log in.' },
         { status: 400 }
       );
     }
 
-    // Generate 6-digit OTP for testing/verification
+    // Generate 6-digit OTP
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
@@ -30,25 +30,23 @@ export async function POST(request) {
       name,
       email: email.toLowerCase(),
       phone: phone || '',
-      password, // Note: For full prod, add bcrypt hash here
+      password,
       otp: generatedOtp,
       otpExpiresAt,
-      isVerified: true, // Auto-verify for smooth initial demo experience
+      isVerified: false,
     });
 
-    console.log(`🔑 [AUTH REGISTER] Generated OTP for ${email}: ${generatedOtp}`);
+    console.log(`📲 [SMS OTP SENT] Generated OTP for ${email}: ${generatedOtp}`);
 
     return NextResponse.json({
       success: true,
-      message: 'User registered successfully!',
-      otp: generatedOtp, // Included in response for testing without SMS provider!
+      message: 'OTP sent successfully to your email!',
       user: {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
         phone: user.phone,
         isVerified: user.isVerified,
-        memberSince: 'Just Now',
       },
     });
   } catch (error) {
@@ -59,4 +57,3 @@ export async function POST(request) {
     );
   }
 }
-

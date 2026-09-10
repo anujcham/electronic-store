@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { X, Lock, Mail, User, ShieldCheck, ArrowRight, Sparkles, KeyRound, Phone, CheckCircle2 } from "lucide-react";
-import { loginUser, loginDemoUser, registerUser, verifyOtpApi } from "../../services/authService";
+import { useState, useRef, useEffect } from "react";
+import { X, Lock, Mail, User, ShieldCheck, ArrowRight, Sparkles, KeyRound, Phone, RotateCcw } from "lucide-react";
+import { loginUser, loginDemoUser, registerUser, sendOtpApi, verifyOtpApi } from "../../services/authService";
 
 export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login" }) {
   const [activeTab, setActiveTab] = useState(initialTab); // "login" | "register" | "forgot"
@@ -13,12 +13,44 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
   
   // Registration OTP step state
   const [step, setStep] = useState("form"); // "form" | "otp"
-  const [otp, setOtp] = useState("");
-  const [generatedOtpHint, setGeneratedOtpHint] = useState("");
-  
+  const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
+  const inputRefs = useRef([]);
+
+  // 59-second Resend OTP timer
+  const [timer, setTimer] = useState(59);
+  const [canResend, setCanResend] = useState(false);
+  const timerRef = useRef(null);
+
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Handle countdown timer
+  useEffect(() => {
+    if (step === "otp") {
+      startTimer();
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [step]);
+
+  function startTimer() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setTimer(59);
+    setCanResend(false);
+
+    timerRef.current = setInterval(() => {
+      setTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          setCanResend(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
 
   if (!isOpen) return null;
 
@@ -26,8 +58,8 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
     setErrorMsg("");
     setSuccessMsg("");
     setStep("form");
-    setOtp("");
-    setGeneratedOtpHint("");
+    setOtpDigits(["", "", "", "", "", ""]);
+    if (timerRef.current) clearInterval(timerRef.current);
   }
 
   function handleTabChange(tab) {
@@ -43,6 +75,62 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
       onLoginSuccess(user);
     }
     onClose();
+  }
+
+  // Handle OTP digit box input
+  function handleDigitChange(index, value) {
+    const cleanVal = value.replace(/\D/g, ""); // Keep only numbers
+    if (!cleanVal && value !== "") return;
+
+    const newDigits = [...otpDigits];
+    newDigits[index] = cleanVal.slice(-1); // Take last digit if multiple entered
+    setOtpDigits(newDigits);
+
+    // Auto-focus next box if digit entered
+    if (cleanVal && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  }
+
+  function handleKeyDown(index, e) {
+    if (e.key === "Backspace") {
+      if (!otpDigits[index] && index > 0) {
+        inputRefs.current[index - 1]?.focus();
+      }
+    }
+  }
+
+  function handlePaste(e) {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (pastedData) {
+      const newDigits = ["", "", "", "", "", ""];
+      for (let i = 0; i < pastedData.length; i++) {
+        newDigits[i] = pastedData[i];
+      }
+      setOtpDigits(newDigits);
+      const targetIdx = Math.min(pastedData.length, 5);
+      inputRefs.current[targetIdx]?.focus();
+    }
+  }
+
+  async function handleResendOtp() {
+    if (!canResend) return;
+    setErrorMsg("");
+    setSuccessMsg("");
+    setLoading(true);
+
+    const res = await sendOtpApi({ email, phone });
+    setLoading(false);
+
+    if (res.success) {
+      setOtpDigits(["", "", "", "", "", ""]);
+      setSuccessMsg("A new 6-digit OTP code has been sent! Previous OTP is now invalid.");
+      startTimer();
+      inputRefs.current[0]?.focus();
+    } else {
+      setErrorMsg(res.error || "Failed to resend OTP. Please try again.");
+    }
   }
 
   async function handleSubmit(e) {
@@ -77,14 +165,20 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
         const res = await registerUser({ name, email, phone, password });
         setLoading(false);
         if (res.success) {
-          setGeneratedOtpHint(res.otp || "123456");
           setSuccessMsg(`OTP sent to ${email || "your email"}!`);
           setStep("otp");
         } else {
           setErrorMsg(res.error || "Registration failed. Account may already exist.");
         }
       } else if (step === "otp") {
-        const res = await verifyOtpApi({ email, phone, otp });
+        const fullOtp = otpDigits.join("");
+        if (fullOtp.length < 6) {
+          setLoading(false);
+          setErrorMsg("Please enter all 6 digits of the OTP code.");
+          return;
+        }
+
+        const res = await verifyOtpApi({ email, phone, otp: fullOtp });
         setLoading(false);
         if (res.success && res.user) {
           setSuccessMsg("Account created and verified successfully!");
@@ -93,7 +187,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
             onClose();
           }, 1000);
         } else {
-          setErrorMsg(res.error || "Invalid OTP entered. Please try again.");
+          setErrorMsg(res.error || "Invalid OTP entered. Please check and try again.");
         }
       }
     }
@@ -123,7 +217,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
             <div>
               <h5 className="fw-bold text-primary mb-0">
                 {activeTab === "login" && "Welcome Back"}
-                {activeTab === "register" && (step === "otp" ? "Verify OTP" : "Create Account")}
+                {activeTab === "register" && (step === "otp" ? "Verify OTP Code" : "Create Account")}
                 {activeTab === "forgot" && "Reset Password"}
               </h5>
               <small className="text-muted" style={{ fontSize: "0.75rem" }}>
@@ -136,6 +230,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
             className="btn btn-light btn-sm rounded-circle p-2 border-0"
             onClick={onClose}
             aria-label="Close modal"
+            suppressHydrationWarning
           >
             <X size={18} />
           </button>
@@ -150,6 +245,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
             }`}
             style={{ fontSize: "0.88rem" }}
             onClick={() => handleTabChange("login")}
+            suppressHydrationWarning
           >
             Log In
           </button>
@@ -160,6 +256,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
             }`}
             style={{ fontSize: "0.88rem" }}
             onClick={() => handleTabChange("register")}
+            suppressHydrationWarning
           >
             Create Account
           </button>
@@ -181,6 +278,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
                 className="btn btn-primary btn-sm w-100 rounded-pill fw-bold py-1.5 shadow-sm"
                 onClick={handleDemoLogin}
                 disabled={loading}
+                suppressHydrationWarning
               >
                 Log In as Demo Customer
               </button>
@@ -195,6 +293,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
                   type="button"
                   className="btn btn-link p-0 small text-primary fw-bold text-decoration-none"
                   onClick={() => handleTabChange("register")}
+                  suppressHydrationWarning
                 >
                   Don't have an account? Click here to Create Account →
                 </button>
@@ -275,6 +374,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
                       className="btn btn-link p-0 small text-primary text-decoration-none"
                       style={{ fontSize: "0.78rem" }}
                       onClick={() => handleTabChange("forgot")}
+                      suppressHydrationWarning
                     >
                       Forgot?
                     </button>
@@ -296,35 +396,66 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
               </div>
             )}
 
-            {/* OTP Entry Step */}
+            {/* 6-Box OTP Entry Step */}
             {activeTab === "register" && step === "otp" && (
-              <div className="mb-3">
-                <div className="bg-light p-3 rounded-3 mb-3 text-center border">
-                  <div className="small fw-bold text-dark mb-1">Enter 6-Digit Verification Code</div>
-                  <div className="text-muted small mb-2" style={{ fontSize: "0.8rem" }}>
-                    We sent an OTP code for <strong>{email}</strong>
+              <div className="mb-3 text-center">
+                <div className="bg-light p-3 rounded-3 mb-3 border">
+                  <div className="fw-bold text-dark mb-1">Enter 6-Digit Verification Code</div>
+                  <div className="text-muted small" style={{ fontSize: "0.82rem" }}>
+                    We sent a verification code to <strong>{email}</strong>
                   </div>
-                  {generatedOtpHint && (
-                    <div className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 p-2 w-100 font-monospace">
-                      🔑 Demo Testing OTP: <strong>{generatedOtpHint}</strong> (or <strong>123456</strong>)
-                    </div>
-                  )}
                 </div>
 
-                <label className="form-label small fw-semibold text-dark">6-Digit OTP Code</label>
-                <div className="input-group">
-                  <span className="input-group-text bg-light border-end-0 text-muted">
-                    <CheckCircle2 size={16} />
-                  </span>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    className="form-control border-start-0 text-center font-monospace fw-bold fs-5 tracking-widest"
-                    placeholder="123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    required
-                  />
+                {/* 6 Square Digit Input Boxes */}
+                <div className="d-flex justify-content-center gap-2 mb-3" onPaste={handlePaste}>
+                  {otpDigits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => (inputRefs.current[idx] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      className="form-control text-center font-monospace fw-bold fs-4 border-2 rounded-3 shadow-xs"
+                      style={{
+                        width: "48px",
+                        height: "54px",
+                        borderColor: digit ? "#2563eb" : "#cbd5e1",
+                        backgroundColor: digit ? "#f0f6ff" : "#ffffff",
+                        transition: "all 0.15s ease-in-out",
+                      }}
+                      value={digit}
+                      onChange={(e) => handleDigitChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(idx, e)}
+                      autoFocus={idx === 0}
+                    />
+                  ))}
+                </div>
+
+                {/* 59-second Resend OTP Timer Controls */}
+                <div className="d-flex align-items-center justify-content-between pt-2 px-1">
+                  <button
+                    type="button"
+                    className={`btn btn-link p-0 small fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 ${
+                      canResend ? "text-primary" : "text-muted opacity-60"
+                    }`}
+                    style={{ fontSize: "0.82rem" }}
+                    onClick={handleResendOtp}
+                    disabled={!canResend || loading}
+                    suppressHydrationWarning
+                  >
+                    <RotateCcw size={14} />
+                    {canResend ? "Resend OTP Code" : `Resend OTP in 00:${timer < 10 ? `0${timer}` : timer}`}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-link p-0 small text-secondary text-decoration-none"
+                    style={{ fontSize: "0.82rem" }}
+                    onClick={() => setStep("form")}
+                    suppressHydrationWarning
+                  >
+                    Change Email
+                  </button>
                 </div>
               </div>
             )}
@@ -333,6 +464,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
               type="submit"
               className="btn btn-primary btn-lg w-100 py-2.5 rounded-3 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2 mt-4"
               disabled={loading}
+              suppressHydrationWarning
             >
               {loading ? (
                 <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
@@ -340,7 +472,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
                 <>
                   <span>
                     {activeTab === "login" && "Log In to Account"}
-                    {activeTab === "register" && (step === "otp" ? "Verify OTP & Complete Account" : "Register & Get OTP")}
+                    {activeTab === "register" && (step === "otp" ? "Verify OTP & Complete Signup" : "Register & Get OTP")}
                     {activeTab === "forgot" && "Send Reset Link"}
                   </span>
                   <ArrowRight size={18} />

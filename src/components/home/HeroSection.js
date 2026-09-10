@@ -195,6 +195,7 @@ export function HeroSection() {
         style={{ zIndex: 3, width: "48px", height: "48px", opacity: 0.85 }}
         onClick={handlePrev}
         aria-label="Previous Slide"
+        suppressHydrationWarning
       >
         <ChevronLeft size={24} />
       </button>
@@ -205,6 +206,7 @@ export function HeroSection() {
         style={{ zIndex: 3, width: "48px", height: "48px", opacity: 0.85 }}
         onClick={handleNext}
         aria-label="Next Slide"
+        suppressHydrationWarning
       >
         <ChevronRight size={24} />
       </button>
@@ -236,6 +238,7 @@ export function HeroSection() {
                   }}
                   onClick={() => setCurrentSlideIndex(idx)}
                   aria-label={`Go to slide ${idx + 1}`}
+                  suppressHydrationWarning
                 />
               ))}
             </div>

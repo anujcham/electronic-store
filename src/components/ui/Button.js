@@ -44,6 +44,7 @@ export function Button({
       )}
       disabled={isDisabled}
       aria-busy={loading || undefined}
+      suppressHydrationWarning
       {...props}
     >
       {loading ? (
