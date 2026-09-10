@@ -47,8 +47,12 @@ export default function AccountPage() {
       const user = await getCurrentUser();
       setCurrentUser(user);
 
-      const userOrders = await getUserOrders();
-      setOrders(userOrders || []);
+      if (user) {
+        const userOrders = await getUserOrders(user.id || user._id, user.email);
+        setOrders(userOrders || []);
+      } else {
+        setOrders([]);
+      }
 
       const userAddresses = await getSavedAddresses();
       setAddresses(userAddresses || []);
@@ -59,6 +63,12 @@ export default function AccountPage() {
     async function handleUserChange() {
       const user = await getCurrentUser();
       setCurrentUser(user);
+      if (user) {
+        const userOrders = await getUserOrders(user.id || user._id, user.email);
+        setOrders(userOrders || []);
+      } else {
+        setOrders([]);
+      }
     }
 
     if (typeof window !== "undefined") {

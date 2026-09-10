@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Heart, ShoppingCart, Star } from "lucide-react";
@@ -7,7 +8,7 @@ import { Heart, ShoppingCart, Star } from "lucide-react";
 import { useCart } from "../../features/cart/useCart";
 import { Badge, Button } from "../ui";
 
-export function ProductCard({ product, onWishlistClick, onAddToCart }) {
+export const ProductCard = memo(function ProductCard({ product, onWishlistClick, onAddToCart }) {
   const router = useRouter();
   const { addItem } = useCart();
   const imageUrl = product?.images?.[0] || "https://placehold.co/800x800/EEF2F7/0F172A?text=Product";
@@ -84,6 +85,7 @@ export function ProductCard({ product, onWishlistClick, onAddToCart }) {
           style={{ width: "2.5rem", height: "2.5rem" }}
           onClick={handleWishlistClick}
           aria-label={product?.name ? `Add ${product.name} to wishlist` : "Add item to wishlist"}
+          suppressHydrationWarning
         >
           <Heart size={16} className="text-primary" />
         </button>
@@ -148,4 +150,4 @@ export function ProductCard({ product, onWishlistClick, onAddToCart }) {
       </div>
     </article>
   );
-}
+});

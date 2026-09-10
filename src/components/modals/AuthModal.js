@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Lock, Mail, User, ShieldCheck, ArrowRight, Sparkles, KeyRound, Phone, RotateCcw } from "lucide-react";
-import { loginUser, loginDemoUser, registerUser, sendOtpApi, verifyOtpApi } from "../../services/authService";
+import { X, Lock, Mail, User, ShieldCheck, ArrowRight, KeyRound, Phone, RotateCcw } from "lucide-react";
+import { loginUser, registerUser, sendOtpApi, verifyOtpApi } from "../../services/authService";
+import { useToast } from "../common/Toast";
 
 export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login" }) {
+  const toast = useToast();
+  
   const [activeTab, setActiveTab] = useState(initialTab); // "login" | "register" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,9 +24,22 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
   const [canResend, setCanResend] = useState(false);
   const timerRef = useRef(null);
 
-  const [errorMsg, setErrorMsg] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Reset modal state every time it is opened freshly
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab || "login");
+      setEmail("");
+      setPassword("");
+      setName("");
+      setPhone("");
+      setStep("form");
+      setOtpDigits(["", "", "", "", "", ""]);
+      setLoading(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  }, [isOpen, initialTab]);
 
   // Handle countdown timer
   useEffect(() => {
@@ -55,8 +71,10 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
   if (!isOpen) return null;
 
   function resetState() {
-    setErrorMsg("");
-    setSuccessMsg("");
+    setEmail("");
+    setPassword("");
+    setName("");
+    setPhone("");
     setStep("form");
     setOtpDigits(["", "", "", "", "", ""]);
     if (timerRef.current) clearInterval(timerRef.current);
@@ -65,16 +83,6 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
   function handleTabChange(tab) {
     setActiveTab(tab);
     resetState();
-  }
-
-  async function handleDemoLogin() {
-    setLoading(true);
-    const user = await loginDemoUser();
-    setLoading(false);
-    if (onLoginSuccess) {
-      onLoginSuccess(user);
-    }
-    onClose();
   }
 
   // Handle OTP digit box input
@@ -116,8 +124,6 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
 
   async function handleResendOtp() {
     if (!canResend) return;
-    setErrorMsg("");
-    setSuccessMsg("");
     setLoading(true);
 
     const res = await sendOtpApi({ email, phone });
@@ -125,22 +131,20 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
 
     if (res.success) {
       setOtpDigits(["", "", "", "", "", ""]);
-      setSuccessMsg("A new 6-digit OTP code has been sent! Previous OTP is now invalid.");
+      toast.success("New OTP Sent", `A fresh 6-digit code has been sent to ${email}. Previous code is now invalid.`);
       startTimer();
       inputRefs.current[0]?.focus();
     } else {
-      setErrorMsg(res.error || "Failed to resend OTP. Please try again.");
+      toast.error("Resend Failed", res.error || "Failed to resend OTP. Please try again.");
     }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setErrorMsg("");
-    setSuccessMsg("");
     setLoading(true);
 
     if (activeTab === "forgot") {
-      setSuccessMsg("Password reset instructions sent to your email!");
+      toast.info("Password Reset", "Password reset instructions sent to your email!");
       setLoading(false);
       setTimeout(() => {
         handleTabChange("login");
@@ -152,10 +156,12 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
       const res = await loginUser({ email, password });
       setLoading(false);
       if (res.success && res.user) {
+        toast.success("Welcome Back!", `Successfully logged in as ${res.user.name}`);
         if (onLoginSuccess) onLoginSuccess(res.user);
+        resetState();
         onClose();
       } else {
-        setErrorMsg(res.error || "Account does not exist or invalid credentials.");
+        toast.error("Login Failed", res.error || "Account does not exist or invalid credentials.");
       }
       return;
     }
@@ -165,29 +171,30 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
         const res = await registerUser({ name, email, phone, password });
         setLoading(false);
         if (res.success) {
-          setSuccessMsg(`OTP sent to ${email || "your email"}!`);
+          toast.success("OTP Sent", `Verification code sent to ${email}`);
           setStep("otp");
         } else {
-          setErrorMsg(res.error || "Registration failed. Account may already exist.");
+          toast.error("Registration Failed", res.error || "Registration failed. Account may already exist.");
         }
       } else if (step === "otp") {
         const fullOtp = otpDigits.join("");
         if (fullOtp.length < 6) {
           setLoading(false);
-          setErrorMsg("Please enter all 6 digits of the OTP code.");
+          toast.error("Incomplete OTP", "Please enter all 6 digits of the OTP code.");
           return;
         }
 
         const res = await verifyOtpApi({ email, phone, otp: fullOtp });
         setLoading(false);
         if (res.success && res.user) {
-          setSuccessMsg("Account created and verified successfully!");
+          toast.success("Account Created", "Your account has been verified and created successfully!");
           if (onLoginSuccess) onLoginSuccess(res.user);
           setTimeout(() => {
+            resetState();
             onClose();
-          }, 1000);
+          }, 800);
         } else {
-          setErrorMsg(res.error || "Invalid OTP entered. Please check and try again.");
+          toast.error("Verification Failed", res.error || "Invalid OTP entered. Please check and try again.");
         }
       }
     }
@@ -264,49 +271,6 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, initialTab = "login
 
         {/* Form Body */}
         <div className="p-4">
-          {/* Quick Demo Login Option */}
-          {activeTab === "login" && (
-            <div className="bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded-3 p-3 mb-4 text-center">
-              <div className="small fw-bold text-primary mb-1 d-flex align-items-center justify-content-center gap-1">
-                <Sparkles size={14} /> Quick Demo Instant Login
-              </div>
-              <p className="small text-muted mb-2" style={{ fontSize: "0.78rem" }}>
-                One-click access with pre-loaded demo orders & inspection certificates.
-              </p>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm w-100 rounded-pill fw-bold py-1.5 shadow-sm"
-                onClick={handleDemoLogin}
-                disabled={loading}
-                suppressHydrationWarning
-              >
-                Log In as Demo Customer
-              </button>
-            </div>
-          )}
-
-          {errorMsg && (
-            <div className="alert alert-danger small py-2 px-3 mb-3 d-flex flex-column align-items-start gap-1">
-              <div className="fw-semibold text-danger">{errorMsg}</div>
-              {activeTab === "login" && errorMsg.toLowerCase().includes("not found") && (
-                <button
-                  type="button"
-                  className="btn btn-link p-0 small text-primary fw-bold text-decoration-none"
-                  onClick={() => handleTabChange("register")}
-                  suppressHydrationWarning
-                >
-                  Don't have an account? Click here to Create Account →
-                </button>
-              )}
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="alert alert-success small py-2 text-center mb-3">
-              {successMsg}
-            </div>
-          )}
-
           <form onSubmit={handleSubmit}>
             {activeTab === "register" && step === "form" && (
               <>

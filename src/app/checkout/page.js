@@ -238,20 +238,30 @@ export default function CheckoutPage() {
     event.preventDefault();
 
     const orderPayload = {
-      customer: formValues,
+      userId: currentUser?.id || currentUser?._id || null,
+      guestEmail: formValues.email,
+      shippingAddress: {
+        fullName: `${formValues.firstName} ${formValues.lastName}`,
+        email: formValues.email,
+        phone: formValues.phone,
+        addressLine1: formValues.address1,
+        addressLine2: formValues.address2 || "",
+        city: formValues.city,
+        postcode: formValues.postcode,
+      },
       items: checkoutItems.map((item) => ({
-        ...item,
-        inspectionCertId: "CERT-" + Math.floor(100000 + Math.random() * 900000),
+        name: item.name,
+        slug: item.slug,
+        image: item.images?.[0] || item.image,
+        price: item.price,
+        quantity: item.quantity,
+        selectedOptions: item.selectedOptions || {},
       })),
       paymentMethod,
-      protectionPlan: addProtectionPlan,
-      totals: {
-        subtotal: checkoutSubtotal,
-        protectionFee,
-        delivery: deliveryFee,
-        total: orderTotal,
-      },
-      estimatedDelivery: "2-4 Working Days (Royal Mail / DPD Tracked)",
+      subtotal: checkoutSubtotal,
+      shippingFee: deliveryFee,
+      tax: 0,
+      totalAmount: orderTotal,
     };
 
     await createOrder(orderPayload);

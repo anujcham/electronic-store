@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useEffect, useMemo, useReducer, useState } from "react";
-
+import { createContext, useEffect, useMemo, useReducer, useState, useCallback } from "react";
+import { apiGet, apiPost } from "../../services/apiClient";
+import { getCurrentUser } from "../../services/authService";
 import {
   STORAGE_KEY,
   addItemToCart,
@@ -74,51 +75,118 @@ export function CartProvider({ children }) {
   const [state, dispatch] = useReducer(cartReducer, initialState);
   const [hydrated, setHydrated] = useState(false);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  const openCartDrawer = () => setIsCartDrawerOpen(true);
-  const closeCartDrawer = () => setIsCartDrawerOpen(false);
-  const toggleCartDrawer = () => setIsCartDrawerOpen((prev) => !prev);
+  const openCartDrawer = useCallback(() => setIsCartDrawerOpen(true), []);
+  const closeCartDrawer = useCallback(() => setIsCartDrawerOpen(false), []);
+  const toggleCartDrawer = useCallback(() => setIsCartDrawerOpen((prev) => !prev), []);
 
+  // Listen for auth changes and sync cart from MongoDB
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    async function loadCartData() {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
 
-    try {
-      const storedCart = window.localStorage.getItem(STORAGE_KEY);
-
-      if (storedCart) {
-        const parsedCart = JSON.parse(storedCart);
-
-        if (parsedCart && Array.isArray(parsedCart.items)) {
-          dispatch({
-            type: "HYDRATE",
-            payload: { items: parsedCart.items },
-          });
+      if (user) {
+        try {
+          const res = await apiGet(`/cart?userId=${user.id || user._id}`);
+          if (res?.success && Array.isArray(res.items) && res.items.length > 0) {
+            dispatch({ type: "HYDRATE", payload: { items: res.items } });
+          }
+        } catch (e) {
+          console.error("Cart sync error:", e);
+        }
+      } else {
+        if (typeof window !== "undefined") {
+          try {
+            const storedCart = window.localStorage.getItem(STORAGE_KEY);
+            if (storedCart) {
+              const parsed = JSON.parse(storedCart);
+              if (parsed && Array.isArray(parsed.items)) {
+                dispatch({ type: "HYDRATE", payload: { items: parsed.items } });
+              }
+            }
+          } catch {}
         }
       }
-    } catch {
-      // Ignore invalid persisted state.
-    } finally {
       setHydrated(true);
     }
+
+    loadCartData();
+
+    function handleAuthChange() {
+      loadCartData();
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("electroVault-user-changed", handleAuthChange);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("electroVault-user-changed", handleAuthChange);
+      }
+    };
   }, []);
 
+  // Persist cart to MongoDB when logged in, or localStorage when guest
   useEffect(() => {
-    if (!hydrated || typeof window === "undefined") {
-      return;
-    }
+    if (!hydrated) return;
 
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // Ignore persistence errors in restricted environments.
+    if (currentUser) {
+      apiPost("/cart", {
+        userId: currentUser.id || currentUser._id,
+        items: state.items,
+      }).catch(() => null);
+    } else if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch {}
     }
-  }, [hydrated, state]);
+  }, [hydrated, state.items, currentUser]);
+
+  const addItem = useCallback((product, selectedOptions = {}, quantity = 1) => {
+    dispatch({
+      type: "ADD_ITEM",
+      payload: { product, selectedOptions, quantity },
+    });
+    setIsCartDrawerOpen(true);
+  }, []);
+
+  const removeItem = useCallback((itemKey) => {
+    dispatch({
+      type: "REMOVE_ITEM",
+      payload: { itemKey },
+    });
+  }, []);
+
+  const increaseQty = useCallback((itemKey) => {
+    dispatch({
+      type: "INCREASE_QUANTITY",
+      payload: { itemKey },
+    });
+  }, []);
+
+  const decreaseQty = useCallback((itemKey) => {
+    dispatch({
+      type: "DECREASE_QUANTITY",
+      payload: { itemKey },
+    });
+  }, []);
+
+  const setQty = useCallback((itemKey, quantity) => {
+    dispatch({
+      type: "SET_QUANTITY",
+      payload: { itemKey, quantity },
+    });
+  }, []);
+
+  const clearCart = useCallback(() => {
+    dispatch({ type: "CLEAR_CART" });
+  }, []);
+
+  const totals = useMemo(() => getCartTotals(state.items), [state.items]);
 
   const value = useMemo(() => {
-    const totals = getCartTotals(state.items);
-
     return {
       items: state.items,
       itemCount: totals.itemCount,
@@ -129,42 +197,27 @@ export function CartProvider({ children }) {
       openCartDrawer,
       closeCartDrawer,
       toggleCartDrawer,
-      addItem: (product, selectedOptions = {}, quantity = 1) => {
-        dispatch({
-          type: "ADD_ITEM",
-          payload: { product, selectedOptions, quantity },
-        });
-        setIsCartDrawerOpen(true);
-      },
-      removeItem: (itemKey) => {
-        dispatch({
-          type: "REMOVE_ITEM",
-          payload: { itemKey },
-        });
-      },
-      increaseQuantity: (itemKey) => {
-        dispatch({
-          type: "INCREASE_QUANTITY",
-          payload: { itemKey },
-        });
-      },
-      decreaseQuantity: (itemKey) => {
-        dispatch({
-          type: "DECREASE_QUANTITY",
-          payload: { itemKey },
-        });
-      },
-      setQuantity: (itemKey, quantity) => {
-        dispatch({
-          type: "SET_QUANTITY",
-          payload: { itemKey, quantity },
-        });
-      },
-      clearCart: () => {
-        dispatch({ type: "CLEAR_CART" });
-      },
+      addItem,
+      removeItem,
+      increaseQuantity: increaseQty,
+      decreaseQuantity: decreaseQty,
+      setQuantity: setQty,
+      clearCart,
     };
-  }, [state.items, isCartDrawerOpen]);
+  }, [
+    state.items,
+    totals,
+    isCartDrawerOpen,
+    openCartDrawer,
+    closeCartDrawer,
+    toggleCartDrawer,
+    addItem,
+    removeItem,
+    increaseQty,
+    decreaseQty,
+    setQty,
+    clearCart,
+  ]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
