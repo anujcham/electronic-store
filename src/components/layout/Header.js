@@ -34,7 +34,6 @@ import { Logo } from "../common/Logo";
 const defaultNavItems = [
   { label: "Home", href: "/" },
   { label: "Shop", href: "/shop" },
-  { label: "Admin Portal", href: "/admin" },
   { label: "Condition Guide", href: "/#info-condition" },
   { label: "Contact", href: "/support" },
 ];
@@ -441,6 +440,18 @@ export function Header({
                   {currentUser ? currentUser.name.split(" ")[0] : "Account"}
                 </span>
               </button>
+
+              {/* Admin Portal Shortcut (Visible only when authenticated as Admin) */}
+              {currentUser?.role === "admin" && (
+                <Link
+                  href="/admin"
+                  className="btn btn-warning text-dark btn-sm fw-bold rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-xs border border-warning"
+                  title="Admin Store Operations Portal"
+                >
+                  <ShieldCheck size={14} />
+                  <span className="d-none d-md-inline" style={{ fontSize: "0.75rem" }}>Admin</span>
+                </Link>
+              )}
 
               {/* Wishlist Link */}
               <Link

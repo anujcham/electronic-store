@@ -73,6 +73,11 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // Admin Security Gate State
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [passkeyInput, setPasskeyInput] = useState("");
+  const [passkeyError, setPasskeyError] = useState("");
+
   // Data states
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
@@ -101,22 +106,31 @@ export default function AdminDashboardPage() {
   const [editingProductSlug, setEditingProductSlug] = useState(null);
   const [productFormData, setProductFormData] = useState(emptyProductForm);
 
-  // Load all admin data
+  // Load all admin data & check authorization
   const loadAdminData = async () => {
     setLoading(true);
     try {
       const u = await getCurrentUser();
       setCurrentUser(u);
 
-      const [ordersRes, productsRes, usersRes] = await Promise.all([
-        fetchAdminOrders(),
-        fetchAdminProducts(),
-        fetchAdminUsers(),
-      ]);
+      const hasAdminRole = u?.role === "admin";
+      const hasStoredSession =
+        typeof window !== "undefined" &&
+        window.sessionStorage.getItem("electroVault.adminSession") === "authenticated";
 
-      setOrders(ordersRes || []);
-      setProducts(productsRes || []);
-      setUsers(usersRes || []);
+      if (hasAdminRole || hasStoredSession) {
+        setIsAuthorized(true);
+        const [ordersRes, productsRes, usersRes] = await Promise.all([
+          fetchAdminOrders(),
+          fetchAdminProducts(),
+          fetchAdminUsers(),
+        ]);
+        setOrders(ordersRes || []);
+        setProducts(productsRes || []);
+        setUsers(usersRes || []);
+      } else {
+        setIsAuthorized(false);
+      }
     } catch (err) {
       console.error("Admin data load error:", err);
       toast.error("Data Load Error", "Failed to load dashboard metrics from MongoDB Atlas.");
@@ -128,6 +142,31 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     loadAdminData();
   }, []);
+
+  const handleVerifyPasskey = (e) => {
+    e.preventDefault();
+    setPasskeyError("");
+
+    if (passkeyInput.trim() === "admin123" || passkeyInput.trim().toLowerCase() === "admin") {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem("electroVault.adminSession", "authenticated");
+      }
+      setIsAuthorized(true);
+      toast.success("Staff Verified", "Welcome to Admin Operations Portal!");
+      loadAdminData();
+    } else {
+      setPasskeyError("Invalid Staff Passkey! Please check your credentials.");
+      toast.error("Access Denied", "Invalid Admin Passkey entered.");
+    }
+  };
+
+  const handleLockAdminSession = () => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem("electroVault.adminSession");
+    }
+    setIsAuthorized(false);
+    toast.info("Session Locked", "Admin session locked.");
+  };
 
   // Calculated KPI Metrics
   const totalRevenue = useMemo(() => {
@@ -332,6 +371,76 @@ export default function AdminDashboardPage() {
     }
   };
 
+  if (!isAuthorized) {
+    return (
+      <main className="py-5 bg-soft min-vh-100 d-flex align-items-center justify-content-center">
+        <Container>
+          <div className="row justify-content-center">
+            <div className="col-12 col-md-8 col-lg-5">
+              <div className="card border-0 rounded-4 shadow-lg overflow-hidden bg-white">
+                <div className="p-4 bg-dark text-white text-center">
+                  <div className="d-inline-flex align-items-center justify-content-center bg-warning text-dark p-3 rounded-circle mb-2">
+                    <Lock size={28} />
+                  </div>
+                  <h4 className="fw-bold mb-1">Restricted Admin Portal</h4>
+                  <small className="text-white-50">Authorized Staff & Store Management Verification</small>
+                </div>
+
+                <div className="p-4 p-md-5">
+                  <p className="text-muted small mb-4 text-center">
+                    This portal is restricted to authorized store staff. Please enter your <strong>Staff Security Passkey</strong> or log in with an administrator account to continue.
+                  </p>
+
+                  {passkeyError && (
+                    <div className="alert alert-danger border-danger rounded-3 small py-2 mb-3 fw-semibold">
+                      ⚠️ {passkeyError}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleVerifyPasskey}>
+                    <div className="mb-4">
+                      <label className="form-label small fw-semibold text-dark">Staff Security Passkey</label>
+                      <div className="input-group">
+                        <span className="input-group-text bg-light border-end-0 text-muted">
+                          <ShieldCheck size={16} />
+                        </span>
+                        <input
+                          type="password"
+                          className="form-control border-start-0 font-monospace"
+                          placeholder="Enter Passkey (e.g. admin123)"
+                          value={passkeyInput}
+                          onChange={(e) => setPasskeyInput(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <small className="text-muted font-monospace mt-1 d-block" style={{ fontSize: "0.72rem" }}>
+                        Hint: Default Staff Passkey is <code>admin123</code>
+                      </small>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="btn btn-primary btn-lg w-100 py-2.5 rounded-3 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2 mb-3"
+                    >
+                      <span>Unlock Admin Portal</span>
+                      <ChevronRight size={18} />
+                    </button>
+
+                    <div className="text-center">
+                      <Link href="/" className="text-decoration-none small text-muted hover-primary">
+                        ← Return to Customer Storefront
+                      </Link>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Container>
+      </main>
+    );
+  }
+
   return (
     <main className="py-5 bg-soft min-vh-100">
       <Container>
@@ -339,8 +448,8 @@ export default function AdminDashboardPage() {
         <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
           <div>
             <div className="d-flex align-items-center gap-2 mb-1">
-              <span className="badge bg-primary text-white font-monospace px-2 py-1">ADMIN PORTAL</span>
-              <span className="text-muted small">Live MongoDB Atlas Management</span>
+              <span className="badge bg-primary text-white font-monospace px-2 py-1">STAFF ADMIN PORTAL</span>
+              <span className="text-muted small">Live MongoDB Atlas Operations</span>
             </div>
             <h1 className="display-6 fw-bold text-primary mb-0">Store Operations & Inventory Manager</h1>
           </div>
@@ -354,6 +463,16 @@ export default function AdminDashboardPage() {
             >
               <RefreshCw size={14} className={loading ? "spinner-border spinner-border-sm border-2 p-0" : ""} />
               <span>Refresh Atlas Data</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-outline-danger btn-sm rounded-3 d-flex align-items-center gap-1 bg-white shadow-xs"
+              onClick={handleLockAdminSession}
+              title="Lock Staff Session"
+            >
+              <Lock size={13} />
+              <span>Lock Session</span>
             </button>
 
             <Link href="/shop" className="btn btn-primary btn-sm rounded-3 fw-bold d-flex align-items-center gap-1">
@@ -1242,3 +1361,4 @@ export default function AdminDashboardPage() {
     </main>
   );
 }
+
