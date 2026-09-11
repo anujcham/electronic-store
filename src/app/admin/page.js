@@ -173,6 +173,41 @@ export default function AdminDashboardPage() {
     toast.info("Session Locked", "Admin session locked.");
   };
 
+  const handleElevateCurrentAccountToAdmin = async () => {
+    if (!currentUser || (!currentUser.id && !currentUser._id)) {
+      toast.error("Not Logged In", "Please log into an account first.");
+      return;
+    }
+
+    const userId = currentUser.id || currentUser._id;
+    try {
+      const res = await apiPut("/user/profile", {
+        userId,
+        role: "admin",
+        passkey: "admin123",
+      });
+
+      if (res?.success && res.user) {
+        const updatedUser = { ...currentUser, role: "admin" };
+        setCurrentUser(updatedUser);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("electroVault.user", JSON.stringify(updatedUser));
+          window.sessionStorage.setItem("electroVault.adminSession", "authenticated");
+          window.localStorage.setItem("electroVault.adminSession", "authenticated");
+          window.dispatchEvent(new Event("electroVault-user-changed"));
+          window.dispatchEvent(new Event("electroVault-admin-changed"));
+        }
+        setIsAuthorized(true);
+        toast.success("Account Upgraded", `Account "${currentUser.name}" is now an official Admin in MongoDB Atlas!`);
+        loadAdminData();
+      } else {
+        toast.error("Elevation Failed", res?.error || "Failed to update user role.");
+      }
+    } catch (err) {
+      toast.error("Error", err.message || "Failed to upgrade account role.");
+    }
+  };
+
   // Calculated KPI Metrics
   const totalRevenue = useMemo(() => {
     return orders
@@ -392,8 +427,19 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div className="p-4 p-md-5">
+                  {currentUser ? (
+                    <div className="bg-light border rounded-3 p-3 mb-4">
+                      <div className="d-flex align-items-center justify-content-between mb-1">
+                        <span className="small text-muted">Currently Logged In:</span>
+                        <span className="badge bg-secondary">{currentUser.role || "Customer"}</span>
+                      </div>
+                      <div className="fw-bold text-dark">{currentUser.name}</div>
+                      <div className="small text-muted">{currentUser.email}</div>
+                    </div>
+                  ) : null}
+
                   <p className="text-muted small mb-4 text-center">
-                    This portal is restricted to authorized store staff. Please enter your <strong>Staff Security Passkey</strong> or log in with an administrator account to continue.
+                    This portal is restricted to authorized store staff. Enter your <strong>Staff Passkey</strong> or elevate your account to Admin role.
                   </p>
 
                   {passkeyError && (
@@ -427,16 +473,28 @@ export default function AdminDashboardPage() {
                       type="submit"
                       className="btn btn-primary btn-lg w-100 py-2.5 rounded-3 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2 mb-3"
                     >
-                      <span>Unlock Admin Portal</span>
+                      <span>Unlock Staff Admin Portal</span>
                       <ChevronRight size={18} />
                     </button>
-
-                    <div className="text-center">
-                      <Link href="/" className="text-decoration-none small text-muted hover-primary">
-                        ← Return to Customer Storefront
-                      </Link>
-                    </div>
                   </form>
+
+                  {currentUser && (
+                    <div className="pt-3 border-top mt-3 text-center">
+                      <button
+                        type="button"
+                        className="btn btn-outline-warning text-dark btn-sm w-100 fw-bold py-2 rounded-3"
+                        onClick={handleElevateCurrentAccountToAdmin}
+                      >
+                        ⚡ Make "{currentUser.name}" an Official Admin Account in Atlas
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="text-center mt-3">
+                    <Link href="/" className="text-decoration-none small text-muted hover-primary">
+                      ← Return to Customer Storefront
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

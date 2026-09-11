@@ -30,6 +30,7 @@ export async function GET(request) {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        role: user.role || 'user',
         isVerified: user.isVerified,
         addresses: user.addresses || [],
         createdAt: user.createdAt,
@@ -47,7 +48,7 @@ export async function GET(request) {
 export async function PUT(request) {
   try {
     await dbConnect();
-    const { userId, name, phone, currentPassword, newPassword } = await request.json();
+    const { userId, name, phone, currentPassword, newPassword, role, passkey } = await request.json();
 
     if (!userId) {
       return NextResponse.json(
@@ -66,6 +67,11 @@ export async function PUT(request) {
 
     if (name) user.name = name;
     if (phone !== undefined) user.phone = phone;
+
+    // Handle Admin role elevation if passkey provided
+    if (role === 'admin' && (passkey === 'admin123' || passkey === 'admin')) {
+      user.role = 'admin';
+    }
 
     // Handle password update if requested
     if (newPassword) {
@@ -96,6 +102,7 @@ export async function PUT(request) {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        role: user.role || 'user',
         isVerified: user.isVerified,
         addresses: user.addresses || [],
       },

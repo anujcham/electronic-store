@@ -60,6 +60,7 @@ export async function POST(request) {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        role: user.role || 'user',
         isVerified: true,
       },
     });
