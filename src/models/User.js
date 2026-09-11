@@ -20,7 +20,7 @@ const UserSchema = new mongoose.Schema(
     otp: { type: String },
     otpExpiresAt: { type: Date },
     isVerified: { type: Boolean, default: false },
-    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    role: { type: String, enum: ['user', 'customer', 'admin', 'superadmin'], default: 'customer' },
     addresses: [AddressSchema],
   },
   { timestamps: true }

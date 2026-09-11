@@ -92,3 +92,45 @@ export async function fetchAdminUsers() {
   return [];
 }
 
+export async function adminStaffLogin({ email, password }) {
+  try {
+    const res = await apiPost("/admin/login", { email, password });
+    if (res?.success && res.user) {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("electroVault.adminUser", JSON.stringify(res.user));
+        if (res.token) {
+          window.localStorage.setItem("electroVault.adminAuthToken", res.token);
+        }
+      }
+      return { success: true, user: res.user };
+    }
+    return { success: false, error: res?.error || "Staff login failed." };
+  } catch (err) {
+    return { success: false, error: err.message || "Network error logging in staff." };
+  }
+}
+
+export async function fetchAdminStaffList() {
+  try {
+    const res = await apiGet("/admin/staff");
+    if (res?.success && Array.isArray(res.staff)) {
+      return res.staff;
+    }
+  } catch (err) {
+    console.error("Error fetching admin staff list:", err);
+  }
+  return [];
+}
+
+export async function createAdminStaffAccount({ name, email, password, phone, requesterEmail }) {
+  try {
+    const res = await apiPost("/admin/staff", { name, email, password, phone, requesterEmail });
+    if (res?.success && res.staff) {
+      return { success: true, staff: res.staff, message: res.message };
+    }
+    return { success: false, error: res?.error || "Failed to create Admin account." };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+

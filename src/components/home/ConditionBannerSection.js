@@ -38,6 +38,7 @@ export function ConditionBannerSection() {
                   : "btn-outline-primary bg-white"
               }`}
               onClick={() => setActiveGrade(grade)}
+              suppressHydrationWarning
             >
               {grade}
             </button>

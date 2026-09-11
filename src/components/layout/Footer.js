@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   ShieldCheck,
   Award,
@@ -49,7 +50,12 @@ const companyInfo = [
 ];
 
 export function Footer({ brandName = "ElectroStore Refurbished" }) {
+  const pathname = usePathname();
   const currentYear = new Date().getFullYear();
+
+  if (pathname && (pathname.startsWith("/admin") || pathname.startsWith("/staff-portal"))) {
+    return null;
+  }
 
   return (
     <footer className="bg-dark text-white border-top border-secondary border-opacity-25" style={{ backgroundColor: "#0b1329" }}>

@@ -235,6 +235,11 @@ export function Header({
     return pathname === href || pathname.startsWith(href);
   };
 
+  // Hide Customer Header on Admin Portal routes
+  if (pathname && (pathname.startsWith("/admin") || pathname.startsWith("/staff-portal"))) {
+    return null;
+  }
+
   return (
     <header className="sticky-top bg-white shadow-sm" style={{ zIndex: 1040 }}>
       {/* Top Announcement Bar */}
@@ -451,18 +456,6 @@ export function Header({
                   {currentUser ? currentUser.name.split(" ")[0] : "Account"}
                 </span>
               </button>
-
-              {/* Admin Portal Shortcut (Visible when logged in as Admin or Staff Passkey authenticated) */}
-              {isAdminSession && (
-                <Link
-                  href="/admin"
-                  className="btn btn-warning text-dark btn-sm fw-bold rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-xs border border-warning ms-1"
-                  title="Admin Store Operations Portal"
-                >
-                  <ShieldCheck size={14} />
-                  <span className="d-none d-md-inline" style={{ fontSize: "0.75rem" }}>Admin Portal</span>
-                </Link>
-              )}
 
               {/* Wishlist Link */}
               <Link

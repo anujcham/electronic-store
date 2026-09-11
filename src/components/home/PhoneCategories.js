@@ -128,6 +128,7 @@ export function PhoneCategories({
               onClick={() => handleScroll("left")}
               aria-label="Scroll left"
               disabled={!canScrollLeft}
+              suppressHydrationWarning
             >
               <ChevronLeft size={20} />
             </button>
@@ -140,6 +141,7 @@ export function PhoneCategories({
               onClick={() => handleScroll("right")}
               aria-label="Scroll right"
               disabled={!canScrollRight}
+              suppressHydrationWarning
             >
               <ChevronRight size={20} />
             </button>
