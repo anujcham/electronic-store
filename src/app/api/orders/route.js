@@ -106,13 +106,41 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const email = searchParams.get('email');
+    const search = searchParams.get('search');
+    const status = searchParams.get('status');
 
-    let query = {};
+    const conditions = [];
+
     if (userId) {
-      query.user = userId;
+      conditions.push({ user: userId });
     } else if (email) {
-      query.$or = [{ 'shippingAddress.email': email }, { guestEmail: email }];
+      conditions.push({
+        $or: [{ 'shippingAddress.email': email }, { guestEmail: email }],
+      });
     }
+
+    if (status && status !== 'all') {
+      conditions.push({
+        orderStatus: { $regex: new RegExp(`^${status.trim()}$`, 'i') },
+      });
+    }
+
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      conditions.push({
+        $or: [
+          { orderNumber: { $regex: searchRegex } },
+          { 'shippingAddress.fullName': { $regex: searchRegex } },
+          { 'shippingAddress.email': { $regex: searchRegex } },
+          { 'shippingAddress.phone': { $regex: searchRegex } },
+          { guestEmail: { $regex: searchRegex } },
+          { trackingNumber: { $regex: searchRegex } },
+          { 'items.name': { $regex: searchRegex } },
+        ],
+      });
+    }
+
+    const query = conditions.length > 0 ? { $and: conditions } : {};
 
     const orders = await Order.find(query).sort({ createdAt: -1 });
 

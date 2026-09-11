@@ -76,11 +76,12 @@ export async function GET(request) {
       }
     }
 
-    // Keyword search filter across name, brand, shortDescription, description
+    // Keyword search filter across name, brand, slug, shortDescription, description
     if (searchParam) {
       const searchOr = [
         { name: { $regex: searchParam, $options: 'i' } },
         { brand: { $regex: searchParam, $options: 'i' } },
+        { slug: { $regex: searchParam, $options: 'i' } },
         { shortDescription: { $regex: searchParam, $options: 'i' } },
         { description: { $regex: searchParam, $options: 'i' } },
       ];

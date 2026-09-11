@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
 
-export async function GET() {
+export async function GET(request) {
   try {
     await dbConnect();
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search');
 
     // Ensure the primary account is superadmin
     await User.updateOne(
@@ -18,7 +20,22 @@ export async function GET() {
       { $set: { role: 'admin' } }
     );
 
-    const staffList = await User.find({ role: { $in: ['superadmin', 'admin'] } })
+    const conditions = [{ role: { $in: ['superadmin', 'admin'] } }];
+
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      conditions.push({
+        $or: [
+          { name: { $regex: searchRegex } },
+          { email: { $regex: searchRegex } },
+          { phone: { $regex: searchRegex } },
+        ],
+      });
+    }
+
+    const query = { $and: conditions };
+
+    const staffList = await User.find(query)
       .select('-password -otp')
       .sort({ createdAt: -1 });
 

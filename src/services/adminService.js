@@ -1,8 +1,13 @@
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "./apiClient";
 
-export async function fetchAdminOrders() {
+export async function fetchAdminOrders(params = {}) {
   try {
-    const res = await apiGet("/orders");
+    const query = new URLSearchParams();
+    if (params.search && params.search.trim()) query.set("search", params.search.trim());
+    if (params.status && params.status !== "all") query.set("status", params.status);
+    const queryString = query.toString();
+    const endpoint = queryString ? `/orders?${queryString}` : "/orders";
+    const res = await apiGet(endpoint);
     if (res?.success && Array.isArray(res.orders)) {
       return res.orders;
     }
@@ -32,9 +37,14 @@ export async function updateOrderFulfillment({ orderId, orderNumber, orderStatus
   }
 }
 
-export async function fetchAdminProducts() {
+export async function fetchAdminProducts(params = {}) {
   try {
-    const res = await apiGet("/products?limit=200");
+    const query = new URLSearchParams();
+    query.set("limit", params.limit || "200");
+    if (params.search && params.search.trim()) query.set("search", params.search.trim());
+    if (params.brand && params.brand !== "all") query.set("brand", params.brand);
+    const queryString = query.toString();
+    const res = await apiGet(`/products?${queryString}`);
     if (res?.success && Array.isArray(res.products)) {
       return res.products;
     }
@@ -80,9 +90,13 @@ export async function deleteAdminProduct(slug) {
   }
 }
 
-export async function fetchAdminUsers() {
+export async function fetchAdminUsers(params = {}) {
   try {
-    const res = await apiGet("/admin/users");
+    const query = new URLSearchParams();
+    if (params.search && params.search.trim()) query.set("search", params.search.trim());
+    const queryString = query.toString();
+    const endpoint = queryString ? `/admin/users?${queryString}` : "/admin/users";
+    const res = await apiGet(endpoint);
     if (res?.success && Array.isArray(res.users)) {
       return res.users;
     }
@@ -110,9 +124,13 @@ export async function adminStaffLogin({ email, password }) {
   }
 }
 
-export async function fetchAdminStaffList() {
+export async function fetchAdminStaffList(params = {}) {
   try {
-    const res = await apiGet("/admin/staff");
+    const query = new URLSearchParams();
+    if (params.search && params.search.trim()) query.set("search", params.search.trim());
+    const queryString = query.toString();
+    const endpoint = queryString ? `/admin/staff?${queryString}` : "/admin/staff";
+    const res = await apiGet(endpoint);
     if (res?.success && Array.isArray(res.staff)) {
       return res.staff;
     }

@@ -3,11 +3,29 @@ import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
 import Order from '@/models/Order';
 
-export async function GET() {
+export async function GET(request) {
   try {
     await dbConnect();
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search');
 
-    const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+    // Only regular customers/users should be returned - exclude admin and superadmin
+    const conditions = [{ role: { $nin: ['admin', 'superadmin'] } }];
+
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      conditions.push({
+        $or: [
+          { name: { $regex: searchRegex } },
+          { email: { $regex: searchRegex } },
+          { phone: { $regex: searchRegex } },
+        ],
+      });
+    }
+
+    const query = { $and: conditions };
+
+    const users = await User.find(query).select('-password').sort({ createdAt: -1 });
     const orders = await Order.find({});
 
     const formattedUsers = users.map((user) => {

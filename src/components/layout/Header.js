@@ -438,73 +438,86 @@ export function Header({
               {/* Account Button (Triggers AuthModal if logged out) */}
               <button
                 type="button"
-                className="btn btn-outline-light text-dark p-2 border-0 rounded-3 d-flex align-items-center gap-2"
+                className="btn btn-outline-light text-dark p-0 border-0 rounded-3 d-flex align-items-center justify-content-center transition-all"
                 onClick={handleAccountClick}
                 title={currentUser ? `Account (${currentUser.name})` : "Log In / Register"}
+                style={{ width: "40px", height: "40px" }}
                 suppressHydrationWarning
               >
-                <div className="position-relative">
+                <div className="position-relative d-inline-flex align-items-center justify-content-center">
                   <CircleUserRound size={22} className="text-primary" />
                   {currentUser && (
                     <span
                       className="position-absolute bottom-0 end-0 bg-success border border-white rounded-circle"
-                      style={{ width: "8px", height: "8px" }}
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        transform: "translate(15%, 15%)",
+                      }}
                     />
                   )}
                 </div>
-                <span className="d-none d-xl-inline small fw-medium text-dark">
-                  {currentUser ? currentUser.name.split(" ")[0] : "Account"}
-                </span>
               </button>
 
               {/* Wishlist Link */}
               <Link
                 href="/wishlist"
-                className="btn btn-outline-light text-dark p-2 border-0 rounded-3 position-relative"
+                className="btn btn-outline-light text-dark p-0 border-0 rounded-3 d-flex align-items-center justify-content-center transition-all"
                 title="Wishlist"
+                style={{ width: "40px", height: "40px" }}
               >
-                <Heart size={22} className="text-primary" />
-                {wishlistCount > 0 && (
-                  <Badge
-                    variant="primary"
-                    className="position-absolute top-0 start-100 translate-middle rounded-pill px-1.5 py-0.5"
-                    style={{ fontSize: "0.65rem" }}
-                  >
-                    {wishlistCount}
-                  </Badge>
-                )}
+                <div className="position-relative d-inline-flex align-items-center justify-content-center">
+                  <Heart size={22} className="text-primary" />
+                  {wishlistCount > 0 && (
+                    <span
+                      className="position-absolute badge rounded-pill bg-danger text-white d-flex align-items-center justify-content-center"
+                      style={{
+                        top: "-6px",
+                        right: "-8px",
+                        fontSize: "0.62rem",
+                        minWidth: "16px",
+                        height: "16px",
+                        padding: "0 4px",
+                        lineHeight: 1,
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                      }}
+                    >
+                      {wishlistCount}
+                    </span>
+                  )}
+                </div>
               </Link>
 
               {/* Cart Drawer Trigger Button */}
               <button
                 type="button"
-                className="btn btn-primary px-3 py-2 rounded-3 d-flex align-items-center gap-2 shadow-sm border-0"
+                className="btn btn-primary p-0 rounded-3 d-flex align-items-center justify-content-center shadow-sm border-0 transition-all"
                 onClick={openCartDrawer}
-                title="Shopping Cart"
+                title={itemCount > 0 ? `Shopping Cart (${itemCount} item${itemCount === 1 ? "" : "s"})` : "Shopping Cart"}
+                style={{ width: "40px", height: "40px" }}
                 suppressHydrationWarning
               >
-                <div className="position-relative">
+                <div className="position-relative d-inline-flex align-items-center justify-content-center">
                   <ShoppingCart size={20} />
                   {itemCount > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="position-absolute top-0 start-100 translate-middle rounded-circle p-1"
+                    <span
+                      className="position-absolute badge rounded-pill bg-danger text-white d-flex align-items-center justify-content-center"
                       style={{
-                        fontSize: "0.6rem",
-                        width: "16px",
+                        top: "-7px",
+                        right: "-9px",
+                        fontSize: "0.62rem",
+                        minWidth: "16px",
                         height: "16px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        padding: "0 4px",
+                        lineHeight: 1,
+                        border: "1.5px solid #ffffff",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
                       }}
                     >
                       {itemCount}
-                    </Badge>
+                    </span>
                   )}
                 </div>
-                <span className="fw-semibold small d-none d-sm-inline">
-                  Cart {itemCount > 0 ? `(${itemCount})` : ""}
-                </span>
               </button>
             </div>
           </div>

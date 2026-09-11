@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -37,6 +37,8 @@ import {
 
 import { Container, Badge } from "../../components/ui";
 import { useToast } from "../../components/common/Toast";
+import { useDebounce } from "../../hooks/useDebounce";
+import AdminSearchInput from "../../components/admin/AdminSearchInput";
 import {
   fetchAdminOrders,
   updateOrderFulfillment,
@@ -78,6 +80,7 @@ export default function StaffPortalPage() {
 
   const [activeTab, setActiveTab] = useState("orders"); // "orders" | "products" | "customers" | "staff"
   const [loading, setLoading] = useState(true);
+  const [authChecking, setAuthChecking] = useState(true);
 
   // Dedicated Admin Auth State
   const [adminUser, setAdminUser] = useState(null);
@@ -86,11 +89,28 @@ export default function StaffPortalPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
-  // Data states
+  // Data states (populated directly from backend responses)
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);
+
+  // Store-wide Global KPI Metrics (independent of active table search/filters)
+  const [kpiMetrics, setKpiMetrics] = useState({
+    totalRevenue: 0,
+    totalOrdersCount: 0,
+    pendingDispatchCount: 0,
+    totalProductsCount: 0,
+    featuredCount: 0,
+    staffCount: 0,
+    customersCount: 0,
+  });
+
+  // Tab-specific backend search & filter loading states
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [staffLoading, setStaffLoading] = useState(false);
 
   // Search & Filter states
   const [orderSearch, setOrderSearch] = useState("");
@@ -101,6 +121,14 @@ export default function StaffPortalPage() {
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [staffSearch, setStaffSearch] = useState("");
+
+  // Debounced Search inputs (avoids hammering the backend on every key stroke)
+  const debouncedOrderSearch = useDebounce(orderSearch, 350);
+  const debouncedProductSearch = useDebounce(productSearch, 350);
+  const debouncedCustomerSearch = useDebounce(customerSearch, 350);
+  const debouncedStaffSearch = useDebounce(staffSearch, 350);
+
+  const isInitialLoaded = useRef(false);
 
   // Modals state
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -119,7 +147,7 @@ export default function StaffPortalPage() {
   const [isNewAdminModalOpen, setIsNewAdminModalOpen] = useState(false);
   const [newAdminFormData, setNewAdminFormData] = useState(emptyNewAdminForm);
 
-  // Check stored admin session on mount
+  // Check stored admin session and persistent active tab on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -128,13 +156,47 @@ export default function StaffPortalPage() {
           const parsed = JSON.parse(storedAdmin);
           setAdminUser(parsed);
         }
+        const savedTab = window.localStorage.getItem("electroVault.adminActiveTab");
+        if (savedTab && ["orders", "products", "customers", "staff"].includes(savedTab)) {
+          setActiveTab(savedTab);
+        }
       } catch (err) {
-        console.error("Admin user load error:", err);
+        console.error("Admin session load error:", err);
+      } finally {
+        setAuthChecking(false);
       }
+    } else {
+      setAuthChecking(false);
     }
   }, []);
 
-  // Load all admin data when authorized admin user is present
+  const handleTabChange = (tabKey) => {
+    setActiveTab(tabKey);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("electroVault.adminActiveTab", tabKey);
+    }
+  };
+
+  // Helper to compute KPI metrics from full store data
+  const updateGlobalKpiMetrics = (allOrders = [], allProducts = [], allUsers = [], allStaff = []) => {
+    const rev = allOrders
+      .filter((o) => o.orderStatus !== "Cancelled")
+      .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+    const pending = allOrders.filter((o) => o.orderStatus === "Processing" || o.orderStatus === "Placed").length;
+    const featured = allProducts.filter((p) => p.featured).length;
+
+    setKpiMetrics({
+      totalRevenue: rev,
+      totalOrdersCount: allOrders.length,
+      pendingDispatchCount: pending,
+      totalProductsCount: allProducts.length,
+      featuredCount: featured,
+      staffCount: allStaff.length,
+      customersCount: allUsers.length,
+    });
+  };
+
+  // Initial load of dashboard data and global KPI metrics
   const loadAdminData = async () => {
     setLoading(true);
     try {
@@ -149,6 +211,9 @@ export default function StaffPortalPage() {
       setProducts(productsRes || []);
       setCustomers(usersRes || []);
       setStaffMembers(staffRes || []);
+
+      updateGlobalKpiMetrics(ordersRes || [], productsRes || [], usersRes || [], staffRes || []);
+      isInitialLoaded.current = true;
     } catch (err) {
       console.error("Admin data load error:", err);
       toast.error("Data Load Error", "Failed to load dashboard metrics from MongoDB Atlas.");
@@ -162,6 +227,97 @@ export default function StaffPortalPage() {
       loadAdminData();
     }
   }, [adminUser]);
+
+  // Backend API Filter: Orders (triggered on debounced search or status dropdown change)
+  useEffect(() => {
+    if (!isInitialLoaded.current || !adminUser) return;
+    let isCurrent = true;
+    setOrdersLoading(true);
+
+    fetchAdminOrders({
+      search: debouncedOrderSearch,
+      status: orderStatusFilter,
+    })
+      .then((res) => {
+        if (isCurrent) setOrders(res || []);
+      })
+      .catch((err) => console.error("Backend orders filter error:", err))
+      .finally(() => {
+        if (isCurrent) setOrdersLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [debouncedOrderSearch, orderStatusFilter, adminUser]);
+
+  // Backend API Filter: Products (triggered on debounced search or brand dropdown change)
+  useEffect(() => {
+    if (!isInitialLoaded.current || !adminUser) return;
+    let isCurrent = true;
+    setProductsLoading(true);
+
+    fetchAdminProducts({
+      search: debouncedProductSearch,
+      brand: productBrandFilter,
+      limit: 200,
+    })
+      .then((res) => {
+        if (isCurrent) setProducts(res || []);
+      })
+      .catch((err) => console.error("Backend products filter error:", err))
+      .finally(() => {
+        if (isCurrent) setProductsLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [debouncedProductSearch, productBrandFilter, adminUser]);
+
+  // Backend API Filter: Customers (triggered on debounced search change)
+  useEffect(() => {
+    if (!isInitialLoaded.current || !adminUser) return;
+    let isCurrent = true;
+    setCustomersLoading(true);
+
+    fetchAdminUsers({
+      search: debouncedCustomerSearch,
+    })
+      .then((res) => {
+        if (isCurrent) setCustomers(res || []);
+      })
+      .catch((err) => console.error("Backend customers filter error:", err))
+      .finally(() => {
+        if (isCurrent) setCustomersLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [debouncedCustomerSearch, adminUser]);
+
+  // Backend API Filter: Staff (triggered on debounced search change)
+  useEffect(() => {
+    if (!isInitialLoaded.current || !adminUser) return;
+    let isCurrent = true;
+    setStaffLoading(true);
+
+    fetchAdminStaffList({
+      search: debouncedStaffSearch,
+    })
+      .then((res) => {
+        if (isCurrent) setStaffMembers(res || []);
+      })
+      .catch((err) => console.error("Backend staff filter error:", err))
+      .finally(() => {
+        if (isCurrent) setStaffLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [debouncedStaffSearch, adminUser]);
 
   // Handle Dedicated Admin Login
   const handleAdminLogin = async (e) => {
@@ -185,85 +341,19 @@ export default function StaffPortalPage() {
     }
   };
 
-
   // Staff Logout
   const handleAdminLogout = () => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("electroVault.adminUser");
       window.localStorage.removeItem("electroVault.adminAuthToken");
       window.localStorage.removeItem("electroVault.adminSession");
+      window.localStorage.removeItem("electroVault.adminActiveTab");
       window.sessionStorage.removeItem("electroVault.adminSession");
     }
     setAdminUser(null);
+    setActiveTab("orders");
     toast.info("Staff Logged Out", "Admin session ended securely.");
   };
-
-  // Calculated KPI Metrics
-  const totalRevenue = useMemo(() => {
-    return orders
-      .filter((o) => o.orderStatus !== "Cancelled")
-      .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
-  }, [orders]);
-
-  const lowStockCount = useMemo(() => {
-    return products.filter((p) => Number(p.stock) < 5).length;
-  }, [products]);
-
-  // Filtered Orders
-  const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
-      const matchSearch =
-        !orderSearch ||
-        o.orderNumber?.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        o.shippingAddress?.fullName?.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        o.shippingAddress?.email?.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        o.guestEmail?.toLowerCase().includes(orderSearch.toLowerCase());
-
-      const matchStatus =
-        orderStatusFilter === "all" ||
-        o.orderStatus?.toLowerCase() === orderStatusFilter.toLowerCase();
-
-      return matchSearch && matchStatus;
-    });
-  }, [orders, orderSearch, orderStatusFilter]);
-
-  // Filtered Products
-  const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const matchSearch =
-        !productSearch ||
-        p.name?.toLowerCase().includes(productSearch.toLowerCase()) ||
-        p.brand?.toLowerCase().includes(productSearch.toLowerCase()) ||
-        p.slug?.toLowerCase().includes(productSearch.toLowerCase());
-
-      const matchBrand =
-        productBrandFilter === "all" ||
-        p.brand?.toLowerCase() === productBrandFilter.toLowerCase();
-
-      return matchSearch && matchBrand;
-    });
-  }, [products, productSearch, productBrandFilter]);
-
-  // Filtered Customers
-  const filteredCustomers = useMemo(() => {
-    return customers.filter(
-      (u) =>
-        !customerSearch ||
-        u.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-        u.email?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-        u.phone?.toLowerCase().includes(customerSearch.toLowerCase())
-    );
-  }, [customers, customerSearch]);
-
-  // Filtered Staff
-  const filteredStaff = useMemo(() => {
-    return staffMembers.filter(
-      (s) =>
-        !staffSearch ||
-        s.name?.toLowerCase().includes(staffSearch.toLowerCase()) ||
-        s.email?.toLowerCase().includes(staffSearch.toLowerCase())
-    );
-  }, [staffMembers, staffSearch]);
 
   // Handle Order Status Update
   const handleOpenOrderModal = (order) => {
@@ -441,6 +531,107 @@ export default function StaffPortalPage() {
     }
   };
 
+  // Skeleton Layout Loading Gate
+  if (authChecking) {
+    return (
+      <main className="py-4 py-lg-5 bg-soft min-vh-100 placeholder-glow">
+        <Container>
+          {/* Skeleton Header Top Bar */}
+          <header
+            className="text-white py-3 px-4 mb-4 shadow-sm rounded-4"
+            style={{
+              backgroundColor: "#0f172a",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+            }}
+          >
+            <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+              {/* Left Brand Skeleton */}
+              <div className="d-flex align-items-center gap-3">
+                <div
+                  className="bg-secondary bg-opacity-25 rounded-3 placeholder"
+                  style={{ width: "42px", height: "42px" }}
+                />
+                <div className="d-flex flex-column gap-1.5" style={{ width: "220px" }}>
+                  <span className="placeholder bg-secondary bg-opacity-50 col-10 rounded-pill py-1" />
+                  <span className="placeholder bg-secondary bg-opacity-25 col-7 rounded-pill py-1" />
+                </div>
+              </div>
+
+              {/* Right Profile & Logout Skeleton */}
+              <div className="d-flex align-items-center gap-3.5">
+                <div className="d-flex align-items-center gap-3">
+                  <div
+                    className="bg-secondary bg-opacity-25 rounded-circle placeholder"
+                    style={{ width: "40px", height: "40px" }}
+                  />
+                  <div className="d-flex flex-column gap-1.5" style={{ width: "120px" }}>
+                    <span className="placeholder bg-secondary bg-opacity-50 col-9 rounded-pill py-1" />
+                    <span className="placeholder bg-secondary bg-opacity-25 col-6 rounded-pill py-1" />
+                  </div>
+                </div>
+                <div className="vr bg-secondary opacity-25 d-none d-sm-block my-1" style={{ height: "26px" }} />
+                <span
+                  className="placeholder bg-secondary bg-opacity-25 rounded-pill"
+                  style={{ width: "90px", height: "34px" }}
+                />
+              </div>
+            </div>
+          </header>
+
+          {/* Skeleton KPI Metric Cards */}
+          <div className="row g-3 g-xl-4 mb-4">
+            {[1, 2, 3, 4].map((idx) => (
+              <div key={idx} className="col-12 col-sm-6 col-lg-3">
+                <div className="card border-0 rounded-4 shadow-sm p-4 h-100 bg-white">
+                  <div className="d-flex align-items-center justify-content-between mb-3">
+                    <span className="placeholder bg-secondary bg-opacity-25 col-6 rounded-pill py-1" />
+                    <div
+                      className="bg-secondary bg-opacity-10 rounded-3 placeholder"
+                      style={{ width: "38px", height: "38px" }}
+                    />
+                  </div>
+                  <div className="mb-2">
+                    <span className="placeholder bg-secondary bg-opacity-50 col-8 rounded-2 py-2" />
+                  </div>
+                  <span className="placeholder bg-secondary bg-opacity-25 col-5 rounded-pill py-1" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Skeleton Tab & Table Card */}
+          <div className="card border-0 rounded-4 shadow-sm bg-white overflow-hidden mb-4">
+            <div className="d-flex border-bottom bg-light px-3 pt-3 gap-2">
+              <span className="placeholder bg-secondary bg-opacity-25 rounded-top-3 py-2.5 px-4 me-2" style={{ width: "140px" }} />
+              <span className="placeholder bg-secondary bg-opacity-10 rounded-top-3 py-2.5 px-4 me-2" style={{ width: "150px" }} />
+              <span className="placeholder bg-secondary bg-opacity-10 rounded-top-3 py-2.5 px-4 me-2" style={{ width: "160px" }} />
+              <span className="placeholder bg-secondary bg-opacity-10 rounded-top-3 py-2.5 px-4" style={{ width: "180px" }} />
+            </div>
+
+            <div className="p-4">
+              <div className="d-flex align-items-center justify-content-between mb-4">
+                <span className="placeholder bg-secondary bg-opacity-25 rounded-pill" style={{ width: "240px", height: "36px" }} />
+                <span className="placeholder bg-secondary bg-opacity-25 rounded-pill" style={{ width: "150px", height: "36px" }} />
+              </div>
+
+              <div className="d-flex flex-column gap-3">
+                {[1, 2, 3, 4, 5].map((row) => (
+                  <div key={row} className="d-flex align-items-center justify-content-between py-2 border-bottom border-light">
+                    <span className="placeholder bg-secondary bg-opacity-25 col-3 rounded-pill py-1.5" />
+                    <span className="placeholder bg-secondary bg-opacity-25 col-2 rounded-pill py-1.5" />
+                    <span className="placeholder bg-secondary bg-opacity-25 col-2 rounded-pill py-1.5" />
+                    <span className="placeholder bg-secondary bg-opacity-25 col-1 rounded-pill py-1.5" />
+                    <span className="placeholder bg-secondary bg-opacity-25 col-1 rounded-pill py-1.5" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Container>
+      </main>
+    );
+  }
+
   // IF UNAUTHENTICATED IN STAFF PORTAL: SHOW DEDICATED ADMIN LOGIN SCREEN
   if (!adminUser) {
     return (
@@ -535,46 +726,81 @@ export default function StaffPortalPage() {
     <main className="py-4 py-lg-5 bg-soft min-vh-100">
       <Container>
         {/* Dedicated Standalone Admin Top Bar */}
-        <header className="bg-dark text-white py-3 px-4 mb-4 border-bottom border-secondary border-opacity-25 shadow-sm rounded-4">
+        <header
+          className="text-white py-3 px-4 mb-4 shadow-sm rounded-4"
+          style={{
+            backgroundColor: "#0f172a",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+          }}
+        >
           <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
-            <div className="d-flex align-items-center gap-2.5">
-              <div className="bg-primary text-white p-2 rounded-3 fw-bold font-monospace" style={{ fontSize: "0.9rem" }}>
-                EV-ADMIN
+            {/* Left Branding */}
+            <div className="d-flex align-items-center gap-3">
+              <div
+                className="d-flex align-items-center justify-content-center bg-primary bg-gradient text-white rounded-3 shadow-sm flex-shrink-0"
+                style={{ width: "42px", height: "42px" }}
+              >
+                <ShieldCheck size={24} />
               </div>
               <div>
-                <h5 className="fw-bold mb-0 text-white">ElectroVault Staff Operations Hub</h5>
-                <small className="text-white-50" style={{ fontSize: "0.75rem" }}>
-                  Live Store Management Portal
+                <div className="d-flex align-items-center gap-2">
+                  <h5 className="fw-bold mb-0 text-white" style={{ letterSpacing: "-0.01em" }}>
+                    ElectroVault Operations Hub
+                  </h5>
+                  <span
+                    className="badge bg-primary bg-opacity-20 text-info border border-info border-opacity-25 rounded-pill px-2 py-0.5"
+                    style={{ fontSize: "0.68rem" }}
+                  >
+                    Staff Portal
+                  </span>
+                </div>
+                <small className="text-white-50" style={{ fontSize: "0.76rem" }}>
+                  Live Store & Inventory Management System
                 </small>
               </div>
             </div>
 
-            <div className="d-flex align-items-center gap-3">
-              {/* Admin Avatar & Profile Display */}
-              <div className="d-flex align-items-center gap-2.5 bg-white bg-opacity-10 px-3 py-1.5 rounded-pill border border-white border-opacity-15">
+            {/* Right Side: Profile & Logout (no outer border, generous spacing) */}
+            <div className="d-flex align-items-center gap-3.5">
+              <div className="d-flex align-items-center gap-3">
                 <div
-                  className="position-relative d-flex align-items-center justify-content-center bg-primary text-white fw-bold rounded-circle shadow-xs flex-shrink-0"
-                  style={{ width: "36px", height: "36px", fontSize: "0.9rem" }}
+                  className="position-relative d-flex align-items-center justify-content-center bg-primary bg-gradient text-white fw-bold rounded-circle shadow-sm flex-shrink-0"
+                  style={{ width: "40px", height: "40px", fontSize: "1rem" }}
                 >
                   {adminUser?.name ? adminUser.name.charAt(0).toUpperCase() : "A"}
                   <span
-                    className="position-absolute bottom-0 end-0 bg-success border border-dark rounded-circle"
-                    style={{ width: "9px", height: "9px" }}
+                    className="position-absolute bottom-0 end-0 bg-success border border-2 rounded-circle"
+                    style={{
+                      width: "11px",
+                      height: "11px",
+                      borderColor: "#0f172a",
+                      transform: "translate(15%, 15%)",
+                    }}
                     title="Active Admin Session"
                   />
                 </div>
-                <div className="d-flex flex-column" style={{ lineHeight: "1.2" }}>
-                  <span className="fw-bold text-white small">{adminUser?.name || "Admin Staff"}</span>
-                  <span className="text-white-50" style={{ fontSize: "0.7rem" }}>
-                    {isSuperAdmin ? "Super Admin" : "Staff Administrator"}
+                <div className="d-flex flex-column text-start" style={{ lineHeight: "1.25" }}>
+                  <span className="fw-semibold text-white fs-6">
+                    {adminUser?.name || "Admin Staff"}
+                  </span>
+                  <span
+                    className={`small fw-medium ${isSuperAdmin ? "text-warning" : "text-white-50"}`}
+                    style={{ fontSize: "0.74rem" }}
+                  >
+                    {isSuperAdmin ? "★ Super Admin" : "Staff Administrator"}
                   </span>
                 </div>
               </div>
 
+              <div
+                className="vr bg-secondary opacity-25 d-none d-sm-block my-1"
+                style={{ height: "26px" }}
+              />
+
               {/* Log Out Button */}
               <button
                 type="button"
-                className="btn btn-outline-danger text-white btn-sm rounded-pill px-3 py-1.5 fw-bold d-flex align-items-center gap-1.5"
+                className="btn btn-outline-danger btn-sm rounded-pill px-3.5 py-1.5 fw-semibold d-flex align-items-center gap-1.5 transition-all shadow-xs"
                 onClick={handleAdminLogout}
                 title="Log out of Staff Session"
               >
@@ -586,71 +812,123 @@ export default function StaffPortalPage() {
         </header>
 
         {/* Analytics KPI Metric Cards */}
-        <div className="row g-3 mb-4">
+        <div className="row g-3 g-xl-4 mb-4">
+          {/* 1. Total Store Revenue */}
           <div className="col-12 col-sm-6 col-lg-3">
-            <div className="card border-0 rounded-4 shadow-sm p-3.5 bg-white">
-              <div className="d-flex align-items-center justify-content-between mb-2">
-                <span className="small text-muted fw-bold text-uppercase" style={{ fontSize: "0.72rem" }}>
+            <div
+              className="card border rounded-4 shadow-sm p-4 h-100 position-relative overflow-hidden transition-all"
+              style={{
+                background: "linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)",
+                borderColor: "#bbf7d0",
+              }}
+            >
+              <div className="d-flex align-items-center justify-content-between mb-3">
+                <span className="small text-muted fw-bold text-uppercase" style={{ fontSize: "0.72rem", letterSpacing: "0.05em" }}>
                   Total Store Revenue
                 </span>
-                <div className="bg-success bg-opacity-10 text-success p-2 rounded-3">
+                <div
+                  className="d-flex align-items-center justify-content-center bg-success text-white rounded-3 shadow-xs"
+                  style={{ width: "38px", height: "38px" }}
+                >
                   <DollarSign size={20} />
                 </div>
               </div>
-              <h3 className="fw-bold text-dark mb-0">£{totalRevenue.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</h3>
-              <div className="small text-success fw-medium mt-1 d-flex align-items-center gap-1" style={{ fontSize: "0.75rem" }}>
-                <TrendingUp size={13} /> {orders.length} orders processed
+              <h3 className="fw-bold text-dark mb-1" style={{ letterSpacing: "-0.02em" }}>
+                £{kpiMetrics.totalRevenue.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+              </h3>
+              <div className="small text-success fw-medium d-flex align-items-center gap-1.5 mt-2" style={{ fontSize: "0.78rem" }}>
+                <TrendingUp size={14} />
+                <span>{kpiMetrics.totalOrdersCount} orders processed</span>
               </div>
             </div>
           </div>
 
+          {/* 2. Total Orders Placed */}
           <div className="col-12 col-sm-6 col-lg-3">
-            <div className="card border-0 rounded-4 shadow-sm p-3.5 bg-white">
-              <div className="d-flex align-items-center justify-content-between mb-2">
-                <span className="small text-muted fw-bold text-uppercase" style={{ fontSize: "0.72rem" }}>
+            <div
+              className="card border rounded-4 shadow-sm p-4 h-100 position-relative overflow-hidden transition-all"
+              style={{
+                background: "linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)",
+                borderColor: "#bfdbfe",
+              }}
+            >
+              <div className="d-flex align-items-center justify-content-between mb-3">
+                <span className="small text-muted fw-bold text-uppercase" style={{ fontSize: "0.72rem", letterSpacing: "0.05em" }}>
                   Total Orders Placed
                 </span>
-                <div className="bg-primary bg-opacity-10 text-primary p-2 rounded-3">
+                <div
+                  className="d-flex align-items-center justify-content-center bg-primary text-white rounded-3 shadow-xs"
+                  style={{ width: "38px", height: "38px" }}
+                >
                   <ShoppingBag size={20} />
                 </div>
               </div>
-              <h3 className="fw-bold text-dark mb-0">{orders.length}</h3>
-              <div className="small text-muted mt-1" style={{ fontSize: "0.75rem" }}>
-                {orders.filter((o) => o.orderStatus === "Processing").length} pending dispatch
+              <h3 className="fw-bold text-dark mb-1" style={{ letterSpacing: "-0.02em" }}>
+                {kpiMetrics.totalOrdersCount}
+              </h3>
+              <div className="small text-primary fw-medium d-flex align-items-center gap-1.5 mt-2" style={{ fontSize: "0.78rem" }}>
+                <Clock size={14} />
+                <span>{kpiMetrics.pendingDispatchCount} pending dispatch</span>
               </div>
             </div>
           </div>
 
+          {/* 3. Handset Inventory */}
           <div className="col-12 col-sm-6 col-lg-3">
-            <div className="card border-0 rounded-4 shadow-sm p-3.5 bg-white">
-              <div className="d-flex align-items-center justify-content-between mb-2">
-                <span className="small text-muted fw-bold text-uppercase" style={{ fontSize: "0.72rem" }}>
+            <div
+              className="card border rounded-4 shadow-sm p-4 h-100 position-relative overflow-hidden transition-all"
+              style={{
+                background: "linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)",
+                borderColor: "#e9d5ff",
+              }}
+            >
+              <div className="d-flex align-items-center justify-content-between mb-3">
+                <span className="small text-muted fw-bold text-uppercase" style={{ fontSize: "0.72rem", letterSpacing: "0.05em" }}>
                   Handset Inventory
                 </span>
-                <div className="bg-info bg-opacity-10 text-info p-2 rounded-3">
+                <div
+                  className="d-flex align-items-center justify-content-center text-white rounded-3 shadow-xs"
+                  style={{ width: "38px", height: "38px", backgroundColor: "#9333ea" }}
+                >
                   <Package size={20} />
                 </div>
               </div>
-              <h3 className="fw-bold text-dark mb-0">{products.length}</h3>
-              <div className="small text-muted mt-1" style={{ fontSize: "0.75rem" }}>
-                {products.filter((p) => p.featured).length} featured listings
+              <h3 className="fw-bold text-dark mb-1" style={{ letterSpacing: "-0.02em" }}>
+                {kpiMetrics.totalProductsCount}
+              </h3>
+              <div className="small fw-medium d-flex align-items-center gap-1.5 mt-2" style={{ fontSize: "0.78rem", color: "#7e22ce" }}>
+                <Sparkles size={14} />
+                <span>{kpiMetrics.featuredCount} featured listings</span>
               </div>
             </div>
           </div>
 
+          {/* 4. Active Admin Team */}
           <div className="col-12 col-sm-6 col-lg-3">
-            <div className="card border-0 rounded-4 shadow-sm p-3.5 bg-white">
-              <div className="d-flex align-items-center justify-content-between mb-2">
-                <span className="small text-muted fw-bold text-uppercase" style={{ fontSize: "0.72rem" }}>
+            <div
+              className="card border rounded-4 shadow-sm p-4 h-100 position-relative overflow-hidden transition-all"
+              style={{
+                background: "linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)",
+                borderColor: "#fde68a",
+              }}
+            >
+              <div className="d-flex align-items-center justify-content-between mb-3">
+                <span className="small text-muted fw-bold text-uppercase" style={{ fontSize: "0.72rem", letterSpacing: "0.05em" }}>
                   Active Admin Team
                 </span>
-                <div className="bg-warning bg-opacity-10 text-warning p-2 rounded-3">
+                <div
+                  className="d-flex align-items-center justify-content-center text-white rounded-3 shadow-xs"
+                  style={{ width: "38px", height: "38px", backgroundColor: "#d97706" }}
+                >
                   <UserPlus size={20} />
                 </div>
               </div>
-              <h3 className="fw-bold text-dark mb-0">{staffMembers.length}</h3>
-              <div className="small text-muted mt-1" style={{ fontSize: "0.75rem" }}>
-                {customers.length} registered buyers
+              <h3 className="fw-bold text-dark mb-1" style={{ letterSpacing: "-0.02em" }}>
+                {kpiMetrics.staffCount}
+              </h3>
+              <div className="small fw-medium d-flex align-items-center gap-1.5 mt-2" style={{ fontSize: "0.78rem", color: "#b45309" }}>
+                <Users size={14} />
+                <span>{kpiMetrics.customersCount} registered buyers</span>
               </div>
             </div>
           </div>
@@ -664,40 +942,40 @@ export default function StaffPortalPage() {
               className={`btn px-4 py-2.5 fw-bold rounded-top-3 border-0 transition-all ${
                 activeTab === "orders" ? "bg-white text-primary shadow-xs border-top border-primary border-3" : "text-muted hover-bg-white"
               }`}
-              onClick={() => setActiveTab("orders")}
+              onClick={() => handleTabChange("orders")}
             >
               <ShoppingBag size={18} className="me-2" />
-              Live Orders ({orders.length})
+              Live Orders ({kpiMetrics.totalOrdersCount})
             </button>
             <button
               type="button"
               className={`btn px-4 py-2.5 fw-bold rounded-top-3 border-0 transition-all ${
                 activeTab === "products" ? "bg-white text-primary shadow-xs border-top border-primary border-3" : "text-muted hover-bg-white"
               }`}
-              onClick={() => setActiveTab("products")}
+              onClick={() => handleTabChange("products")}
             >
               <Package size={18} className="me-2" />
-              Product Catalog ({products.length})
+              Product Catalog ({kpiMetrics.totalProductsCount})
             </button>
             <button
               type="button"
               className={`btn px-4 py-2.5 fw-bold rounded-top-3 border-0 transition-all ${
                 activeTab === "customers" ? "bg-white text-primary shadow-xs border-top border-primary border-3" : "text-muted hover-bg-white"
               }`}
-              onClick={() => setActiveTab("customers")}
+              onClick={() => handleTabChange("customers")}
             >
               <Users size={18} className="me-2" />
-              Customer Directory ({customers.length})
+              Customer Directory ({kpiMetrics.customersCount})
             </button>
             <button
               type="button"
               className={`btn px-4 py-2.5 fw-bold rounded-top-3 border-0 transition-all ${
                 activeTab === "staff" ? "bg-white text-primary shadow-xs border-top border-primary border-3" : "text-muted hover-bg-white"
               }`}
-              onClick={() => setActiveTab("staff")}
+              onClick={() => handleTabChange("staff")}
             >
               <UserPlus size={18} className="me-2" />
-              Admin Team & Staff Accounts ({staffMembers.length})
+              Admin Team & Staff Accounts ({kpiMetrics.staffCount})
             </button>
           </div>
 
@@ -706,51 +984,46 @@ export default function StaffPortalPage() {
             {activeTab === "orders" && (
               <div>
                 {/* Search & Status Filters */}
-                <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
-                  <div className="input-group input-group-sm max-w-360">
-                    <span className="input-group-text bg-light border-end-0 text-muted">
-                      <Search size={16} />
-                    </span>
-                    <input
-                      type="text"
-                      className="form-control border-start-0 ps-0"
-                      placeholder="Search Order #, email, or customer name..."
-                      value={orderSearch}
-                      onChange={(e) => setOrderSearch(e.target.value)}
-                    />
-                  </div>
+                <div className="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-3 mb-4">
+                  <AdminSearchInput
+                    value={orderSearch}
+                    onChange={setOrderSearch}
+                    placeholder="Search Order #, email, customer..."
+                    isLoading={ordersLoading}
+                    id="order-search-input"
+                  />
 
-                  <div className="d-flex align-items-center gap-1.5 flex-wrap">
-                    <span className="small text-muted fw-bold text-uppercase me-1" style={{ fontSize: "0.7rem" }}>
+                  <div className="d-flex align-items-center gap-2 justify-content-between justify-content-md-end flex-wrap">
+                    <label htmlFor="order-status-filter" className="small text-muted fw-bold text-uppercase d-none d-sm-inline mb-0" style={{ fontSize: "0.72rem" }}>
                       Filter Status:
-                    </span>
-                    {["all", "Processing", "50-Point Checked", "Dispatched", "Delivered", "Cancelled"].map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        className={`btn btn-sm rounded-pill px-3 py-1 fw-semibold transition-all ${
-                          orderStatusFilter.toLowerCase() === st.toLowerCase()
-                            ? "btn-primary shadow-xs"
-                            : "btn-outline-secondary border-light-subtle text-dark"
-                        }`}
-                        style={{ fontSize: "0.78rem" }}
-                        onClick={() => setOrderStatusFilter(st)}
-                      >
-                        {st === "all" ? "All Orders" : st}
-                      </button>
-                    ))}
+                    </label>
+                    <select
+                      id="order-status-filter"
+                      className="form-select form-select-sm bg-white shadow-xs"
+                      style={{ minWidth: "160px", maxWidth: "200px" }}
+                      value={orderStatusFilter}
+                      onChange={(e) => setOrderStatusFilter(e.target.value)}
+                    >
+                      <option value="all">All Orders</option>
+                      <option value="Processing">Processing</option>
+                      <option value="50-Point Checked">50-Point Checked</option>
+                      <option value="Dispatched">Dispatched</option>
+                      <option value="Delivered">Delivered</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
                   </div>
                 </div>
 
                 {/* Orders Table */}
-                {filteredOrders.length === 0 ? (
+                {orders.length === 0 ? (
                   <div className="text-center py-5 bg-light rounded-4 border border-dashed">
                     <ShoppingBag size={32} className="text-muted mb-2" />
                     <h6 className="fw-bold text-dark">No orders found</h6>
+                    <p className="text-muted small mb-0">Try adjusting your search query or status filter.</p>
                   </div>
                 ) : (
                   <div className="table-responsive">
-                    <table className="table table-hover align-middle border mb-0 rounded-3 overflow-hidden">
+                    <table className={`table table-hover align-middle border mb-0 rounded-3 overflow-hidden ${ordersLoading ? "opacity-75" : ""}`}>
                       <thead className="table-light">
                         <tr className="small text-uppercase text-muted" style={{ letterSpacing: "0.05em", fontSize: "0.72rem" }}>
                           <th className="py-3 px-3">Order Ref #</th>
@@ -762,7 +1035,7 @@ export default function StaffPortalPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredOrders.map((order) => {
+                        {orders.map((order) => {
                           const status = order.orderStatus || "Processing";
                           const recipient = order.shippingAddress?.fullName || order.guestEmail || "Customer";
                           const total = Number(order.totalAmount || 0);
@@ -901,52 +1174,55 @@ export default function StaffPortalPage() {
             {/* TAB 2: PRODUCT CATALOG */}
             {activeTab === "products" && (
               <div>
-                <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
-                  <div className="d-flex align-items-center gap-2 flex-wrap flex-grow-1">
-                    <div className="input-group input-group-sm max-w-300">
-                      <span className="input-group-text bg-light border-end-0 text-muted">
-                        <Search size={16} />
-                      </span>
-                      <input
-                        type="text"
-                        className="form-control border-start-0 ps-0"
-                        placeholder="Search model, brand, slug..."
-                        value={productSearch}
-                        onChange={(e) => setProductSearch(e.target.value)}
-                      />
+                <div className="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-3 mb-4">
+                  <AdminSearchInput
+                    value={productSearch}
+                    onChange={setProductSearch}
+                    placeholder="Search model, brand, slug..."
+                    isLoading={productsLoading}
+                    id="product-search-input"
+                  />
+
+                  <div className="d-flex align-items-center gap-2.5 justify-content-between justify-content-md-end flex-wrap">
+                    <div className="d-flex align-items-center gap-2">
+                      <label htmlFor="product-brand-filter" className="small text-muted fw-bold text-uppercase d-none d-sm-inline mb-0" style={{ fontSize: "0.72rem" }}>
+                        Brand:
+                      </label>
+                      <select
+                        id="product-brand-filter"
+                        className="form-select form-select-sm bg-white shadow-xs"
+                        style={{ minWidth: "140px", maxWidth: "160px" }}
+                        value={productBrandFilter}
+                        onChange={(e) => setProductBrandFilter(e.target.value)}
+                      >
+                        <option value="all">All Brands</option>
+                        <option value="Apple">Apple</option>
+                        <option value="Samsung">Samsung</option>
+                        <option value="Google">Google</option>
+                        <option value="OnePlus">OnePlus</option>
+                        <option value="Xiaomi">Xiaomi</option>
+                      </select>
                     </div>
 
-                    <select
-                      className="form-select form-select-sm max-w-160"
-                      value={productBrandFilter}
-                      onChange={(e) => setProductBrandFilter(e.target.value)}
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm px-3 py-1.5 rounded-3 fw-bold d-flex align-items-center gap-1.5 shadow-sm"
+                      onClick={handleOpenAddProductModal}
                     >
-                      <option value="all">All Brands</option>
-                      <option value="Apple">Apple</option>
-                      <option value="Samsung">Samsung</option>
-                      <option value="Google">Google</option>
-                      <option value="OnePlus">OnePlus</option>
-                      <option value="Xiaomi">Xiaomi</option>
-                    </select>
+                      <Plus size={16} /> Add New Handset Listing
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm px-3 py-2 rounded-3 fw-bold d-flex align-items-center gap-1.5 shadow-sm"
-                    onClick={handleOpenAddProductModal}
-                  >
-                    <Plus size={16} /> Add New Handset Listing
-                  </button>
                 </div>
 
-                {filteredProducts.length === 0 ? (
+                {products.length === 0 ? (
                   <div className="text-center py-5 bg-light rounded-4 border border-dashed">
                     <Package size={32} className="text-muted mb-2" />
                     <h6 className="fw-bold text-dark">No products found</h6>
+                    <p className="text-muted small mb-0">Try searching a different handset model or changing the brand filter.</p>
                   </div>
                 ) : (
                   <div className="table-responsive">
-                    <table className="table table-hover align-middle border mb-0 rounded-3 overflow-hidden">
+                    <table className={`table table-hover align-middle border mb-0 rounded-3 overflow-hidden ${productsLoading ? "opacity-75" : ""}`}>
                       <thead className="table-light">
                         <tr className="small text-uppercase text-muted" style={{ letterSpacing: "0.05em", fontSize: "0.72rem" }}>
                           <th className="py-3 px-3">Product Item</th>
@@ -959,7 +1235,7 @@ export default function StaffPortalPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredProducts.map((prod) => {
+                        {products.map((prod) => {
                           const img = prod.images?.[0] || "https://placehold.co/800x800/EEF2F7/0F172A?text=Phone";
                           const isLowStock = Number(prod.stock || 0) < 5;
 
@@ -1074,74 +1350,82 @@ export default function StaffPortalPage() {
             {/* TAB 3: CUSTOMER DIRECTORY */}
             {activeTab === "customers" && (
               <div>
-                <div className="d-flex align-items-center justify-content-between gap-3 mb-4">
-                  <div className="input-group input-group-sm max-w-360">
-                    <span className="input-group-text bg-light border-end-0 text-muted">
-                      <Search size={16} />
-                    </span>
-                    <input
-                      type="text"
-                      className="form-control border-start-0 ps-0"
-                      placeholder="Search buyers by name, email, phone..."
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                    />
-                  </div>
-                  <span className="text-muted small">Showing {filteredCustomers.length} registered buyers</span>
+                <div className="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-3 mb-4">
+                  <AdminSearchInput
+                    value={customerSearch}
+                    onChange={setCustomerSearch}
+                    placeholder="Search buyers by name, email, phone..."
+                    isLoading={customersLoading}
+                    id="customer-search-input"
+                  />
+                  <span className="text-muted small text-md-end">
+                    Showing <strong className="text-dark">{customers.length}</strong> registered buyer{customers.length === 1 ? "" : "s"}
+                  </span>
                 </div>
 
-                <div className="table-responsive">
-                  <table className="table table-hover align-middle border mb-0 rounded-3 overflow-hidden">
-                    <thead className="table-light">
-                      <tr className="small text-uppercase text-muted" style={{ letterSpacing: "0.05em", fontSize: "0.72rem" }}>
-                        <th className="py-3 px-3">Customer Name</th>
-                        <th className="py-3 px-3">Email Address</th>
-                        <th className="py-3 px-3">Phone</th>
-                        <th className="py-3 px-3">Total Orders</th>
-                        <th className="py-3 px-3">Lifetime Spent</th>
-                        <th className="py-3 px-3">Member Since</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredCustomers.map((u) => (
-                        <tr key={u._id || u.id}>
-                          <td className="px-3 fw-bold text-dark">{u.name}</td>
-                          <td className="px-3 text-muted small">{u.email}</td>
-                          <td className="px-3 text-muted small">{u.phone || "N/A"}</td>
-                          <td className="px-3">
-                            <span className="badge bg-primary rounded-pill px-2.5 py-1">{u.totalOrders || 0} Orders</span>
-                          </td>
-                          <td className="px-3 fw-bold text-success">
-                            £{Number(u.totalSpent || 0).toFixed(2)}
-                          </td>
-                          <td className="px-3 text-muted small">
-                            {new Date(u.createdAt || Date.now()).toLocaleDateString("en-GB", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </td>
+                {customers.length === 0 ? (
+                  <div className="text-center py-5 bg-light rounded-4 border border-dashed">
+                    <Users size={32} className="text-muted mb-2" />
+                    <h6 className="fw-bold text-dark">No customers found</h6>
+                    <p className="text-muted small mb-0">Try searching with a different name, email, or phone number.</p>
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className={`table table-hover align-middle border mb-0 rounded-3 overflow-hidden ${customersLoading ? "opacity-75" : ""}`}>
+                      <thead className="table-light">
+                        <tr className="small text-uppercase text-muted" style={{ letterSpacing: "0.05em", fontSize: "0.72rem" }}>
+                          <th className="py-3 px-3">Customer Name</th>
+                          <th className="py-3 px-3">Email Address</th>
+                          <th className="py-3 px-3">Phone</th>
+                          <th className="py-3 px-3">Total Orders</th>
+                          <th className="py-3 px-3">Lifetime Spent</th>
+                          <th className="py-3 px-3">Member Since</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {customers.map((u) => (
+                          <tr key={u._id || u.id}>
+                            <td className="px-3 fw-bold text-dark">{u.name}</td>
+                            <td className="px-3 text-muted small">{u.email}</td>
+                            <td className="px-3 text-muted small">{u.phone || "N/A"}</td>
+                            <td className="px-3">
+                              <span className="badge bg-primary rounded-pill px-2.5 py-1">{u.totalOrders || 0} Orders</span>
+                            </td>
+                            <td className="px-3 fw-bold text-success">
+                              £{Number(u.totalSpent || 0).toFixed(2)}
+                            </td>
+                            <td className="px-3 text-muted small">
+                              {new Date(u.createdAt || Date.now()).toLocaleDateString("en-GB", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
             {/* TAB 4: ADMIN TEAM & MULTI-ADMIN ACCOUNTS */}
             {activeTab === "staff" && (
               <div>
-                <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
-                  <div>
-                    <h6 className="fw-bold text-primary mb-0">Multi-Admin Team Accounts</h6>
-                    <small className="text-muted">Manage store managers and staff granted admin access</small>
-                  </div>
+                <div className="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-3 mb-4">
+                  <AdminSearchInput
+                    value={staffSearch}
+                    onChange={setStaffSearch}
+                    placeholder="Search admin staff by name, email..."
+                    isLoading={staffLoading}
+                    id="staff-search-input"
+                  />
 
                   {isSuperAdmin && (
                     <button
                       type="button"
-                      className="btn btn-primary btn-sm px-3.5 py-2 rounded-3 fw-bold d-flex align-items-center gap-1.5 shadow-sm"
+                      className="btn btn-primary btn-sm px-3.5 py-1.5 rounded-3 fw-bold d-flex align-items-center gap-1.5 shadow-sm"
                       onClick={() => setIsNewAdminModalOpen(true)}
                     >
                       <UserPlus size={16} /> Create New Admin Account
@@ -1149,59 +1433,67 @@ export default function StaffPortalPage() {
                   )}
                 </div>
 
-                <div className="table-responsive">
-                  <table className="table table-hover align-middle border mb-0 rounded-3 overflow-hidden">
-                    <thead className="table-light">
-                      <tr className="small text-uppercase text-muted" style={{ letterSpacing: "0.05em", fontSize: "0.72rem" }}>
-                        <th className="py-3 px-3">Admin Name</th>
-                        <th className="py-3 px-3">Staff Email</th>
-                        <th className="py-3 px-3">Access Level</th>
-                        <th className="py-3 px-3">Account Status</th>
-                        <th className="py-3 px-3 text-end">Created Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredStaff.map((s) => {
-                        const isMemberSuperAdmin = s.role === "superadmin";
+                {staffMembers.length === 0 ? (
+                  <div className="text-center py-5 bg-light rounded-4 border border-dashed">
+                    <Shield size={32} className="text-muted mb-2" />
+                    <h6 className="fw-bold text-dark">No admin staff found</h6>
+                    <p className="text-muted small mb-0">Try searching with a different staff name or email address.</p>
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className={`table table-hover align-middle border mb-0 rounded-3 overflow-hidden ${staffLoading ? "opacity-75" : ""}`}>
+                      <thead className="table-light">
+                        <tr className="small text-uppercase text-muted" style={{ letterSpacing: "0.05em", fontSize: "0.72rem" }}>
+                          <th className="py-3 px-3">Admin Name</th>
+                          <th className="py-3 px-3">Staff Email</th>
+                          <th className="py-3 px-3">Access Level</th>
+                          <th className="py-3 px-3">Account Status</th>
+                          <th className="py-3 px-3 text-end">Created Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {staffMembers.map((s) => {
+                          const isMemberSuperAdmin = s.role === "superadmin";
 
-                        return (
-                          <tr key={s._id || s.id}>
-                            <td className="px-3">
-                              <div className="fw-bold text-dark d-flex align-items-center gap-2">
-                                <Shield size={16} className={isMemberSuperAdmin ? "text-warning" : "text-primary"} />
-                                <span>{s.name}</span>
-                              </div>
-                            </td>
-                            <td className="px-3 text-muted font-monospace small">{s.email}</td>
-                            <td className="px-3">
-                              <span
-                                className={`badge px-2.5 py-1 ${
-                                  isMemberSuperAdmin
-                                    ? "bg-warning bg-opacity-10 text-dark border border-warning"
-                                    : "bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25"
-                                }`}
-                              >
-                                {isMemberSuperAdmin ? "Super Admin" : "Staff Administrator"}
-                              </span>
-                            </td>
-                            <td className="px-3">
-                              <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1">
-                                ✓ Active
-                              </span>
-                            </td>
-                            <td className="px-3 text-end text-muted small">
-                              {new Date(s.createdAt || Date.now()).toLocaleDateString("en-GB", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                          return (
+                            <tr key={s._id || s.id}>
+                              <td className="px-3">
+                                <div className="fw-bold text-dark d-flex align-items-center gap-2">
+                                  <Shield size={16} className={isMemberSuperAdmin ? "text-warning" : "text-primary"} />
+                                  <span>{s.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-3 text-muted font-monospace small">{s.email}</td>
+                              <td className="px-3">
+                                <span
+                                  className={`badge px-2.5 py-1 ${
+                                    isMemberSuperAdmin
+                                      ? "bg-warning bg-opacity-10 text-dark border border-warning"
+                                      : "bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25"
+                                  }`}
+                                >
+                                  {isMemberSuperAdmin ? "Super Admin" : "Staff Administrator"}
+                                </span>
+                              </td>
+                              <td className="px-3">
+                                <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1">
+                                  ✓ Active
+                                </span>
+                              </td>
+                              <td className="px-3 text-end text-muted small">
+                                {new Date(s.createdAt || Date.now()).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
