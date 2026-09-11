@@ -116,7 +116,8 @@ export default function AdminDashboardPage() {
       const hasAdminRole = u?.role === "admin";
       const hasStoredSession =
         typeof window !== "undefined" &&
-        window.sessionStorage.getItem("electroVault.adminSession") === "authenticated";
+        (window.sessionStorage.getItem("electroVault.adminSession") === "authenticated" ||
+          window.localStorage.getItem("electroVault.adminSession") === "authenticated");
 
       if (hasAdminRole || hasStoredSession) {
         setIsAuthorized(true);
@@ -150,6 +151,8 @@ export default function AdminDashboardPage() {
     if (passkeyInput.trim() === "admin123" || passkeyInput.trim().toLowerCase() === "admin") {
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem("electroVault.adminSession", "authenticated");
+        window.localStorage.setItem("electroVault.adminSession", "authenticated");
+        window.dispatchEvent(new Event("electroVault-admin-changed"));
       }
       setIsAuthorized(true);
       toast.success("Staff Verified", "Welcome to Admin Operations Portal!");
@@ -163,6 +166,8 @@ export default function AdminDashboardPage() {
   const handleLockAdminSession = () => {
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem("electroVault.adminSession");
+      window.localStorage.removeItem("electroVault.adminSession");
+      window.dispatchEvent(new Event("electroVault-admin-changed"));
     }
     setIsAuthorized(false);
     toast.info("Session Locked", "Admin session locked.");

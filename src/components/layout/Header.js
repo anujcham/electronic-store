@@ -121,6 +121,7 @@ export function Header({
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isAdminSession, setIsAdminSession] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState(null);
 
   const router = useRouter();
@@ -136,15 +137,25 @@ export function Header({
     const syncUser = async () => {
       const user = await getCurrentUser();
       setCurrentUser(user);
+
+      const hasAdminRole = user?.role === "admin";
+      const hasAdminSession =
+        typeof window !== "undefined" &&
+        (window.sessionStorage.getItem("electroVault.adminSession") === "authenticated" ||
+          window.localStorage.getItem("electroVault.adminSession") === "authenticated");
+
+      setIsAdminSession(hasAdminRole || hasAdminSession);
     };
 
     syncUser();
 
     window.addEventListener("electroVault-user-changed", syncUser);
+    window.addEventListener("electroVault-admin-changed", syncUser);
     window.addEventListener("storage", syncUser);
 
     return () => {
       window.removeEventListener("electroVault-user-changed", syncUser);
+      window.removeEventListener("electroVault-admin-changed", syncUser);
       window.removeEventListener("storage", syncUser);
     };
   }, []);
@@ -441,15 +452,15 @@ export function Header({
                 </span>
               </button>
 
-              {/* Admin Portal Shortcut (Visible only when authenticated as Admin) */}
-              {currentUser?.role === "admin" && (
+              {/* Admin Portal Shortcut (Visible when logged in as Admin or Staff Passkey authenticated) */}
+              {isAdminSession && (
                 <Link
                   href="/admin"
-                  className="btn btn-warning text-dark btn-sm fw-bold rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-xs border border-warning"
+                  className="btn btn-warning text-dark btn-sm fw-bold rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-xs border border-warning ms-1"
                   title="Admin Store Operations Portal"
                 >
                   <ShieldCheck size={14} />
-                  <span className="d-none d-md-inline" style={{ fontSize: "0.75rem" }}>Admin</span>
+                  <span className="d-none d-md-inline" style={{ fontSize: "0.75rem" }}>Admin Portal</span>
                 </Link>
               )}
 
