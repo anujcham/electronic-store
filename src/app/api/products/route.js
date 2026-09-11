@@ -135,3 +135,70 @@ export async function GET(request) {
     );
   }
 }
+
+export async function POST(request) {
+  try {
+    await dbConnect();
+    const body = await request.json();
+    const {
+      name,
+      brand,
+      category,
+      subcategory,
+      price,
+      originalPrice,
+      condition,
+      stock,
+      storage,
+      color,
+      images,
+      shortDescription,
+      description,
+      featured,
+      availableStorage,
+      availableColors,
+    } = body;
+
+    if (!name || !brand || !price) {
+      return NextResponse.json(
+        { success: false, error: 'Product name, brand, and price are required.' },
+        { status: 400 }
+      );
+    }
+
+    const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const slug = `${baseSlug}-${randomSuffix}`;
+
+    const newProduct = await Product.create({
+      slug,
+      name,
+      brand,
+      category: category || 'Smartphones',
+      subcategory: subcategory || brand,
+      price: Number(price),
+      originalPrice: Number(originalPrice || price * 1.2),
+      condition: condition || 'Good',
+      stock: Number(stock !== undefined ? stock : 10),
+      storage: storage || '128GB',
+      color: color || 'Standard',
+      images: Array.isArray(images) && images.length > 0 ? images : ['https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80'],
+      shortDescription: shortDescription || `${name} (${condition}) - Certified Refurbished with 12-Month Seller Warranty`,
+      description: description || `${name} pre-owned handset in ${condition} condition. 50-point diagnostic inspection completed.`,
+      featured: Boolean(featured),
+      availableStorage: availableStorage || ['128GB', '256GB'],
+      availableColors: availableColors || ['Black', 'Silver'],
+      rating: 4.8,
+      reviewCount: 12,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Product created successfully!',
+      product: newProduct,
+    });
+  } catch (error) {
+    console.error('Error creating product:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

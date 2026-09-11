@@ -34,6 +34,7 @@ import { Logo } from "../common/Logo";
 const defaultNavItems = [
   { label: "Home", href: "/" },
   { label: "Shop", href: "/shop" },
+  { label: "Admin Portal", href: "/admin" },
   { label: "Condition Guide", href: "/#info-condition" },
   { label: "Contact", href: "/support" },
 ];

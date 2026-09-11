@@ -46,6 +46,10 @@ export function apiPut(endpoint, data) {
   return apiRequest(endpoint, { method: "PUT", body: JSON.stringify(data) });
 }
 
+export function apiPatch(endpoint, data) {
+  return apiRequest(endpoint, { method: "PATCH", body: JSON.stringify(data) });
+}
+
 export function apiDelete(endpoint) {
   return apiRequest(endpoint, { method: "DELETE" });
 }

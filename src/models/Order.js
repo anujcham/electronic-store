@@ -33,16 +33,25 @@ const OrderSchema = new mongoose.Schema(
     },
     paymentMethod: { type: String, default: 'Credit Card / Debit Card' },
     paymentStatus: { type: String, enum: ['Pending', 'Paid', 'Failed'], default: 'Paid' },
-    orderStatus: { type: String, enum: ['Processing', 'Shipped', 'Delivered', 'Cancelled'], default: 'Processing' },
+    orderStatus: {
+      type: String,
+      enum: ['Placed', 'Processing', '50-Point Checked', 'Dispatched', 'Shipped', 'Delivered', 'Cancelled'],
+      default: 'Processing',
+    },
     subtotal: { type: Number, required: true },
     shippingFee: { type: Number, default: 0 },
     tax: { type: Number, default: 0 },
     totalAmount: { type: Number, required: true },
+    courierName: { type: String, default: 'Royal Mail Tracked 24' },
     trackingNumber: { type: String },
     estimatedDelivery: { type: String, default: '2-4 working days' },
   },
   { timestamps: true }
 );
+
+if (process.env.NODE_ENV === 'development' && mongoose.models.Order) {
+  delete mongoose.models.Order;
+}
 
 export default mongoose.models.Order || mongoose.model('Order', OrderSchema);
 

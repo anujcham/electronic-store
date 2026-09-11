@@ -129,3 +129,40 @@ export async function GET(request) {
     );
   }
 }
+
+export async function PATCH(request) {
+  try {
+    await dbConnect();
+    const body = await request.json();
+    const { orderId, orderNumber, orderStatus, trackingNumber, courierName, estimatedDelivery } = body;
+
+    if (!orderId && !orderNumber) {
+      return NextResponse.json(
+        { success: false, error: 'orderId or orderNumber is required to update order status.' },
+        { status: 400 }
+      );
+    }
+
+    const query = orderId ? { _id: orderId } : { orderNumber };
+    const update = {};
+    if (orderStatus) update.orderStatus = orderStatus;
+    if (trackingNumber !== undefined) update.trackingNumber = trackingNumber;
+    if (courierName !== undefined) update.courierName = courierName;
+    if (estimatedDelivery !== undefined) update.estimatedDelivery = estimatedDelivery;
+
+    const updatedOrder = await Order.findOneAndUpdate(query, { $set: update }, { new: true });
+
+    if (!updatedOrder) {
+      return NextResponse.json({ success: false, error: 'Order not found.' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Order updated successfully!',
+      order: updatedOrder,
+    });
+  } catch (error) {
+    console.error('Error updating order:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
