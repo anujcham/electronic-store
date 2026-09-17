@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import {
+  AlertTriangle,
   Award,
   Box,
   Check,
@@ -67,6 +68,7 @@ const SPEC_KEY_LABELS = {
   display: "Display & Screen",
   processor: "Processor / Chipset",
   camera: "Camera Optics",
+  battery: "Battery & Power",
   batterySpec: "Battery & Power",
   os: "Operating System",
   network: "Network & Connectivity",
@@ -78,36 +80,17 @@ export function ProductDetails({ product, relatedProducts = [] }) {
   const { toggleWishlist, isWishlisted } = useWishlist();
   const isProductWishlisted = isWishlisted(product);
 
-  const [selectedCondition, setSelectedCondition] = useState(
-    product?.conditionOptions?.[0] || product?.condition || ""
-  );
-  const [selectedBattery, setSelectedBattery] = useState(
-    product?.batteryOptions?.[0] || "Optimal"
-  );
-  const [selectedStorage, setSelectedStorage] = useState(
-    product?.availableStorage?.[0] || product?.storage || ""
-  );
-  const [selectedColor, setSelectedColor] = useState(
-    product?.availableColors?.[0] || product?.color || ""
-  );
-  const [selectedSim, setSelectedSim] = useState(
-    product?.simOptions?.[0] || "Single SIM"
-  );
-  const [quantity, setQuantity] = useState(1);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [isConditionModalOpen, setIsConditionModalOpen] = useState(false);
-  const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview"); // "overview" | "specs" | "inspection" | "reviews"
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  // Available color variants (with dedicated photos and hex colors) from Admin
+  const colorVariantsList = useMemo(() => {
+    return Array.isArray(product?.colorVariants) ? product.colorVariants : [];
+  }, [product]);
 
-  // Reviews State (MongoDB Atlas API Sync)
-  const [reviewsList, setReviewsList] = useState(product?.reviews || []);
-  const [currentRating, setCurrentRating] = useState(product?.rating || 4.8);
-  const [currentReviewCount, setCurrentReviewCount] = useState(product?.reviewCount || 0);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [newReview, setNewReview] = useState({ userName: "", rating: 5, comment: "" });
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-  const [reviewFormMessage, setReviewFormMessage] = useState("");
+  const colorOptions = useMemo(() => {
+    if (colorVariantsList.length > 0) {
+      return colorVariantsList.map((c) => c.colorName).filter(Boolean);
+    }
+    return getOptionValues(product, "availableColors", [product?.color || "Midnight"]).filter(Boolean);
+  }, [colorVariantsList, product]);
 
   const conditionOptions = useMemo(
     () => getOptionValues(product, "conditionOptions", [product?.condition || "Good"]).filter(Boolean),
@@ -124,17 +107,69 @@ export function ProductDetails({ product, relatedProducts = [] }) {
     [product]
   );
 
-  const colorOptions = useMemo(
-    () => getOptionValues(product, "availableColors", [product?.color || "Midnight"]).filter(Boolean),
-    [product]
-  );
-
   const simOptions = useMemo(
     () => getOptionValues(product, "simOptions", ["Single SIM", "Dual-SIM (physical SIM + eSIM)"]).filter(Boolean),
     [product]
   );
 
-  // Dynamic Variant Calculation
+  const [selectedCondition, setSelectedCondition] = useState(
+    conditionOptions[0] || product?.condition || "Good"
+  );
+  const [selectedBattery, setSelectedBattery] = useState(
+    batteryOptions[0] || "Optimal"
+  );
+  const [selectedStorage, setSelectedStorage] = useState(
+    storageOptions[0] || product?.storage || "128GB"
+  );
+  const [selectedColor, setSelectedColor] = useState(
+    colorOptions[0] || product?.color || "Midnight"
+  );
+  const [selectedSim, setSelectedSim] = useState(
+    simOptions[0] || "Single SIM"
+  );
+  const [quantity, setQuantity] = useState(1);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [isConditionModalOpen, setIsConditionModalOpen] = useState(false);
+  const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview"); // "overview" | "specs" | "inspection" | "reviews"
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Active color variant object (for hexCode and color-specific photos)
+  const activeColorVariant = useMemo(() => {
+    if (!colorVariantsList.length) return null;
+    return (
+      colorVariantsList.find(
+        (c) => c.colorName?.toLowerCase().trim() === (selectedColor || "").toLowerCase().trim()
+      ) || colorVariantsList[0]
+    );
+  }, [colorVariantsList, selectedColor]);
+
+  // When user switches color, reset image index to first photo of that color
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [selectedColor]);
+
+  // Dynamic Images list: Color-specific photos have top priority, falling back to product.images
+  const imagesList = useMemo(() => {
+    if (activeColorVariant?.images && activeColorVariant.images.length > 0) {
+      return activeColorVariant.images;
+    }
+    if (Array.isArray(product?.images) && product.images.length > 0) {
+      return product.images;
+    }
+    return ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80"];
+  }, [activeColorVariant, product]);
+
+  // Reviews State (MongoDB Atlas API Sync)
+  const [reviewsList, setReviewsList] = useState(product?.reviews || []);
+  const [currentRating, setCurrentRating] = useState(product?.rating || 4.8);
+  const [currentReviewCount, setCurrentReviewCount] = useState(product?.reviewCount || 0);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [newReview, setNewReview] = useState({ userName: "", rating: 5, comment: "" });
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewFormMessage, setReviewFormMessage] = useState("");
+
+  // Dynamic Variant Calculation from Inventory Matrix or Synthetic Rules
   const activeVariant = useMemo(() => {
     const baseProduct = {
       price: Number(product?.price ?? 0),
@@ -155,53 +190,64 @@ export function ProductDetails({ product, relatedProducts = [] }) {
       sim: selectedSim || "Single SIM",
     };
 
-    if (!product?.variantPricing || !product.variantPricing.length) {
-      let storageOffset = 0;
-      if (selectedStorage === "256GB") storageOffset = 50;
-      if (selectedStorage === "512GB") storageOffset = 120;
-      if (selectedStorage === "1TB") storageOffset = 200;
+    // If exact variant pricing matrix is defined by admin
+    if (Array.isArray(product?.variantPricing) && product.variantPricing.length > 0) {
+      const matchedVariant = product.variantPricing.find((v) => {
+        const matchColor = !v.color || v.color.toLowerCase().trim() === (selectedColor || "").toLowerCase().trim();
+        const matchStorage = !v.storage || v.storage.toLowerCase().trim() === (selectedStorage || "").toLowerCase().trim();
+        const matchCondition = !v.condition || v.condition.toLowerCase().trim() === (selectedCondition || "").toLowerCase().trim();
+        return matchColor && matchStorage && matchCondition;
+      });
 
-      let conditionOffset = 0;
-      if (selectedCondition.includes("Pristine") || selectedCondition.includes("Like New")) conditionOffset = 60;
-      if (selectedCondition.includes("Excellent")) conditionOffset = 30;
+      if (!matchedVariant) {
+        // Combination not stocked in matrix
+        return {
+          ...baseProduct,
+          stock: 0,
+        };
+      }
 
-      const finalPrice = baseProduct.price + storageOffset + conditionOffset;
-      const finalOriginal = baseProduct.originalPrice + storageOffset + conditionOffset;
+      const variantStock = Number(matchedVariant.stock ?? 0);
+      const variantPrice = Number(matchedVariant.price ?? baseProduct.price);
+      const variantOrigPrice = Number(matchedVariant.originalPrice ?? baseProduct.originalPrice);
 
       return {
         ...baseProduct,
-        price: finalPrice,
-        originalPrice: finalOriginal,
-        discountPercentage: Math.round(((finalOriginal - finalPrice) / finalOriginal) * 100),
+        ...matchedVariant,
+        stock: variantStock,
+        price: variantPrice,
+        originalPrice: variantOrigPrice,
+        discountPercentage:
+          variantOrigPrice > variantPrice
+            ? Math.round(((variantOrigPrice - variantPrice) / variantOrigPrice) * 100)
+            : baseProduct.discountPercentage,
       };
     }
 
-    const matchedVariant = product.variantPricing.find(
-      (variant) =>
-        (!variant.storage || variant.storage === selectedStorage) &&
-        (!variant.color || variant.color === selectedColor) &&
-        (!variant.condition || variant.condition === selectedCondition)
-    );
+    // Fallback if no variantPricing array exists: apply sensible offsets
+    let storageOffset = 0;
+    if (selectedStorage === "256GB") storageOffset = 50;
+    if (selectedStorage === "512GB") storageOffset = 120;
+    if (selectedStorage === "1TB") storageOffset = 200;
 
-    if (!matchedVariant) {
-      return baseProduct;
-    }
+    let conditionOffset = 0;
+    if (selectedCondition.includes("Pristine") || selectedCondition.includes("Like New")) conditionOffset = 60;
+    if (selectedCondition.includes("Excellent")) conditionOffset = 30;
+
+    const finalPrice = baseProduct.price + storageOffset + conditionOffset;
+    const finalOriginal = baseProduct.originalPrice + storageOffset + conditionOffset;
 
     return {
       ...baseProduct,
-      ...matchedVariant,
-      stock: Number(matchedVariant.stock ?? baseProduct.stock),
-      price: Number(matchedVariant.price ?? baseProduct.price),
-      originalPrice: Number(matchedVariant.originalPrice ?? baseProduct.originalPrice),
-      discountPercentage:
-        matchedVariant.originalPrice && matchedVariant.price
-          ? Math.round(((matchedVariant.originalPrice - matchedVariant.price) / matchedVariant.originalPrice) * 100)
-          : baseProduct.discountPercentage,
+      price: finalPrice,
+      originalPrice: finalOriginal,
+      discountPercentage: Math.round(((finalOriginal - finalPrice) / finalOriginal) * 100),
     };
   }, [product, selectedBattery, selectedColor, selectedCondition, selectedSim, selectedStorage]);
 
-  const stockLimit = Math.max(1, Number(activeVariant.stock ?? 1));
-  const inStock = stockLimit > 0;
+  const stockCount = Number(activeVariant.stock ?? 0);
+  const inStock = stockCount > 0;
+  const stockLimit = inStock ? stockCount : 0;
   const currentPrice = Number(activeVariant.price ?? 0);
   const currentOriginalPrice = Number(activeVariant.originalPrice ?? currentPrice);
   const currentDiscount =
@@ -210,16 +256,8 @@ export function ProductDetails({ product, relatedProducts = [] }) {
       ? Math.round(((currentOriginalPrice - currentPrice) / currentOriginalPrice) * 100)
       : 0);
 
-  // Images list: exact product images without forcing fake fallbacks
-  const imagesList = useMemo(() => {
-    if (Array.isArray(product?.images) && product.images.length > 0) {
-      return product.images;
-    }
-    return ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80"];
-  }, [product]);
-
   const currentMainImage = imagesList[activeImageIndex] || imagesList[0];
-  const safeQuantity = Math.min(quantity, stockLimit);
+  const safeQuantity = Math.max(1, Math.min(quantity, Math.max(1, stockLimit)));
 
   // Dynamic Specifications object parsing
   const dynamicSpecs = useMemo(() => {
@@ -260,6 +298,7 @@ export function ProductDetails({ product, relatedProducts = [] }) {
   };
 
   const handleAddToCart = () => {
+    if (!inStock) return;
     addItem(
       product,
       {
@@ -274,6 +313,7 @@ export function ProductDetails({ product, relatedProducts = [] }) {
         deliveryRange: activeVariant.deliveryRange,
         warrantyMonths: activeVariant.warrantyMonths,
         shippingIncluded: activeVariant.shippingIncluded,
+        image: currentMainImage,
       },
       safeQuantity
     );
@@ -476,6 +516,23 @@ export function ProductDetails({ product, relatedProducts = [] }) {
                   )}
                 </div>
 
+                {/* Live Stock Status Indicator */}
+                <div className="mb-2">
+                  {!inStock ? (
+                    <span className="badge bg-danger text-white rounded-pill px-3 py-1.5 fw-bold d-inline-flex align-items-center gap-1.5 shadow-xs">
+                      <AlertTriangle size={14} /> Currently Out of Stock for this variant
+                    </span>
+                  ) : stockCount <= 5 ? (
+                    <span className="badge bg-warning text-dark rounded-pill px-3 py-1.5 fw-bold d-inline-flex align-items-center gap-1.5 shadow-xs">
+                      <Zap size={14} className="text-danger" /> Only {stockCount} left in stock — order soon!
+                    </span>
+                  ) : (
+                    <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-1.5">
+                      <CheckCircle2 size={14} /> In Stock ({stockCount} units available)
+                    </span>
+                  )}
+                </div>
+
                 <div className="d-flex align-items-center gap-3 text-muted small" style={{ fontSize: "0.78rem" }}>
                   <span>VAT Included</span>
                   <span>•</span>
@@ -550,8 +607,11 @@ export function ProductDetails({ product, relatedProducts = [] }) {
                   </label>
                   <div className="d-flex flex-wrap gap-2">
                     {colorOptions.map((option) => {
-                      const isSelected = selectedColor === option;
-                      const dotHex = getColorHex(option);
+                      const isSelected = (selectedColor || "").toLowerCase().trim() === option.toLowerCase().trim();
+                      const matchedColorVar = colorVariantsList.find(
+                        (c) => c.colorName?.toLowerCase().trim() === option.toLowerCase().trim()
+                      );
+                      const dotHex = matchedColorVar?.hexCode || getColorHex(option);
                       return (
                         <button
                           key={option}
@@ -562,8 +622,8 @@ export function ProductDetails({ product, relatedProducts = [] }) {
                           onClick={() => setSelectedColor(option)}
                         >
                           <span
-                            className="rounded-circle d-inline-block border"
-                            style={{ width: "14px", height: "14px", backgroundColor: dotHex }}
+                            className="rounded-circle d-inline-block border shadow-xs"
+                            style={{ width: "16px", height: "16px", backgroundColor: dotHex }}
                           />
                           <span>{option}</span>
                         </button>

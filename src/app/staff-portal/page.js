@@ -39,6 +39,10 @@ import {
   Calendar,
   ExternalLink,
   Flame,
+  Smartphone,
+  Palette,
+  Layers,
+  Cpu,
 } from "lucide-react";
 
 import { Container, Badge } from "../../components/ui";
@@ -67,7 +71,7 @@ const emptyProductForm = {
   price: "",
   originalPrice: "",
   stock: 10,
-  condition: "Excellent",
+  condition: "Good",
   storage: "128GB",
   color: "Space Black",
   images: "",
@@ -75,6 +79,32 @@ const emptyProductForm = {
   description: "",
   featured: false,
   isHotDeal: false,
+  colorVariants: [
+    {
+      colorName: "Space Black",
+      hexCode: "#1e293b",
+      imagesText: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+    },
+  ],
+  variantPricing: [
+    {
+      color: "Space Black",
+      storage: "128GB",
+      condition: "Good",
+      price: "499.00",
+      originalPrice: "799.00",
+      stock: 5,
+    },
+  ],
+  specifications: {
+    display: "6.1-inch Super Retina XDR OLED, 2556 x 1179 pixels",
+    processor: "Apple A16 Bionic / High performance chipset",
+    camera: "48MP Main | 12MP Ultra Wide with Photonic Engine",
+    batterySpec: "85%+ Battery health guaranteed with fast wireless charging",
+    os: "Latest mobile OS supported",
+    network: "5G Ultra Wideband, Wi-Fi 6, Bluetooth 5.3",
+    waterResistance: "IP68 rated (maximum depth of 6m up to 30 minutes)",
+  },
 };
 
 const emptyNewAdminForm = {
@@ -163,6 +193,7 @@ export default function StaffPortalPage() {
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProductSlug, setEditingProductSlug] = useState(null);
+  const [productModalTab, setProductModalTab] = useState("general");
   const [productFormData, setProductFormData] = useState(emptyProductForm);
 
   const [isNewAdminModalOpen, setIsNewAdminModalOpen] = useState(false);
@@ -563,15 +594,76 @@ export default function StaffPortalPage() {
     }
   };
 
-  // Product CRUD
+  // Product CRUD & Multi-Variant Management
   const handleOpenAddProductModal = () => {
     setEditingProductSlug(null);
-    setProductFormData(emptyProductForm);
+    setProductModalTab("general");
+    setProductFormData({
+      ...emptyProductForm,
+      colorVariants: [
+        {
+          colorName: "Space Black",
+          hexCode: "#1e293b",
+          imagesText: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+        },
+      ],
+      variantPricing: [
+        {
+          color: "Space Black",
+          storage: "128GB",
+          condition: "Good",
+          price: "499.00",
+          originalPrice: "799.00",
+          stock: 5,
+        },
+      ],
+      specifications: { ...emptyProductForm.specifications },
+    });
     setIsProductModalOpen(true);
   };
 
   const handleOpenEditProductModal = (prod) => {
     setEditingProductSlug(prod.slug);
+    setProductModalTab("general");
+
+    const colorVariants = Array.isArray(prod.colorVariants) && prod.colorVariants.length > 0
+      ? prod.colorVariants.map((c) => ({
+          colorName: c.colorName || "Standard",
+          hexCode: c.hexCode || "#1e293b",
+          imagesText: Array.isArray(c.images) ? c.images.join("\n") : c.images || "",
+        }))
+      : [
+          {
+            colorName: prod.color || "Standard",
+            hexCode: "#1e293b",
+            imagesText: Array.isArray(prod.images) ? prod.images.join("\n") : prod.images || "",
+          },
+        ];
+
+    const variantPricing = Array.isArray(prod.variantPricing) && prod.variantPricing.length > 0
+      ? prod.variantPricing.map((v) => ({
+          color: v.color || prod.color || "Standard",
+          storage: v.storage || prod.storage || "128GB",
+          condition: v.condition || prod.condition || "Good",
+          price: String(v.price ?? prod.price ?? ""),
+          originalPrice: String(v.originalPrice ?? prod.originalPrice ?? ""),
+          stock: v.stock !== undefined ? Number(v.stock) : 5,
+        }))
+      : [
+          {
+            color: prod.color || "Standard",
+            storage: prod.storage || "128GB",
+            condition: prod.condition || "Good",
+            price: String(prod.price || "499.00"),
+            originalPrice: String(prod.originalPrice || "799.00"),
+            stock: prod.stock !== undefined ? Number(prod.stock) : 5,
+          },
+        ];
+
+    const specifications = prod.specifications && Object.keys(prod.specifications).length > 0
+      ? { ...emptyProductForm.specifications, ...prod.specifications }
+      : { ...emptyProductForm.specifications };
+
     setProductFormData({
       name: prod.name || "",
       brand: prod.brand || "Apple",
@@ -579,7 +671,7 @@ export default function StaffPortalPage() {
       price: prod.price || "",
       originalPrice: prod.originalPrice || "",
       stock: prod.stock !== undefined ? prod.stock : 10,
-      condition: prod.condition || "Excellent",
+      condition: prod.condition || "Good",
       storage: prod.storage || "128GB",
       color: prod.color || "Standard",
       images: Array.isArray(prod.images) ? prod.images.join(", ") : prod.images || "",
@@ -587,25 +679,172 @@ export default function StaffPortalPage() {
       description: prod.description || "",
       featured: Boolean(prod.featured),
       isHotDeal: Boolean(prod.isHotDeal),
+      colorVariants,
+      variantPricing,
+      specifications,
     });
     setIsProductModalOpen(true);
+  };
+
+  // Color Variants Helpers
+  const handleAddColorVariant = () => {
+    setProductFormData((prev) => ({
+      ...prev,
+      colorVariants: [
+        ...prev.colorVariants,
+        { colorName: `Color ${(prev.colorVariants?.length || 0) + 1}`, hexCode: "#3b82f6", imagesText: "" },
+      ],
+    }));
+  };
+
+  const handleRemoveColorVariant = (index) => {
+    setProductFormData((prev) => ({
+      ...prev,
+      colorVariants: prev.colorVariants.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleColorVariantChange = (index, field, value) => {
+    setProductFormData((prev) => {
+      const updated = [...prev.colorVariants];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, colorVariants: updated };
+    });
+  };
+
+  // Variant Matrix Helpers
+  const handleAddVariantRow = () => {
+    const firstColor = productFormData.colorVariants?.[0]?.colorName || "Standard";
+    setProductFormData((prev) => ({
+      ...prev,
+      variantPricing: [
+        ...prev.variantPricing,
+        {
+          color: firstColor,
+          storage: "128GB",
+          condition: "Good",
+          price: prev.price || "499.00",
+          originalPrice: prev.originalPrice || "799.00",
+          stock: 3,
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveVariantRow = (index) => {
+    setProductFormData((prev) => ({
+      ...prev,
+      variantPricing: prev.variantPricing.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleVariantRowChange = (index, field, value) => {
+    setProductFormData((prev) => {
+      const updated = [...prev.variantPricing];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, variantPricing: updated };
+    });
+  };
+
+  // Auto-Matrix Generator across Colors x Storages x Conditions
+  const handleGenerateMatrix = () => {
+    const colors = (productFormData.colorVariants || []).map((c) => c.colorName.trim()).filter(Boolean);
+    const storages = ["128GB", "256GB"];
+    const conditions = ["Good", "Excellent"];
+
+    if (colors.length === 0) {
+      toast.warning("Add Colors First", "Please add at least one color in the Colors & Photos tab.");
+      return;
+    }
+
+    const basePrice = Number(productFormData.price) || 499;
+    const baseRrp = Number(productFormData.originalPrice) || 799;
+
+    const generated = [];
+    colors.forEach((col) => {
+      storages.forEach((stg) => {
+        conditions.forEach((cond) => {
+          const stgOffset = stg === "256GB" ? 50 : 0;
+          const condOffset = cond === "Excellent" ? 40 : 0;
+          generated.push({
+            color: col,
+            storage: stg,
+            condition: cond,
+            price: (basePrice + stgOffset + condOffset).toFixed(2),
+            originalPrice: (baseRrp + stgOffset + condOffset).toFixed(2),
+            stock: 3,
+          });
+        });
+      });
+    });
+
+    setProductFormData((prev) => ({
+      ...prev,
+      variantPricing: generated,
+    }));
+    toast.success("Combinations Generated", `Generated ${generated.length} variant inventory rows.`);
   };
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
 
-    const imageArray = productFormData.images
-      ? productFormData.images.split(",").map((s) => s.trim()).filter(Boolean)
-      : ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"];
+    // 1. Sanitize Color Variants with dedicated image arrays
+    const sanitizedColorVariants = (productFormData.colorVariants || []).map((cv) => {
+      const imgList = (cv.imagesText || "")
+        .split(/[\n,]+/)
+        .map((url) => url.trim())
+        .filter(Boolean);
+      return {
+        colorName: cv.colorName.trim() || "Standard",
+        hexCode: cv.hexCode || "#0f172a",
+        images: imgList.length > 0 ? imgList : ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"],
+      };
+    });
+
+    // 2. Sanitize Variant Matrix
+    const sanitizedVariants = (productFormData.variantPricing || []).map((v) => ({
+      color: v.color?.trim() || "Standard",
+      storage: v.storage?.trim() || "128GB",
+      condition: v.condition?.trim() || "Good",
+      price: Number(v.price) || Number(productFormData.price) || 0,
+      originalPrice: Number(v.originalPrice) || Number(productFormData.originalPrice) || 0,
+      stock: Number(v.stock) || 0,
+      isAvailable: Number(v.stock) > 0,
+    }));
+
+    // 3. Auto-calculate aggregated stock
+    const computedTotalStock = sanitizedVariants.length > 0
+      ? sanitizedVariants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
+      : Number(productFormData.stock) || 10;
+
+    // 4. Auto-calculate starting price
+    const variantPrices = sanitizedVariants.map((v) => Number(v.price)).filter((p) => p > 0);
+    const computedBasePrice = variantPrices.length > 0 ? Math.min(...variantPrices) : Number(productFormData.price) || 0;
+
+    // 5. Aggregate all images for catalog card thumbnails
+    const allImages = sanitizedColorVariants.flatMap((c) => c.images).filter(Boolean);
 
     const payload = {
-      ...productFormData,
-      price: Number(productFormData.price),
-      originalPrice: Number(productFormData.originalPrice || productFormData.price * 1.2),
-      stock: Number(productFormData.stock),
-      images: imageArray,
+      name: productFormData.name,
+      brand: productFormData.brand,
+      category: productFormData.category || "Smartphones",
+      price: computedBasePrice,
+      originalPrice: Number(productFormData.originalPrice || computedBasePrice * 1.2),
+      stock: computedTotalStock,
+      condition: sanitizedVariants[0]?.condition || productFormData.condition || "Good",
+      storage: sanitizedVariants[0]?.storage || productFormData.storage || "128GB",
+      color: sanitizedColorVariants[0]?.colorName || productFormData.color || "Standard",
+      images: allImages.length > 0 ? allImages : ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"],
+      shortDescription: productFormData.shortDescription || `${productFormData.name} - Certified Refurbished with 12-Month Seller Warranty`,
+      description: productFormData.description || `${productFormData.name} refurbished handset. 50-point diagnostic inspection completed.`,
       featured: Boolean(productFormData.featured),
       isHotDeal: Boolean(productFormData.isHotDeal),
+      colorVariants: sanitizedColorVariants,
+      variantPricing: sanitizedVariants,
+      specifications: productFormData.specifications || {},
+      availableColors: [...new Set(sanitizedColorVariants.map((c) => c.colorName))],
+      availableStorage: [...new Set(sanitizedVariants.map((v) => v.storage))],
+      conditionOptions: [...new Set(sanitizedVariants.map((v) => v.condition))],
     };
 
     let res;
@@ -1963,24 +2202,24 @@ export default function StaffPortalPage() {
         </div>
       )}
 
-      {/* MODAL 2: ADD / EDIT PRODUCT MODAL */}
+      {/* MODAL 2: ADD / EDIT PRODUCT MODAL (CASHIFY MULTI-VARIANT INVENTORY MODEL) */}
       {isProductModalOpen && (
         <div
           className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex align-items-center justify-content-center p-3"
           style={{ zIndex: 1080, backdropFilter: "blur(4px)" }}
-          onClick={() => setIsProductModalOpen(false)}
         >
           <div
             className="bg-white rounded-4 shadow-lg overflow-hidden w-100"
-            style={{ maxWidth: "680px", maxHeight: "90vh", display: "flex", flexDirection: "column" }}
-            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "940px", maxHeight: "92vh", display: "flex", flexDirection: "column" }}
           >
-            <div className="p-4 border-bottom bg-light d-flex align-items-center justify-content-between flex-shrink-0">
+            {/* Modal Header */}
+            <div className="p-3.5 px-4 border-bottom bg-light d-flex align-items-center justify-content-between flex-shrink-0">
               <div>
-                <h5 className="fw-bold text-primary mb-0">
-                  {editingProductSlug ? "Edit Handset Listing" : "Add New Handset Listing"}
+                <h5 className="fw-bold text-primary mb-0 d-flex align-items-center gap-2">
+                  <Smartphone size={20} />
+                  <span>{editingProductSlug ? "Edit Handset Listing & Variants" : "Add New Handset Listing"}</span>
                 </h5>
-                <small className="text-muted">Instant synchronization with MongoDB Atlas catalog</small>
+                <small className="text-muted">Multi-variant inventory matrix with color-specific image galleries (Cashify model)</small>
               </div>
               <button
                 type="button"
@@ -1991,153 +2230,624 @@ export default function StaffPortalPage() {
               </button>
             </div>
 
+            {/* Modal Tab Navigation */}
+            <div className="border-bottom bg-white px-4 pt-2 d-flex gap-2 flex-shrink-0 overflow-x-auto">
+              <button
+                type="button"
+                className={`btn btn-sm pb-2.5 px-3 rounded-0 border-0 fw-bold transition-all text-nowrap ${
+                  productModalTab === "general"
+                    ? "border-bottom border-primary border-3 text-primary"
+                    : "text-muted hover-text-dark"
+                }`}
+                style={{ fontSize: "0.86rem" }}
+                onClick={() => setProductModalTab("general")}
+              >
+                1. General &amp; Info
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm pb-2.5 px-3 rounded-0 border-0 fw-bold transition-all text-nowrap d-flex align-items-center gap-1.5 ${
+                  productModalTab === "colors"
+                    ? "border-bottom border-primary border-3 text-primary"
+                    : "text-muted hover-text-dark"
+                }`}
+                style={{ fontSize: "0.86rem" }}
+                onClick={() => setProductModalTab("colors")}
+              >
+                <Palette size={14} />
+                <span>2. Colors &amp; Photos</span>
+                <span className="badge bg-primary bg-opacity-10 text-primary rounded-pill px-1.5" style={{ fontSize: "0.7rem" }}>
+                  {productFormData.colorVariants?.length || 0}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm pb-2.5 px-3 rounded-0 border-0 fw-bold transition-all text-nowrap d-flex align-items-center gap-1.5 ${
+                  productModalTab === "inventory"
+                    ? "border-bottom border-primary border-3 text-primary"
+                    : "text-muted hover-text-dark"
+                }`}
+                style={{ fontSize: "0.86rem" }}
+                onClick={() => setProductModalTab("inventory")}
+              >
+                <Layers size={14} />
+                <span>3. Inventory Matrix</span>
+                <span className="badge bg-primary bg-opacity-10 text-primary rounded-pill px-1.5" style={{ fontSize: "0.7rem" }}>
+                  {productFormData.variantPricing?.length || 0}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm pb-2.5 px-3 rounded-0 border-0 fw-bold transition-all text-nowrap d-flex align-items-center gap-1.5 ${
+                  productModalTab === "specs"
+                    ? "border-bottom border-primary border-3 text-primary"
+                    : "text-muted hover-text-dark"
+                }`}
+                style={{ fontSize: "0.86rem" }}
+                onClick={() => setProductModalTab("specs")}
+              >
+                <Cpu size={14} />
+                <span>4. Tech Specs</span>
+              </button>
+            </div>
+
+            {/* Form Body */}
             <form onSubmit={handleSaveProduct} className="p-4 overflow-y-auto flex-grow-1">
-              <div className="row g-3">
-                <div className="col-12 col-md-8">
-                  <label className="form-label small fw-semibold text-dark">Product Name <span className="text-danger">*</span></label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. iPhone 15 Pro Max"
-                    value={productFormData.name}
-                    onChange={(e) => setProductFormData({ ...productFormData, name: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className="col-12 col-md-4">
-                  <label className="form-label small fw-semibold text-dark">Brand <span className="text-danger">*</span></label>
-                  <select
-                    className="form-select"
-                    value={productFormData.brand}
-                    onChange={(e) => setProductFormData({ ...productFormData, brand: e.target.value })}
-                  >
-                    <option value="Apple">Apple</option>
-                    <option value="Samsung">Samsung</option>
-                    <option value="Google">Google</option>
-                    <option value="OnePlus">OnePlus</option>
-                    <option value="Xiaomi">Xiaomi</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                <div className="col-12 col-md-4">
-                  <label className="form-label small fw-semibold text-dark">Price (£) <span className="text-danger">*</span></label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="form-control fw-bold"
-                    placeholder="699.00"
-                    value={productFormData.price}
-                    onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className="col-12 col-md-4">
-                  <label className="form-label small fw-semibold text-dark">Original Price (£)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="form-control"
-                    placeholder="899.00"
-                    value={productFormData.originalPrice}
-                    onChange={(e) => setProductFormData({ ...productFormData, originalPrice: e.target.value })}
-                  />
-                </div>
-
-                <div className="col-12 col-md-4">
-                  <label className="form-label small fw-semibold text-dark">Stock Units</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    placeholder="10"
-                    value={productFormData.stock}
-                    onChange={(e) => setProductFormData({ ...productFormData, stock: e.target.value })}
-                  />
-                </div>
-
-                <div className="col-12 col-md-4">
-                  <label className="form-label small fw-semibold text-dark">Refurbished Grade</label>
-                  <select
-                    className="form-select"
-                    value={productFormData.condition}
-                    onChange={(e) => setProductFormData({ ...productFormData, condition: e.target.value })}
-                  >
-                    <option value="Pristine">Pristine (Like New)</option>
-                    <option value="Excellent">Excellent Grade</option>
-                    <option value="Very Good">Very Good</option>
-                    <option value="Good">Good Grade</option>
-                  </select>
-                </div>
-
-                <div className="col-12 col-md-4">
-                  <label className="form-label small fw-semibold text-dark">Storage Capacity</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="128GB, 256GB"
-                    value={productFormData.storage}
-                    onChange={(e) => setProductFormData({ ...productFormData, storage: e.target.value })}
-                  />
-                </div>
-
-                <div className="col-12 col-md-4">
-                  <label className="form-label small fw-semibold text-dark">Colour Variant</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Natural Titanium"
-                    value={productFormData.color}
-                    onChange={(e) => setProductFormData({ ...productFormData, color: e.target.value })}
-                  />
-                </div>
-
-                <div className="col-12">
-                  <label className="form-label small fw-semibold text-dark">Image URLs (Comma-separated)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="https://images.unsplash.com/..., https://..."
-                    value={productFormData.images}
-                    onChange={(e) => setProductFormData({ ...productFormData, images: e.target.value })}
-                  />
-                </div>
-
-                <div className="col-12 col-md-6">
-                  <div className="form-check form-switch p-3 bg-light rounded-3 border">
+              {/* TAB 1: GENERAL INFO */}
+              {productModalTab === "general" && (
+                <div className="row g-3">
+                  <div className="col-12 col-md-8">
+                    <label className="form-label small fw-semibold text-dark">Phone Model / Product Name <span className="text-danger">*</span></label>
                     <input
-                      className="form-check-input ms-0 me-2"
-                      type="checkbox"
-                      role="switch"
-                      id="featuredSwitch"
-                      checked={Boolean(productFormData.featured)}
-                      onChange={(e) => setProductFormData({ ...productFormData, featured: e.target.checked })}
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. Apple iPhone 14"
+                      value={productFormData.name}
+                      onChange={(e) => setProductFormData({ ...productFormData, name: e.target.value })}
+                      required
                     />
-                    <label className="form-check-label small fw-bold text-dark cursor-pointer" htmlFor="featuredSwitch">
-                      ★ Featured Product (Show in Featured Phones)
-                    </label>
+                  </div>
+
+                  <div className="col-12 col-md-4">
+                    <label className="form-label small fw-semibold text-dark">Brand <span className="text-danger">*</span></label>
+                    <select
+                      className="form-select"
+                      value={productFormData.brand}
+                      onChange={(e) => setProductFormData({ ...productFormData, brand: e.target.value })}
+                    >
+                      <option value="Apple">Apple</option>
+                      <option value="Samsung">Samsung</option>
+                      <option value="Google">Google</option>
+                      <option value="OnePlus">OnePlus</option>
+                      <option value="Xiaomi">Xiaomi</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div className="col-12 col-md-4">
+                    <label className="form-label small fw-semibold text-dark">Category</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={productFormData.category || "Smartphones"}
+                      onChange={(e) => setProductFormData({ ...productFormData, category: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="col-12 col-md-4">
+                    <label className="form-label small fw-semibold text-dark">Base Price (£)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-control fw-bold"
+                      placeholder="499.00"
+                      value={productFormData.price}
+                      onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
+                    />
+                    <small className="text-muted" style={{ fontSize: "0.72rem" }}>
+                      Auto-overridden by lowest price in Inventory Matrix.
+                    </small>
+                  </div>
+
+                  <div className="col-12 col-md-4">
+                    <label className="form-label small fw-semibold text-dark">Original RRP (£)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-control"
+                      placeholder="799.00"
+                      value={productFormData.originalPrice}
+                      onChange={(e) => setProductFormData({ ...productFormData, originalPrice: e.target.value })}
+                    />
+                    <small className="text-muted" style={{ fontSize: "0.72rem" }}>
+                      Used to show strike-through savings.
+                    </small>
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <div className="form-check form-switch p-3 bg-light rounded-3 border">
+                      <input
+                        className="form-check-input ms-0 me-2"
+                        type="checkbox"
+                        role="switch"
+                        id="featuredSwitch"
+                        checked={Boolean(productFormData.featured)}
+                        onChange={(e) => setProductFormData({ ...productFormData, featured: e.target.checked })}
+                      />
+                      <label className="form-check-label small fw-bold text-dark cursor-pointer" htmlFor="featuredSwitch">
+                        ★ Featured Phone (Show in Homepage Featured Carousel)
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <div className="form-check form-switch p-3 bg-danger-subtle rounded-3 border border-danger-subtle">
+                      <input
+                        className="form-check-input ms-0 me-2"
+                        type="checkbox"
+                        role="switch"
+                        id="hotDealSwitch"
+                        checked={Boolean(productFormData.isHotDeal)}
+                        onChange={(e) => setProductFormData({ ...productFormData, isHotDeal: e.target.checked })}
+                      />
+                      <label className="form-check-label small fw-bold text-danger cursor-pointer" htmlFor="hotDealSwitch">
+                        🔥 Hot Deal (Show in Homepage Hot Deals Carousel)
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="col-12">
+                    <label className="form-label small fw-semibold text-dark">Short Highlights Summary</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. 6.1-inch Super Retina display with 12MP camera and 50-point diagnostic check."
+                      value={productFormData.shortDescription}
+                      onChange={(e) => setProductFormData({ ...productFormData, shortDescription: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="col-12">
+                    <label className="form-label small fw-semibold text-dark">Detailed Product Overview</label>
+                    <textarea
+                      rows={3}
+                      className="form-control"
+                      placeholder="Enter warranty details, certification checks, battery health standards..."
+                      value={productFormData.description}
+                      onChange={(e) => setProductFormData({ ...productFormData, description: e.target.value })}
+                    />
                   </div>
                 </div>
+              )}
 
-                <div className="col-12 col-md-6">
-                  <div className="form-check form-switch p-3 bg-danger-subtle rounded-3 border border-danger-subtle">
-                    <input
-                      className="form-check-input ms-0 me-2"
-                      type="checkbox"
-                      role="switch"
-                      id="hotDealSwitch"
-                      checked={Boolean(productFormData.isHotDeal)}
-                      onChange={(e) => setProductFormData({ ...productFormData, isHotDeal: e.target.checked })}
-                    />
-                    <label className="form-check-label small fw-bold text-danger cursor-pointer" htmlFor="hotDealSwitch">
-                      🔥 Hot Deal (Show in Home Page Hot Deals Section)
-                    </label>
+              {/* TAB 2: COLOR VARIANTS & COLOR-SPECIFIC PHOTOS */}
+              {productModalTab === "colors" && (
+                <div>
+                  <div className="d-flex align-items-center justify-content-between mb-3">
+                    <div>
+                      <h6 className="fw-bold text-dark mb-0">Color Galleries</h6>
+                      <small className="text-muted">
+                        Upload dedicated photos for each color. On the product page, clicking a color immediately displays its matching photos.
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold d-flex align-items-center gap-1 shadow-xs"
+                      onClick={handleAddColorVariant}
+                    >
+                      <Plus size={14} /> Add Color Variant
+                    </button>
+                  </div>
+
+                  <div className="d-flex flex-column gap-3">
+                    {(productFormData.colorVariants || []).map((colorVar, idx) => {
+                      const imagePreviewList = (colorVar.imagesText || "")
+                        .split(/[\n,]+/)
+                        .map((u) => u.trim())
+                        .filter(Boolean);
+
+                      return (
+                        <div key={idx} className="card border rounded-3 p-3 shadow-xs bg-light bg-opacity-25">
+                          <div className="row g-2 align-items-center mb-2">
+                            <div className="col-auto">
+                              <label className="small text-muted fw-bold text-uppercase d-block" style={{ fontSize: "0.68rem" }}>
+                                Swatch
+                              </label>
+                              <input
+                                type="color"
+                                className="form-control form-control-color border-0 p-0 rounded-circle cursor-pointer"
+                                style={{ width: "32px", height: "32px" }}
+                                value={colorVar.hexCode || "#000000"}
+                                onChange={(e) => handleColorVariantChange(idx, "hexCode", e.target.value)}
+                                title="Choose color swatch"
+                              />
+                            </div>
+
+                            <div className="col-12 col-md-5">
+                              <label className="small text-muted fw-bold text-uppercase d-block" style={{ fontSize: "0.68rem" }}>
+                                Color Name (e.g. Midnight, Product(RED), Gold)
+                              </label>
+                              <input
+                                type="text"
+                                className="form-control form-control-sm fw-semibold"
+                                placeholder="Color name"
+                                value={colorVar.colorName}
+                                onChange={(e) => handleColorVariantChange(idx, "colorName", e.target.value)}
+                                required
+                              />
+                            </div>
+
+                            <div className="col-12 col-md-5">
+                              <label className="small text-muted fw-bold text-uppercase d-block" style={{ fontSize: "0.68rem" }}>
+                                Hex Code (optional)
+                              </label>
+                              <input
+                                type="text"
+                                className="form-control form-control-sm font-monospace"
+                                placeholder="#0f172a"
+                                value={colorVar.hexCode}
+                                onChange={(e) => handleColorVariantChange(idx, "hexCode", e.target.value)}
+                              />
+                            </div>
+
+                            <div className="col-auto ms-auto">
+                              {productFormData.colorVariants.length > 1 && (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-danger btn-sm rounded-circle p-1.5"
+                                  onClick={() => handleRemoveColorVariant(idx)}
+                                  title="Delete Color Variant"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="small text-muted fw-bold text-uppercase d-block mb-1" style={{ fontSize: "0.68rem" }}>
+                              Photos for "{colorVar.colorName || `Color ${idx + 1}`}" (Paste image URLs, separated by comma or new line)
+                            </label>
+                            <textarea
+                              rows={2}
+                              className="form-control form-control-sm font-monospace"
+                              placeholder="https://images.unsplash.com/photo-1, https://images.unsplash.com/photo-2"
+                              value={colorVar.imagesText}
+                              onChange={(e) => handleColorVariantChange(idx, "imagesText", e.target.value)}
+                            />
+
+                            {/* Live Thumbnail Strip */}
+                            {imagePreviewList.length > 0 && (
+                              <div className="d-flex align-items-center gap-2 mt-2 overflow-x-auto py-1">
+                                {imagePreviewList.map((imgUrl, imgIdx) => (
+                                  <div
+                                    key={imgIdx}
+                                    className="position-relative border rounded-2 overflow-hidden flex-shrink-0 bg-white shadow-xs"
+                                    style={{ width: "52px", height: "52px" }}
+                                  >
+                                    <Image
+                                      src={imgUrl}
+                                      alt={`${colorVar.colorName} preview ${imgIdx + 1}`}
+                                      fill
+                                      sizes="52px"
+                                      style={{ objectFit: "cover" }}
+                                      unoptimized
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div className="d-flex align-items-center justify-content-end gap-2 mt-4 pt-3 border-top flex-shrink-0">
+              {/* TAB 3: INVENTORY VARIANT MATRIX */}
+              {productModalTab === "inventory" && (
+                <div>
+                  <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                    <div>
+                      <h6 className="fw-bold text-dark mb-0">Variant Inventory Matrix</h6>
+                      <small className="text-muted">
+                        Configure stock quantities and pricing for each Color × Storage × Grade combination.
+                      </small>
+                    </div>
+
+                    <div className="d-flex align-items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold shadow-xs"
+                        onClick={handleGenerateMatrix}
+                        title="Auto-generate rows based on configured colors"
+                      >
+                        ⚡ Generate Combinations
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm rounded-pill px-3 fw-bold d-flex align-items-center gap-1 shadow-xs"
+                        onClick={handleAddVariantRow}
+                      >
+                        <Plus size={14} /> Add Variant Row
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="table-responsive border rounded-3 overflow-hidden mb-3">
+                    <table className="table table-sm table-hover align-middle mb-0" style={{ fontSize: "0.82rem" }}>
+                      <thead className="table-light">
+                        <tr className="text-uppercase text-muted" style={{ fontSize: "0.7rem", letterSpacing: "0.04em" }}>
+                          <th className="py-2.5 px-3">Color</th>
+                          <th className="py-2.5 px-2" style={{ minWidth: "110px" }}>Storage</th>
+                          <th className="py-2.5 px-2" style={{ minWidth: "120px" }}>Cosmetic Grade</th>
+                          <th className="py-2.5 px-2" style={{ width: "95px" }}>Stock</th>
+                          <th className="py-2.5 px-2" style={{ width: "115px" }}>Price (£)</th>
+                          <th className="py-2.5 px-2" style={{ width: "115px" }}>RRP (£)</th>
+                          <th className="py-2.5 px-2 text-end" style={{ width: "45px" }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(productFormData.variantPricing || []).length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="text-center py-4 text-muted">
+                              No variants configured. Click <strong>"Generate Combinations"</strong> or <strong>"Add Variant Row"</strong> to set inventory.
+                            </td>
+                          </tr>
+                        ) : (
+                          (productFormData.variantPricing || []).map((row, rIdx) => {
+                            const availableColorOptions = (productFormData.colorVariants || []).map((c) => c.colorName);
+
+                            return (
+                              <tr key={rIdx}>
+                                <td className="px-3">
+                                  <select
+                                    className="form-select form-select-sm fw-semibold"
+                                    value={row.color}
+                                    onChange={(e) => handleVariantRowChange(rIdx, "color", e.target.value)}
+                                  >
+                                    {availableColorOptions.map((cName) => (
+                                      <option key={cName} value={cName}>{cName}</option>
+                                    ))}
+                                    {!availableColorOptions.includes(row.color) && (
+                                      <option value={row.color}>{row.color}</option>
+                                    )}
+                                  </select>
+                                </td>
+
+                                <td className="px-2">
+                                  <select
+                                    className="form-select form-select-sm"
+                                    value={row.storage}
+                                    onChange={(e) => handleVariantRowChange(rIdx, "storage", e.target.value)}
+                                  >
+                                    <option value="64GB">64GB</option>
+                                    <option value="128GB">128GB</option>
+                                    <option value="256GB">256GB</option>
+                                    <option value="512GB">512GB</option>
+                                    <option value="1TB">1TB</option>
+                                  </select>
+                                </td>
+
+                                <td className="px-2">
+                                  <select
+                                    className="form-select form-select-sm"
+                                    value={row.condition}
+                                    onChange={(e) => handleVariantRowChange(rIdx, "condition", e.target.value)}
+                                  >
+                                    <option value="Pristine">Pristine</option>
+                                    <option value="Excellent">Excellent</option>
+                                    <option value="Very Good">Very Good</option>
+                                    <option value="Good">Good</option>
+                                    <option value="Fair">Fair</option>
+                                  </select>
+                                </td>
+
+                                <td className="px-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    className={`form-control form-control-sm text-center fw-bold ${
+                                      Number(row.stock || 0) === 0 ? "border-danger text-danger bg-danger-subtle" : ""
+                                    }`}
+                                    placeholder="3"
+                                    value={row.stock}
+                                    onChange={(e) => handleVariantRowChange(rIdx, "stock", e.target.value)}
+                                  />
+                                </td>
+
+                                <td className="px-2">
+                                  <div className="input-group input-group-sm">
+                                    <span className="input-group-text bg-light text-muted px-1.5">£</span>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      className="form-control form-control-sm fw-bold"
+                                      placeholder="429.00"
+                                      value={row.price}
+                                      onChange={(e) => handleVariantRowChange(rIdx, "price", e.target.value)}
+                                    />
+                                  </div>
+                                </td>
+
+                                <td className="px-2">
+                                  <div className="input-group input-group-sm">
+                                    <span className="input-group-text bg-light text-muted px-1.5">£</span>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      className="form-control form-control-sm"
+                                      placeholder="699.00"
+                                      value={row.originalPrice}
+                                      onChange={(e) => handleVariantRowChange(rIdx, "originalPrice", e.target.value)}
+                                    />
+                                  </div>
+                                </td>
+
+                                <td className="px-2 text-end">
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline-danger btn-sm p-1 rounded-circle border-0"
+                                    onClick={() => handleRemoveVariantRow(rIdx)}
+                                    title="Remove row"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Summary Bar */}
+                  <div className="bg-light p-2.5 px-3 rounded-3 d-flex align-items-center justify-content-between">
+                    <span className="small text-muted fw-semibold">
+                      Total Configurations: <strong>{productFormData.variantPricing?.length || 0}</strong>
+                    </span>
+                    <span className="small text-primary fw-bold">
+                      Total In-Stock Units:{" "}
+                      <strong>
+                        {(productFormData.variantPricing || []).reduce((sum, v) => sum + (Number(v.stock) || 0), 0)} units
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: TECHNICAL SPECIFICATIONS */}
+              {productModalTab === "specs" && (
+                <div>
+                  <div className="mb-3">
+                    <h6 className="fw-bold text-dark mb-0">Hardware Specifications</h6>
+                    <small className="text-muted">
+                      Displayed on the product specifications tab.
+                    </small>
+                  </div>
+
+                  <div className="row g-3">
+                    <div className="col-12 col-md-6">
+                      <label className="form-label small fw-semibold text-dark">Display &amp; Screen</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="6.1-inch Super Retina XDR OLED, 2556 x 1179 pixels"
+                        value={productFormData.specifications?.display || ""}
+                        onChange={(e) =>
+                          setProductFormData({
+                            ...productFormData,
+                            specifications: { ...productFormData.specifications, display: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-6">
+                      <label className="form-label small fw-semibold text-dark">Processor / Chipset</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="A16 Bionic chip, 6-core CPU, 5-core GPU"
+                        value={productFormData.specifications?.processor || ""}
+                        onChange={(e) =>
+                          setProductFormData({
+                            ...productFormData,
+                            specifications: { ...productFormData.specifications, processor: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-6">
+                      <label className="form-label small fw-semibold text-dark">Camera Optics</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="48MP Main | 12MP Ultra Wide | 2x Telephoto optical zoom"
+                        value={productFormData.specifications?.camera || ""}
+                        onChange={(e) =>
+                          setProductFormData({
+                            ...productFormData,
+                            specifications: { ...productFormData.specifications, camera: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-6">
+                      <label className="form-label small fw-semibold text-dark">Battery &amp; Charging</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="85%+ Health Guaranteed, Up to 20h video playback, MagSafe"
+                        value={productFormData.specifications?.batterySpec || ""}
+                        onChange={(e) =>
+                          setProductFormData({
+                            ...productFormData,
+                            specifications: { ...productFormData.specifications, batterySpec: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-4">
+                      <label className="form-label small fw-semibold text-dark">Operating System</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="iOS 17, upgradable"
+                        value={productFormData.specifications?.os || ""}
+                        onChange={(e) =>
+                          setProductFormData({
+                            ...productFormData,
+                            specifications: { ...productFormData.specifications, os: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-4">
+                      <label className="form-label small fw-semibold text-dark">Network &amp; Connectivity</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="5G, Gigabit LTE, Wi-Fi 6, Bluetooth 5.3"
+                        value={productFormData.specifications?.network || ""}
+                        onChange={(e) =>
+                          setProductFormData({
+                            ...productFormData,
+                            specifications: { ...productFormData.specifications, network: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-4">
+                      <label className="form-label small fw-semibold text-dark">Water &amp; Dust Protection</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="IP68 rated (up to 6m for 30 mins)"
+                        value={productFormData.specifications?.waterResistance || ""}
+                        onChange={(e) =>
+                          setProductFormData({
+                            ...productFormData,
+                            specifications: { ...productFormData.specifications, waterResistance: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Footer Controls */}
+              <div className="d-flex align-items-center justify-content-between mt-4 pt-3 border-top flex-shrink-0">
                 <button
                   type="button"
                   className="btn btn-outline-secondary px-4 py-2 rounded-3 fw-semibold"
@@ -2145,9 +2855,40 @@ export default function StaffPortalPage() {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary px-4 py-2 rounded-3 fw-bold shadow-sm">
-                  {editingProductSlug ? "Save Listing Changes" : "Create Product Listing"}
-                </button>
+
+                <div className="d-flex align-items-center gap-2">
+                  {productModalTab !== "general" && (
+                    <button
+                      type="button"
+                      className="btn btn-light px-3 py-2 rounded-3 fw-semibold border"
+                      onClick={() => {
+                        const tabs = ["general", "colors", "inventory", "specs"];
+                        const curIdx = tabs.indexOf(productModalTab);
+                        if (curIdx > 0) setProductModalTab(tabs[curIdx - 1]);
+                      }}
+                    >
+                      ← Previous
+                    </button>
+                  )}
+
+                  {productModalTab !== "specs" ? (
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary px-3 py-2 rounded-3 fw-semibold"
+                      onClick={() => {
+                        const tabs = ["general", "colors", "inventory", "specs"];
+                        const curIdx = tabs.indexOf(productModalTab);
+                        if (curIdx < tabs.length - 1) setProductModalTab(tabs[curIdx + 1]);
+                      }}
+                    >
+                      Next Step →
+                    </button>
+                  ) : null}
+
+                  <button type="submit" className="btn btn-primary px-4 py-2 rounded-3 fw-bold shadow-sm">
+                    {editingProductSlug ? "Save Listing & All Variants" : "Publish Handset Listing"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

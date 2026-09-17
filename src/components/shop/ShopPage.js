@@ -200,76 +200,25 @@ export function ShopPage({
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           hasActiveFilters={hasActiveFilters}
+          debouncedSearch={debouncedSearch}
+          selectedBrands={selectedBrands}
+          onRemoveBrand={(b) => {
+            setSelectedBrands((current) => current.filter((item) => item !== b));
+            setPage(1);
+          }}
+          minPrice={minPrice}
+          maxPrice={maxPrice}
+          onClearPrice={() => {
+            setMinPrice("");
+            setMaxPrice("");
+            setPage(1);
+          }}
         />
-
-        {/* Active Filter Badges Bar */}
-        {hasActiveFilters && (
-          <div
-            className="bg-white border rounded-4 p-3 mb-4 d-flex align-items-center flex-wrap shadow-sm"
-            style={{ gap: "10px" }}
-          >
-            <span className="small text-muted fw-bold me-1 d-inline-flex align-items-center" style={{ fontSize: "0.82rem" }}>
-              Active Filters:
-            </span>
-
-            {debouncedSearch && (
-              <span
-                className="badge bg-light text-dark border rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1.5 shadow-xs"
-                style={{ fontSize: "0.8rem", fontWeight: "600" }}
-              >
-                <span>Search: "{debouncedSearch}"</span>
-                <X
-                  size={14}
-                  className="cursor-pointer text-muted hover-danger ms-1"
-                  onClick={() => { setSearchTerm(""); setPage(1); }}
-                />
-              </span>
-            )}
-
-            {selectedBrands.map((b) => (
-              <span
-                key={b}
-                className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1.5 shadow-xs"
-                style={{ fontSize: "0.8rem", fontWeight: "600" }}
-              >
-                <span>Brand: {b}</span>
-                <X
-                  size={14}
-                  className="cursor-pointer hover-danger ms-1"
-                  onClick={() => { setSelectedBrands((c) => c.filter((item) => item !== b)); setPage(1); }}
-                />
-              </span>
-            ))}
-
-            {(minPrice || maxPrice) && (
-              <span
-                className="badge bg-light text-dark border rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1.5 shadow-xs"
-                style={{ fontSize: "0.8rem", fontWeight: "600" }}
-              >
-                <span>Price: £{minPrice || "0"} – £{maxPrice || "Max"}</span>
-                <X
-                  size={14}
-                  className="cursor-pointer text-muted hover-danger ms-1"
-                  onClick={() => { setMinPrice(""); setMaxPrice(""); setPage(1); }}
-                />
-              </span>
-            )}
-
-            <button
-              type="button"
-              className="btn btn-link btn-sm text-danger text-decoration-none fw-bold ms-auto p-0 border-0"
-              style={{ fontSize: "0.82rem" }}
-              onClick={handleClearAll}
-            >
-              Clear All Filters
-            </button>
-          </div>
-        )}
 
         {/* Main Content Layout */}
         <div className="row g-4">
-          {/* Desktop Sidebar Filters Column */}
-          <div className="d-none d-lg-block col-lg-3">
+          {/* Desktop Sidebar Filters Column - Height fits content */}
+          <div className="d-none d-lg-block col-lg-3 align-self-start">
             <ShopFilters
               brandOptions={brandOptions}
               selectedBrands={selectedBrands}

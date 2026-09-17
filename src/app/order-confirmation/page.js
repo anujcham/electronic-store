@@ -166,7 +166,7 @@ export default function OrderConfirmationPage() {
               <div className="d-flex flex-wrap gap-2">
                 {order.items?.map((item, idx) => (
                   <button
-                    key={item.slug || item.itemKey || `${item.id}-${idx}`}
+                    key={item.itemKey ? `${item.itemKey}-${idx}` : `${item.slug || item.id || "item"}-${idx}`}
                     type="button"
                     className="btn btn-warning text-dark fw-bold btn-sm rounded-pill px-3.5 py-2 d-inline-flex align-items-center gap-1.5 shadow-sm"
                     onClick={() => handleOpenCert(item)}
@@ -199,7 +199,7 @@ export default function OrderConfirmationPage() {
                   const storageOption = item.selectedOptions?.storage || item.storage || "128GB";
 
                   return (
-                    <div key={item.slug || item.itemKey || `${item.id}-${idx}`} className="d-flex align-items-center gap-3 border-bottom pb-3">
+                    <div key={item.itemKey ? `${item.itemKey}-${idx}` : `${item.slug || item.id || "item"}-${idx}`} className="d-flex align-items-center gap-3 border-bottom pb-3">
                       <div className="position-relative bg-light rounded-3 flex-shrink-0" style={{ width: "70px", height: "70px" }}>
                         <Image
                           src={imageUrl}

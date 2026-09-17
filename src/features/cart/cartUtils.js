@@ -46,7 +46,7 @@ export function createCartItem(product, selectedOptions = {}, quantity = 1) {
     slug: product?.slug,
     name: product?.name,
     brand: product?.brand,
-    image: product?.images?.[0] || "",
+    image: selectedOptions.image || product?.images?.[0] || "",
     price,
     originalPrice,
     stock,

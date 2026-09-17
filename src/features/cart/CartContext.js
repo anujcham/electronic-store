@@ -133,10 +133,14 @@ export function CartProvider({ children }) {
             }
 
             // Persist merged cart to MongoDB Atlas
-            await apiPost("/cart", {
-              userId: user.id || user._id,
-              items: dbItems,
-            });
+            try {
+              await apiPost("/cart", {
+                userId: user.id || user._id,
+                items: dbItems,
+              });
+            } catch (err) {
+              console.warn("Cart sync background warning:", err);
+            }
           }
 
           dispatch({ type: "HYDRATE", payload: { items: dbItems } });

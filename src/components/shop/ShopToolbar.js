@@ -15,17 +15,23 @@ export function ShopToolbar({
   viewMode = "grid",
   onViewModeChange,
   hasActiveFilters = false,
+  debouncedSearch = "",
+  selectedBrands = [],
+  onRemoveBrand,
+  minPrice = "",
+  maxPrice = "",
+  onClearPrice,
 }) {
   return (
     <div className="bg-white border rounded-4 p-3 mb-4 shadow-sm">
-      <div className="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+      <div className="d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-3">
         {/* Search Bar & Mobile Filter Toggle */}
-        <div className="d-flex align-items-center gap-2 flex-grow-1" style={{ maxWidth: "480px" }}>
+        <div className="d-flex align-items-center gap-2" style={{ minWidth: "250px", maxWidth: "420px", flexShrink: 0 }}>
           <div className="position-relative w-100">
             <input
               type="text"
               className="form-control bg-light border-0 rounded-pill"
-              placeholder="Search by model, brand, or spec (e.g. iPhone 13 256GB)..."
+              placeholder="Search by model, brand, or spec..."
               value={searchValue}
               onChange={(event) => onSearchChange(event.target.value)}
               style={{
@@ -55,12 +61,69 @@ export function ShopToolbar({
             onClick={onToggleFilters}
           >
             <SlidersHorizontal size={14} />
-            <span>{showMobileFilters ? "Hide Filters" : "Filters"}</span>
+            <span>{showMobileFilters ? "Hide" : "Filters"}</span>
           </Button>
         </div>
 
+        {/* Middle: Active Filters Chips (between Search and Sort) */}
+        {hasActiveFilters && (
+          <div className="d-flex align-items-center flex-wrap gap-2 flex-grow-1 px-xl-2 py-1 py-xl-0">
+            {debouncedSearch && (
+              <span
+                className="badge bg-light text-dark border rounded-pill px-2.5 py-1.5 d-inline-flex align-items-center gap-1 shadow-xs"
+                style={{ fontSize: "0.78rem", fontWeight: "600" }}
+              >
+                <span>Search: "{debouncedSearch}"</span>
+                <X
+                  size={13}
+                  className="cursor-pointer text-muted hover-danger ms-1"
+                  onClick={() => onSearchChange("")}
+                />
+              </span>
+            )}
+
+            {selectedBrands.map((b) => (
+              <span
+                key={b}
+                className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-2.5 py-1.5 d-inline-flex align-items-center gap-1 shadow-xs"
+                style={{ fontSize: "0.78rem", fontWeight: "600" }}
+              >
+                <span>Brand: {b}</span>
+                <X
+                  size={13}
+                  className="cursor-pointer hover-danger ms-1"
+                  onClick={() => onRemoveBrand && onRemoveBrand(b)}
+                />
+              </span>
+            ))}
+
+            {(minPrice || maxPrice) && (
+              <span
+                className="badge bg-light text-dark border rounded-pill px-2.5 py-1.5 d-inline-flex align-items-center gap-1 shadow-xs"
+                style={{ fontSize: "0.78rem", fontWeight: "600" }}
+              >
+                <span>Price: £{minPrice || "0"} – £{maxPrice || "Max"}</span>
+                <X
+                  size={13}
+                  className="cursor-pointer text-muted hover-danger ms-1"
+                  onClick={onClearPrice}
+                />
+              </span>
+            )}
+
+            <button
+              type="button"
+              className="btn btn-link btn-sm text-danger text-decoration-none fw-bold p-0 ms-1 border-0"
+              style={{ fontSize: "0.78rem" }}
+              onClick={onClearAll}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* View Mode Toggle, Result Count & Sort Selector */}
-        <div className="d-flex align-items-center justify-content-between justify-content-lg-end gap-3 flex-wrap">
+        <div className="d-flex align-items-center justify-content-between justify-content-lg-end gap-3 flex-wrap ms-xl-auto flex-shrink-0">
           <div className="small text-muted fw-medium">
             Showing <strong className="text-primary">{resultCount}</strong> {resultCount === 1 ? "device" : "devices"}
           </div>
@@ -109,18 +172,6 @@ export function ShopToolbar({
               <option value="rating">Highest Rated</option>
             </select>
           </div>
-
-          {hasActiveFilters && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-danger fw-semibold p-0 ms-1 d-none d-sm-inline-block"
-              onClick={onClearAll}
-            >
-              Reset
-            </Button>
-          )}
         </div>
       </div>
     </div>

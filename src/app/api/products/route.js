@@ -162,11 +162,16 @@ export async function POST(request) {
       shortDescription,
       description,
       featured,
+      isHotDeal,
       availableStorage,
       availableColors,
+      conditionOptions,
+      colorVariants,
+      variantPricing,
+      specifications,
     } = body;
 
-    if (!name || !brand || !price) {
+    if (!name || !brand || (!price && (!variantPricing || variantPricing.length === 0))) {
       return NextResponse.json(
         { success: false, error: 'Product name, brand, and price are required.' },
         { status: 400 }
@@ -177,24 +182,70 @@ export async function POST(request) {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const slug = `${baseSlug}-${randomSuffix}`;
 
+    // Auto-derive primary image array from colorVariants if not explicitly passed
+    let derivedImages = Array.isArray(images) && images.length > 0 ? images : [];
+    if (derivedImages.length === 0 && Array.isArray(colorVariants) && colorVariants.length > 0) {
+      derivedImages = colorVariants.flatMap((cv) => cv.images || []).filter(Boolean);
+    }
+    if (derivedImages.length === 0) {
+      derivedImages = ['https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80'];
+    }
+
+    // Auto-calculate aggregated stock from variants if variantPricing is provided
+    let computedStock = Number(stock !== undefined ? stock : 10);
+    if (Array.isArray(variantPricing) && variantPricing.length > 0) {
+      computedStock = variantPricing.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+    }
+
+    // Auto-calculate base starting price from variants if not specified
+    let computedPrice = Number(price);
+    if ((!computedPrice || isNaN(computedPrice)) && Array.isArray(variantPricing) && variantPricing.length > 0) {
+      const prices = variantPricing.map((v) => Number(v.price)).filter((p) => !isNaN(p) && p > 0);
+      computedPrice = prices.length > 0 ? Math.min(...prices) : 0;
+    }
+
+    // Auto-derive availableColors, availableStorage, conditionOptions if variants provided
+    const derivedColors = Array.isArray(availableColors) && availableColors.length > 0
+      ? availableColors
+      : Array.isArray(colorVariants) && colorVariants.length > 0
+        ? [...new Set(colorVariants.map((c) => c.colorName).filter(Boolean))]
+        : [color || 'Standard'];
+
+    const derivedStorage = Array.isArray(availableStorage) && availableStorage.length > 0
+      ? availableStorage
+      : Array.isArray(variantPricing) && variantPricing.length > 0
+        ? [...new Set(variantPricing.map((v) => v.storage).filter(Boolean))]
+        : ['128GB'];
+
+    const derivedConditions = Array.isArray(conditionOptions) && conditionOptions.length > 0
+      ? conditionOptions
+      : Array.isArray(variantPricing) && variantPricing.length > 0
+        ? [...new Set(variantPricing.map((v) => v.condition).filter(Boolean))]
+        : ['Pristine', 'Excellent', 'Very Good', 'Good'];
+
     const newProduct = await Product.create({
       slug,
       name,
       brand,
       category: category || 'Smartphones',
       subcategory: subcategory || brand,
-      price: Number(price),
-      originalPrice: Number(originalPrice || price * 1.2),
-      condition: condition || 'Good',
-      stock: Number(stock !== undefined ? stock : 10),
-      storage: storage || '128GB',
-      color: color || 'Standard',
-      images: Array.isArray(images) && images.length > 0 ? images : ['https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80'],
-      shortDescription: shortDescription || `${name} (${condition}) - Certified Refurbished with 12-Month Seller Warranty`,
-      description: description || `${name} pre-owned handset in ${condition} condition. 50-point diagnostic inspection completed.`,
+      price: computedPrice,
+      originalPrice: Number(originalPrice || computedPrice * 1.2),
+      condition: condition || derivedConditions[0] || 'Good',
+      stock: computedStock,
+      storage: storage || derivedStorage[0] || '128GB',
+      color: color || derivedColors[0] || 'Standard',
+      images: derivedImages,
+      shortDescription: shortDescription || `${name} (${condition || 'Good'}) - Certified Refurbished with 12-Month Seller Warranty`,
+      description: description || `${name} pre-owned handset. 50-point diagnostic inspection completed.`,
       featured: Boolean(featured),
-      availableStorage: availableStorage || ['128GB', '256GB'],
-      availableColors: availableColors || ['Black', 'Silver'],
+      isHotDeal: Boolean(isHotDeal),
+      availableStorage: derivedStorage,
+      availableColors: derivedColors,
+      conditionOptions: derivedConditions,
+      colorVariants: Array.isArray(colorVariants) ? colorVariants : [],
+      variantPricing: Array.isArray(variantPricing) ? variantPricing : [],
+      specifications: specifications || {},
       rating: 4.8,
       reviewCount: 12,
     });

@@ -22,7 +22,7 @@ const CartSchema = new mongoose.Schema(
     guestSessionId: { type: String },
     items: [CartItemSchema],
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 export default mongoose.models.Cart || mongoose.model('Cart', CartSchema);

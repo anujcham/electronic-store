@@ -29,7 +29,7 @@ export function ShopFilters({
   };
 
   return (
-    <aside className="bg-white border rounded-4 p-4 h-100 shadow-sm" style={{ borderColor: "rgba(148, 163, 184, 0.2)" }}>
+    <aside className="bg-white border rounded-4 p-4 shadow-sm h-auto align-self-start" style={{ borderColor: "rgba(148, 163, 184, 0.2)" }}>
       {/* Header */}
       <div className="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3">
         <h5 className="fw-bold text-dark mb-0 d-flex align-items-center gap-2" style={{ fontSize: "1.05rem" }}>
@@ -43,13 +43,13 @@ export function ShopFilters({
         <label className="form-label fw-bold text-dark small text-uppercase mb-2.5 d-block" style={{ letterSpacing: "0.06em", fontSize: "0.72rem" }}>
           Smartphone Brand
         </label>
-        <div className="d-flex flex-column" style={{ gap: "6px" }}>
+        <div className="d-flex flex-column" style={{ gap: "3px" }}>
           {brandOptions.map((brand) => {
             const isSelected = selectedBrands.includes(brand);
             return (
               <div
                 key={brand}
-                className="d-flex align-items-center justify-content-between py-2 px-2 rounded-2 transition-all cursor-pointer user-select-none filter-row-item"
+                className="d-flex align-items-center justify-content-between py-1.5 px-2 rounded-2 transition-all cursor-pointer user-select-none filter-row-item"
                 onClick={() => onBrandToggle && onBrandToggle(brand)}
                 style={{ cursor: "pointer" }}
               >

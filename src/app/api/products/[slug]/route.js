@@ -35,6 +35,14 @@ export async function PUT(request, { params }) {
     const { slug } = await params;
     const updateData = await request.json();
 
+    if (Array.isArray(updateData.variantPricing) && updateData.variantPricing.length > 0 && updateData.stock === undefined) {
+      updateData.stock = updateData.variantPricing.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+    }
+    if (Array.isArray(updateData.colorVariants) && updateData.colorVariants.length > 0 && (!updateData.images || updateData.images.length === 0)) {
+      const derivedImages = updateData.colorVariants.flatMap((cv) => cv.images || []).filter(Boolean);
+      if (derivedImages.length > 0) updateData.images = derivedImages;
+    }
+
     const updatedProduct = await Product.findOneAndUpdate(
       { slug },
       { $set: updateData },

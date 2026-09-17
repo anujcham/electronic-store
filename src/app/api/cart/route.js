@@ -35,19 +35,16 @@ export async function POST(request) {
       return NextResponse.json({ success: true });
     }
 
-    let cart = await Cart.findOne({ user: userId });
-    if (!cart) {
-      cart = new Cart({ user: userId, items: items || [] });
-    } else {
-      cart.items = items || [];
-    }
-
-    await cart.save();
+    const cart = await Cart.findOneAndUpdate(
+      { user: userId },
+      { $set: { items: Array.isArray(items) ? items : [] } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
 
     return NextResponse.json({
       success: true,
       message: 'Cart synchronized with MongoDB!',
-      items: cart.items,
+      items: cart?.items || [],
     });
   } catch (error) {
     console.error('Error syncing cart:', error);

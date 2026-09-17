@@ -49,8 +49,16 @@ const ProductSchema = new mongoose.Schema(
       network: String,
       waterResistance: String,
     },
+    colorVariants: [
+      {
+        colorName: { type: String, required: true },
+        hexCode: { type: String, default: '#000000' },
+        images: [{ type: String }],
+      },
+    ],
     variantPricing: [
       {
+        sku: String,
         storage: String,
         color: String,
         condition: String,
@@ -59,6 +67,7 @@ const ProductSchema = new mongoose.Schema(
         price: Number,
         originalPrice: Number,
         stock: Number,
+        isAvailable: { type: Boolean, default: true },
         warrantyMonths: Number,
         deliveryRange: String,
         shippingIncluded: Boolean,

@@ -10,86 +10,57 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
 
-    // Only fetch carts that have at least 1 item
+    // Fetch active carts that have at least 1 item
     let carts = await Cart.find({ 'items.0': { $exists: true } })
       .populate('user', 'name email phone role addresses createdAt')
       .sort({ updatedAt: -1 });
 
-    // If no carts exist in DB yet, create demo carts with existing users and products for rich preview
+    // If no carts with items exist, check if we should safely seed demo carts for rich admin dashboard preview
     if (carts.length === 0) {
-      const sampleUsers = await User.find({ role: { $nin: ['admin', 'superadmin'] } }).limit(3);
-      const sampleProducts = await Product.find({}).limit(4);
+      try {
+        const totalCartsInDb = await Cart.countDocuments();
+        if (totalCartsInDb === 0) {
+          const sampleUsers = await User.find({ role: { $nin: ['admin', 'superadmin'] } }).limit(2);
+          const sampleProducts = await Product.find({}).limit(3);
 
-      if (sampleUsers.length > 0 && sampleProducts.length > 0) {
-        const demoCarts = [
-          {
-            user: sampleUsers[0]._id,
-            items: [
-              {
-                product: sampleProducts[0]._id,
-                name: sampleProducts[0].name,
-                slug: sampleProducts[0].slug,
-                image: sampleProducts[0].images?.[0] || 'https://placehold.co/800x800/EEF2F7/0F172A?text=Phone',
-                price: sampleProducts[0].price,
-                originalPrice: sampleProducts[0].originalPrice || sampleProducts[0].price * 1.15,
-                quantity: 1,
-                itemKey: `${sampleProducts[0].slug}-128gb-spaceblack`,
-                selectedOptions: {
-                  storage: '128GB',
-                  color: 'Space Black',
-                  condition: 'Excellent',
-                },
-              },
-              ...(sampleProducts[1]
-                ? [
-                    {
-                      product: sampleProducts[1]._id,
-                      name: sampleProducts[1].name,
-                      slug: sampleProducts[1].slug,
-                      image: sampleProducts[1].images?.[0] || 'https://placehold.co/800x800/EEF2F7/0F172A?text=Phone',
-                      price: sampleProducts[1].price,
-                      originalPrice: sampleProducts[1].originalPrice || sampleProducts[1].price * 1.15,
-                      quantity: 2,
-                      itemKey: `${sampleProducts[1].slug}-256gb-silver`,
-                      selectedOptions: {
-                        storage: '256GB',
-                        color: 'Silver',
-                        condition: 'Pristine',
+          if (sampleUsers.length > 0 && sampleProducts.length > 0) {
+            for (let i = 0; i < sampleUsers.length; i++) {
+              const u = sampleUsers[i];
+              const p = sampleProducts[i % sampleProducts.length];
+              await Cart.findOneAndUpdate(
+                { user: u._id },
+                {
+                  $set: {
+                    items: [
+                      {
+                        product: p._id,
+                        name: p.name,
+                        slug: p.slug,
+                        image: p.images?.[0] || 'https://placehold.co/800x800/EEF2F7/0F172A?text=Phone',
+                        price: p.price,
+                        originalPrice: p.originalPrice || p.price * 1.15,
+                        quantity: 1,
+                        itemKey: `${p.slug}-128gb`,
+                        selectedOptions: {
+                          storage: '128GB',
+                          color: 'Space Black',
+                          condition: 'Excellent',
+                        },
                       },
-                    },
-                  ]
-                : []),
-            ],
-          },
-        ];
-
-        if (sampleUsers[1] && sampleProducts[2]) {
-          demoCarts.push({
-            user: sampleUsers[1]._id,
-            items: [
-              {
-                product: sampleProducts[2]._id,
-                name: sampleProducts[2].name,
-                slug: sampleProducts[2].slug,
-                image: sampleProducts[2].images?.[0] || 'https://placehold.co/800x800/EEF2F7/0F172A?text=Phone',
-                price: sampleProducts[2].price,
-                originalPrice: sampleProducts[2].originalPrice || sampleProducts[2].price * 1.15,
-                quantity: 1,
-                itemKey: `${sampleProducts[2].slug}-512gb-titanium`,
-                selectedOptions: {
-                  storage: '512GB',
-                  color: 'Natural Titanium',
-                  condition: 'Good',
+                    ],
+                  },
                 },
-              },
-            ],
-          });
-        }
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+              );
+            }
 
-        await Cart.insertMany(demoCarts);
-        carts = await Cart.find({ 'items.0': { $exists: true } })
-          .populate('user', 'name email phone role addresses createdAt')
-          .sort({ updatedAt: -1 });
+            carts = await Cart.find({ 'items.0': { $exists: true } })
+              .populate('user', 'name email phone role addresses createdAt')
+              .sort({ updatedAt: -1 });
+          }
+        }
+      } catch (seedErr) {
+        console.warn('Non-blocking cart preview seed warning:', seedErr);
       }
     }
 
