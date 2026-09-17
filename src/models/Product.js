@@ -32,6 +32,7 @@ const ProductSchema = new mongoose.Schema(
     availableStorage: [{ type: String }],
     stock: { type: Number, default: 10 },
     featured: { type: Boolean, default: false },
+    isHotDeal: { type: Boolean, default: false },
     tags: [{ type: String }],
     conditionOptions: [{ type: String }],
     batteryOptions: [{ type: String }],

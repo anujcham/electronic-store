@@ -3,7 +3,7 @@
 import { memo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Heart, ShoppingCart, Star } from "lucide-react";
+import { Heart, ShoppingCart, Star, Flame } from "lucide-react";
 
 import { useCart } from "../../features/cart/useCart";
 import { useWishlist } from "../../features/wishlist/useWishlist";
@@ -55,11 +55,10 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
 
   return (
     <article
-      className="card h-100 border-0 shadow-sm overflow-hidden"
+      className="card h-100 border rounded-4 shadow-sm overflow-hidden bg-white transition-all"
       style={{
-        backgroundColor: "var(--color-surface)",
-        transition: "transform var(--transition-fast), box-shadow var(--transition-normal)",
         cursor: "pointer",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease",
       }}
       onClick={handleCardClick}
       onKeyDown={(event) => {
@@ -72,13 +71,13 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
       tabIndex={0}
       aria-label={product?.name ? `View product details for ${product.name}` : "View product details"}
     >
-      <div className="position-relative">
+      <div className="position-relative bg-light">
         <div className="position-relative" style={{ aspectRatio: "1 / 1", overflow: "hidden" }}>
           <Image
             src={imageUrl}
             alt={product?.name || "Product image"}
             fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+            sizes="(max-width: 768px) 80vw, (max-width: 1200px) 40vw, 25vw"
             style={{ objectFit: "cover" }}
             unoptimized
           />
@@ -86,8 +85,8 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
 
         <button
           type="button"
-          className="btn btn-light btn-sm position-absolute top-0 end-0 m-3 rounded-circle d-flex align-items-center justify-content-center p-2 shadow-sm"
-          style={{ width: "2.5rem", height: "2.5rem" }}
+          className="btn btn-light btn-sm position-absolute top-0 end-0 m-2.5 rounded-circle d-flex align-items-center justify-content-center p-2 shadow-sm border"
+          style={{ width: "2.35rem", height: "2.35rem" }}
           onClick={handleWishlistClick}
           aria-label={product?.name ? `Add ${product.name} to wishlist` : "Add item to wishlist"}
           suppressHydrationWarning
@@ -95,50 +94,76 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
           <Heart size={16} fill={isSaved ? "currentColor" : "none"} className={isSaved ? "text-danger" : "text-primary"} />
         </button>
 
-        {product?.featured ? (
-          <div className="position-absolute bottom-0 start-0 m-3">
+        {product?.isHotDeal ? (
+          <div className="position-absolute bottom-0 start-0 m-2.5">
+            <span
+              className="badge bg-danger text-white fw-bold d-inline-flex align-items-center gap-1 shadow-sm px-2.5 py-1.5 rounded-pill"
+              style={{ fontSize: "0.72rem", letterSpacing: "0.02em" }}
+            >
+              <Flame size={12} className="text-warning" />
+              <span>Hot Deal</span>
+            </span>
+          </div>
+        ) : product?.featured ? (
+          <div className="position-absolute bottom-0 start-0 m-2.5">
             <Badge variant="success">Featured</Badge>
           </div>
         ) : null}
       </div>
 
-      <div className="card-body d-flex flex-column gap-3 p-3">
-        <div className="d-flex align-items-center justify-content-between gap-2">
-          <span className="text-muted small fw-medium">{product?.brand || "Brand"}</span>
-          {product?.condition ? <Badge variant="outline">{product.condition}</Badge> : null}
+      <div className="card-body d-flex flex-column gap-2 p-3">
+        <div className="d-flex align-items-center justify-content-between gap-1">
+          <span className="text-muted small fw-medium" style={{ fontSize: "0.82rem" }}>
+            {product?.brand || "Brand"}
+          </span>
+          {product?.condition ? (
+            <span className="badge bg-light text-dark border px-2 py-0.5" style={{ fontSize: "0.72rem" }}>
+              {product.condition}
+            </span>
+          ) : null}
         </div>
 
         <div>
-          <h3 className="h5 mb-2" style={{ color: "var(--color-primary-text)" }}>
+          <h3
+            className="fw-bold text-dark mb-1 text-truncate"
+            style={{ fontSize: "0.98rem", lineHeight: 1.35 }}
+            title={product?.name}
+          >
             {product?.name || "Product name"}
           </h3>
-          <p className="text-muted small mb-0">
-            {product?.shortDescription || "Premium refurbished product from our expert checked range."}
+          <p className="text-muted small mb-0 text-truncate" style={{ fontSize: "0.8rem" }}>
+            {product?.shortDescription || "Certified refurbished handset."}
           </p>
         </div>
 
-        <div className="d-flex align-items-center gap-2">
+        <div className="d-flex align-items-center gap-1.5">
           <div className="d-flex align-items-center gap-1 text-warning">
-            <Star size={14} fill="currentColor" />
-            <span className="small fw-medium text-primary">{product?.rating || "0.0"}</span>
+            <Star size={13} fill="currentColor" />
+            <span className="small fw-bold text-dark" style={{ fontSize: "0.82rem" }}>
+              {product?.rating || "0.0"}
+            </span>
           </div>
-          <span className="small text-muted">({product?.reviewCount || 0} reviews)</span>
+          <span className="text-muted" style={{ fontSize: "0.76rem" }}>
+            ({product?.reviewCount || 0})
+          </span>
         </div>
 
-        <div className="d-flex align-items-end justify-content-between gap-2 mt-auto">
+        <div className="d-flex align-items-end justify-content-between gap-2 mt-auto pt-2">
           <div>
             <div className="d-flex align-items-center gap-2">
-              <span className="h5 mb-0 text-primary">£{product?.price ?? 0}</span>
+              <span className="fw-bold text-primary mb-0" style={{ fontSize: "1.2rem" }}>
+                £{product?.price ?? 0}
+              </span>
               {product?.originalPrice && product.originalPrice > product.price ? (
-                <span className="small text-muted text-decoration-line-through">
+                <span className="text-muted small text-decoration-line-through">
                   £{product.originalPrice}
                 </span>
               ) : null}
             </div>
 
             {product?.originalPrice && product.originalPrice > product.price ? (
-              <div className="small text-success fw-medium mt-1">
-                Save {product.discountPercentage || 0}%
+              <div className="small text-success fw-bold mt-0.5" style={{ fontSize: "0.74rem" }}>
+                Save {product.discountPercentage || Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
               </div>
             ) : null}
           </div>
@@ -146,8 +171,10 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
 
         <Button
           variant="primary"
-          className="w-100"
-          startIcon={<ShoppingCart size={16} />}
+          className="w-100 mt-2 py-2 rounded-3 fw-bold shadow-xs d-flex align-items-center justify-content-center gap-1.5"
+          size="sm"
+          style={{ fontSize: "0.85rem" }}
+          startIcon={<ShoppingCart size={15} />}
           onClick={handleAddToCart}
         >
           Add to Cart

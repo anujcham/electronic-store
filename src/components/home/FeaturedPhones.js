@@ -1,40 +1,29 @@
-import Link from "next/link";
 import { PRODUCT_CATEGORIES } from "../../constants/productConstants";
 import { getFeaturedProducts } from "../../services/productService";
-import { ProductGrid } from "../product/ProductGrid";
-import { Button, Container, SectionHeading } from "../ui";
+import { ProductCarousel } from "../product/ProductCarousel";
 
 export async function FeaturedPhones() {
   const featuredProducts = await getFeaturedProducts();
-  const phoneProducts = featuredProducts
-    .filter((product) => product.category === PRODUCT_CATEGORIES.SMARTPHONES)
-    .slice(0, 8);
+  const phoneProducts = featuredProducts.filter(
+    (product) => !product.category || product.category === PRODUCT_CATEGORIES.SMARTPHONES
+  );
+
+  // If no featured phones selected in admin panel, do not render the section at all
+  if (!phoneProducts || phoneProducts.length === 0) {
+    return null;
+  }
 
   return (
-    <section className="py-5 py-lg-6 bg-white">
-      <Container>
-        <div className="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4 mb-lg-5">
-          <SectionHeading
-            title="Featured Phones"
-            subtitle="Premium second-hand and refurbished smartphones, carefully checked for quality, performance and value."
-            className="mb-0"
-          />
-
-          <Link href="/shop">
-            <Button variant="outline" size="lg">
-              View All Phones
-            </Button>
-          </Link>
-        </div>
-
-        {phoneProducts.length > 0 ? (
-          <ProductGrid products={phoneProducts} />
-        ) : (
-          <div className="text-center py-5">
-            <p className="mb-0 text-muted">No featured phones available right now.</p>
-          </div>
-        )}
-      </Container>
-    </section>
+    <ProductCarousel
+      products={JSON.parse(JSON.stringify(phoneProducts))}
+      title="Featured Handsets"
+      subtitle="Premium pre-owned and certified refurbished smartphones, individually inspected for pristine quality and value."
+      badgeIcon="sparkles"
+      badgeText="MASTER CHECKED"
+      badgeClass="bg-primary-subtle text-primary border border-primary-subtle"
+      actionLink="/shop"
+      actionText="Explore All Phones"
+      sectionBg="bg-white"
+    />
   );
 }

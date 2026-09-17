@@ -26,6 +26,7 @@ const buildProduct = ({
   availableStorage,
   stock,
   featured,
+  isHotDeal = false,
   tags,
   conditionOptions,
   batteryOptions,
@@ -80,6 +81,7 @@ const buildProduct = ({
     availableStorage: normalizedStorage,
     stock,
     featured,
+    isHotDeal,
     tags,
     conditionOptions: conditionOptions || ["Like New", "Excellent", "Very Good", "Good"],
     batteryOptions: batteryOptions || ["Optimal (85%+)", "New Replacement Battery (100%)"],
@@ -127,6 +129,7 @@ export const products = [
     availableStorage: ["256GB", "512GB", "1TB"],
     stock: 12,
     featured: true,
+    isHotDeal: true,
     tags: [PRODUCT_TAGS.BESTSELLER, PRODUCT_TAGS.FLAGSHIP, PRODUCT_TAGS.APPLE],
     specifications: {
       display: "6.7-inch Super Retina XDR OLED (2796x1290 at 460 ppi, 120Hz ProMotion)",
@@ -163,6 +166,7 @@ export const products = [
     availableStorage: ["256GB", "512GB", "1TB"],
     stock: 8,
     featured: true,
+    isHotDeal: true,
     tags: [PRODUCT_TAGS.FLAGSHIP, PRODUCT_TAGS.SAMSUNG, PRODUCT_TAGS.AI],
     specifications: {
       display: "6.8-inch Dynamic AMOLED 2X (3120x1440 QHD+, 120Hz, 2600 nits peak)",
@@ -199,6 +203,7 @@ export const products = [
     availableStorage: ["128GB", "256GB"],
     stock: 12,
     featured: true,
+    isHotDeal: true,
     tags: [PRODUCT_TAGS.BESTSELLER, PRODUCT_TAGS.GOOGLE, PRODUCT_TAGS.AI],
     specifications: {
       display: "6.7-inch Super Actua LTPO OLED (1344x2992, 1-120Hz, 2400 nits)",
@@ -234,6 +239,7 @@ export const products = [
     availableStorage: ["128GB", "256GB"],
     stock: 22,
     featured: true,
+    isHotDeal: true,
     tags: [PRODUCT_TAGS.BESTSELLER, PRODUCT_TAGS.REFURBISHED, PRODUCT_TAGS.APPLE],
     specifications: {
       display: "6.1-inch Super Retina XDR OLED (2532x1170 at 460 ppi)",

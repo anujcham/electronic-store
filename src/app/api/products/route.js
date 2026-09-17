@@ -12,6 +12,7 @@ export async function GET(request) {
     const storageParam = searchParams.get('storage');
     const categoryParam = searchParams.get('category');
     const featuredParam = searchParams.get('featured');
+    const hotDealsParam = searchParams.get('hotDeals') || searchParams.get('isHotDeal');
     const searchParam = searchParams.get('search');
     const minPriceParam = searchParams.get('minPrice');
     const maxPriceParam = searchParams.get('maxPrice');
@@ -63,6 +64,11 @@ export async function GET(request) {
     // Featured filter
     if (featuredParam === 'true') {
       query.featured = true;
+    }
+
+    // Hot deals filter
+    if (hotDealsParam === 'true') {
+      query.isHotDeal = true;
     }
 
     // Price range filter

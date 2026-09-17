@@ -187,4 +187,32 @@ button {
   }
 }
 
+/* Product Carousel Card Sizing (Featured & Hot Deals Sections) */
+.product-carousel-item {
+  flex: 0 0 78%;
+  max-width: 315px;
+  scroll-snap-align: start;
+}
+
+@media (min-width: 576px) {
+  .product-carousel-item {
+    flex: 0 0 46%;
+    max-width: 315px;
+  }
+}
+
+@media (min-width: 992px) {
+  .product-carousel-item {
+    flex: 0 0 28%;
+    max-width: 315px;
+  }
+}
+
+@media (min-width: 1400px) {
+  .product-carousel-item {
+    flex: 0 0 23.5%;
+    max-width: 315px;
+  }
+}
+
 

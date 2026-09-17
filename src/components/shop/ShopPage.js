@@ -53,16 +53,6 @@ export function ShopPage({
     return b ? b.split(",").map((item) => item.trim()).filter(Boolean) : [];
   });
 
-  const [selectedConditions, setSelectedConditions] = useState(() => {
-    const c = searchParams.get("condition");
-    return c ? c.split(",").map((item) => item.trim()).filter(Boolean) : [];
-  });
-
-  const [selectedStorages, setSelectedStorages] = useState(() => {
-    const s = searchParams.get("storage");
-    return s ? s.split(",").map((item) => item.trim()).filter(Boolean) : [];
-  });
-
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(() => searchParams.get("search") || "");
   const [minPrice, setMinPrice] = useState(() => searchParams.get("minPrice") || "");
@@ -71,7 +61,6 @@ export function ShopPage({
   
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [viewMode, setViewMode] = useState("grid");
-  const [inStockOnly, setInStockOnly] = useState(false);
 
   // 300ms Debounce for Search input
   useEffect(() => {
@@ -87,8 +76,6 @@ export function ShopPage({
 
     const query = {};
     if (selectedBrands.length > 0) query.brand = selectedBrands.join(",");
-    if (selectedConditions.length > 0) query.condition = selectedConditions.join(",");
-    if (selectedStorages.length > 0) query.storage = selectedStorages.join(",");
     if (debouncedSearch) query.search = debouncedSearch;
     if (minPrice) query.minPrice = minPrice;
     if (maxPrice) query.maxPrice = maxPrice;
@@ -108,7 +95,7 @@ export function ShopPage({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedBrands, selectedConditions, selectedStorages, debouncedSearch, minPrice, maxPrice, sortValue, page]);
+  }, [selectedBrands, debouncedSearch, minPrice, maxPrice, sortValue, page]);
 
   // Trigger backend API fetch on filter updates
   useEffect(() => {
@@ -123,8 +110,6 @@ export function ShopPage({
   useEffect(() => {
     const params = new URLSearchParams();
     if (selectedBrands.length > 0) params.set("brand", selectedBrands.join(","));
-    if (selectedConditions.length > 0) params.set("condition", selectedConditions.join(","));
-    if (selectedStorages.length > 0) params.set("storage", selectedStorages.join(","));
     if (debouncedSearch) params.set("search", debouncedSearch);
     if (minPrice) params.set("minPrice", minPrice);
     if (maxPrice) params.set("maxPrice", maxPrice);
@@ -134,7 +119,7 @@ export function ShopPage({
     const queryString = params.toString();
     const newURL = queryString ? `${pathname}?${queryString}` : pathname;
     router.replace(newURL, { scroll: false });
-  }, [selectedBrands, selectedConditions, selectedStorages, debouncedSearch, minPrice, maxPrice, sortValue, page, pathname, router]);
+  }, [selectedBrands, debouncedSearch, minPrice, maxPrice, sortValue, page, pathname, router]);
 
   // Lock body scroll when mobile filter drawer is open
   useEffect(() => {
@@ -149,19 +134,14 @@ export function ShopPage({
   }, [showMobileFilters]);
 
   const brandOptions = useMemo(() => ["Apple", "Samsung", "Google", "OnePlus", "Xiaomi", "Other"], []);
-  const conditionOptions = useMemo(() => ["Like New", "Excellent", "Very Good", "Good", "Fair"], []);
-  const storageOptions = useMemo(() => ["64GB", "128GB", "256GB", "512GB", "1TB"], []);
 
   const handleClearAll = useCallback(() => {
     setSearchTerm("");
     setDebouncedSearch("");
     setSelectedBrands([]);
-    setSelectedConditions([]);
-    setSelectedStorages([]);
     setMinPrice("");
     setMaxPrice("");
     setSortValue("featured");
-    setInStockOnly(false);
     setPage(1);
     setShowMobileFilters(false);
   }, []);
@@ -169,11 +149,8 @@ export function ShopPage({
   const hasActiveFilters =
     debouncedSearch !== "" ||
     selectedBrands.length > 0 ||
-    selectedConditions.length > 0 ||
-    selectedStorages.length > 0 ||
     minPrice !== "" ||
     maxPrice !== "" ||
-    inStockOnly ||
     sortValue !== "featured";
 
   const handleAddToCart = (product, event) => {
@@ -227,43 +204,54 @@ export function ShopPage({
 
         {/* Active Filter Badges Bar */}
         {hasActiveFilters && (
-          <div className="bg-white border rounded-3 p-3 mb-4 d-flex align-items-center flex-wrap gap-2.5 shadow-sm">
-            <span className="small text-muted fw-bold me-1" style={{ fontSize: "0.8rem" }}>
+          <div
+            className="bg-white border rounded-4 p-3 mb-4 d-flex align-items-center flex-wrap shadow-sm"
+            style={{ gap: "10px" }}
+          >
+            <span className="small text-muted fw-bold me-1 d-inline-flex align-items-center" style={{ fontSize: "0.82rem" }}>
               Active Filters:
             </span>
 
             {debouncedSearch && (
-              <span className="badge bg-light text-dark border rounded-pill px-3 py-1.5 fs-7 d-inline-flex align-items-center gap-2 shadow-xs">
-                Search: "{debouncedSearch}"
-                <X size={14} className="cursor-pointer text-muted hover-danger ms-1" onClick={() => { setSearchTerm(""); setPage(1); }} />
+              <span
+                className="badge bg-light text-dark border rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1.5 shadow-xs"
+                style={{ fontSize: "0.8rem", fontWeight: "600" }}
+              >
+                <span>Search: "{debouncedSearch}"</span>
+                <X
+                  size={14}
+                  className="cursor-pointer text-muted hover-danger ms-1"
+                  onClick={() => { setSearchTerm(""); setPage(1); }}
+                />
               </span>
             )}
 
             {selectedBrands.map((b) => (
-              <span key={b} className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-1.5 fs-7 d-inline-flex align-items-center gap-2 shadow-xs">
-                Brand: {b}
-                <X size={14} className="cursor-pointer hover-danger ms-1" onClick={() => { setSelectedBrands((c) => c.filter((item) => item !== b)); setPage(1); }} />
-              </span>
-            ))}
-
-            {selectedConditions.map((cond) => (
-              <span key={cond} className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-1.5 fs-7 d-inline-flex align-items-center gap-2 shadow-xs">
-                Grade: {cond}
-                <X size={14} className="cursor-pointer hover-danger ms-1" onClick={() => { setSelectedConditions((c) => c.filter((item) => item !== cond)); setPage(1); }} />
-              </span>
-            ))}
-
-            {selectedStorages.map((stg) => (
-              <span key={stg} className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 rounded-pill px-3 py-1.5 fs-7 d-inline-flex align-items-center gap-2 shadow-xs">
-                Storage: {stg}
-                <X size={14} className="cursor-pointer hover-danger ms-1" onClick={() => { setSelectedStorages((c) => c.filter((item) => item !== stg)); setPage(1); }} />
+              <span
+                key={b}
+                className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1.5 shadow-xs"
+                style={{ fontSize: "0.8rem", fontWeight: "600" }}
+              >
+                <span>Brand: {b}</span>
+                <X
+                  size={14}
+                  className="cursor-pointer hover-danger ms-1"
+                  onClick={() => { setSelectedBrands((c) => c.filter((item) => item !== b)); setPage(1); }}
+                />
               </span>
             ))}
 
             {(minPrice || maxPrice) && (
-              <span className="badge bg-light text-dark border rounded-pill px-3 py-1.5 fs-7 d-inline-flex align-items-center gap-2 shadow-xs">
-                Price: £{minPrice || "0"} – £{maxPrice || "Max"}
-                <X size={14} className="cursor-pointer text-muted hover-danger ms-1" onClick={() => { setMinPrice(""); setMaxPrice(""); setPage(1); }} />
+              <span
+                className="badge bg-light text-dark border rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1.5 shadow-xs"
+                style={{ fontSize: "0.8rem", fontWeight: "600" }}
+              >
+                <span>Price: £{minPrice || "0"} – £{maxPrice || "Max"}</span>
+                <X
+                  size={14}
+                  className="cursor-pointer text-muted hover-danger ms-1"
+                  onClick={() => { setMinPrice(""); setMaxPrice(""); setPage(1); }}
+                />
               </span>
             )}
 
@@ -293,20 +281,6 @@ export function ShopPage({
               maxPrice={maxPrice}
               onMinPriceChange={(val) => { setMinPrice(val); setPage(1); }}
               onMaxPriceChange={(val) => { setMaxPrice(val); setPage(1); }}
-              conditionOptions={conditionOptions}
-              selectedConditions={selectedConditions}
-              onConditionToggle={(condition) => {
-                setSelectedConditions((current) => toggleMultiSelection(current, condition));
-                setPage(1);
-              }}
-              storageOptions={storageOptions}
-              selectedStorages={selectedStorages}
-              onStorageToggle={(storage) => {
-                setSelectedStorages((current) => toggleMultiSelection(current, storage));
-                setPage(1);
-              }}
-              inStockOnly={inStockOnly}
-              onInStockToggle={(val) => { setInStockOnly(val); setPage(1); }}
             />
           </div>
 
@@ -536,20 +510,6 @@ export function ShopPage({
                   maxPrice={maxPrice}
                   onMinPriceChange={(val) => { setMinPrice(val); setPage(1); }}
                   onMaxPriceChange={(val) => { setMaxPrice(val); setPage(1); }}
-                  conditionOptions={conditionOptions}
-                  selectedConditions={selectedConditions}
-                  onConditionToggle={(condition) => {
-                    setSelectedConditions((current) => toggleMultiSelection(current, condition));
-                    setPage(1);
-                  }}
-                  storageOptions={storageOptions}
-                  selectedStorages={selectedStorages}
-                  onStorageToggle={(storage) => {
-                    setSelectedStorages((current) => toggleMultiSelection(current, storage));
-                    setPage(1);
-                  }}
-                  inStockOnly={inStockOnly}
-                  onInStockToggle={(val) => { setInStockOnly(val); setPage(1); }}
                 />
               </div>
 

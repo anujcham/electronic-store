@@ -122,6 +122,7 @@ export function Header({
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchContainerRef = useRef(null);
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -364,28 +365,52 @@ export function Header({
             <div className="d-flex align-items-center gap-2">
               {/* Live Debounced Search Bar */}
               <div ref={searchContainerRef} className="position-relative d-none d-md-block me-2">
-                <form onSubmit={handleSearchSubmit} className="d-flex align-items-center">
-                  <div className="input-group input-group-sm" style={{ width: "260px" }}>
+                <form onSubmit={handleSearchSubmit} className="d-flex align-items-center m-0">
+                  <div
+                    className="d-flex align-items-center rounded-pill px-3 py-1 transition-all"
+                    style={{
+                      width: "270px",
+                      height: "38px",
+                      border: "1px solid",
+                      borderColor: isSearchFocused ? "#2563eb" : "#e2e8f0",
+                      backgroundColor: isSearchFocused ? "#ffffff" : "#f8fafc",
+                      boxShadow: isSearchFocused ? "0 0 0 3px rgba(37, 99, 235, 0.12)" : "none",
+                      transition: "all 0.2s ease-in-out",
+                    }}
+                  >
                     <input
                       type="search"
-                      className="form-control bg-light border-end-0 rounded-start-pill ps-3"
+                      className="form-control form-control-sm border-0 bg-transparent p-0 shadow-none text-dark"
                       placeholder="Search phones..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onFocus={() => {
+                        setIsSearchFocused(true);
                         if (searchQuery.trim().length >= 2) setShowSearchDropdown(true);
+                      }}
+                      onBlur={() => {
+                        setIsSearchFocused(false);
+                      }}
+                      style={{
+                        fontSize: "0.85rem",
+                        outline: "none",
+                        boxShadow: "none",
                       }}
                     />
                     <button
                       type="submit"
-                      className="btn btn-outline-secondary border-start-0 rounded-end-pill px-3"
+                      className="btn btn-link p-0 border-0 ms-2 d-flex align-items-center justify-content-center flex-shrink-0 text-decoration-none"
                       aria-label="Search"
+                      style={{
+                        color: isSearchFocused ? "#2563eb" : "#64748b",
+                        transition: "color 0.15s ease",
+                      }}
                       suppressHydrationWarning
                     >
                       {isSearching ? (
-                        <Loader2 size={14} className="spinner-border spinner-border-sm p-0 border-2" />
+                        <Loader2 size={15} className="spinner-border spinner-border-sm p-0 border-2 text-primary" />
                       ) : (
-                        <Search size={14} />
+                        <Search size={15} />
                       )}
                     </button>
                   </div>
@@ -396,19 +421,20 @@ export function Header({
                   <div
                     className="position-absolute start-0 top-100 bg-white border rounded-4 shadow-lg mt-2 overflow-hidden"
                     style={{
-                      width: "340px",
+                      width: "350px",
                       zIndex: 1060,
-                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                      boxShadow: "0 12px 30px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                      animation: "dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards",
                     }}
                   >
                     <div className="bg-light px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
-                      <span className="small fw-bold text-muted text-uppercase" style={{ letterSpacing: "0.05em", fontSize: "0.7rem" }}>
+                      <span className="small fw-bold text-muted text-uppercase" style={{ letterSpacing: "0.06em", fontSize: "0.68rem" }}>
                         Matching Products ({searchResults.length})
                       </span>
                       {isSearching && <span className="spinner-border spinner-border-sm text-primary" style={{ width: "12px", height: "12px" }} />}
                     </div>
 
-                    <div className="p-1">
+                    <div className="p-2 d-flex flex-column gap-1">
                       {isSearching && searchResults.length === 0 ? (
                         <div className="p-3 text-center text-muted small">
                           Searching live catalog...
@@ -421,7 +447,7 @@ export function Header({
                         searchResults.map((product) => (
                           <div
                             key={product._id || product.slug}
-                            className="p-2 rounded-3 hover-bg-light cursor-pointer transition-all d-flex align-items-center gap-2.5 border-bottom border-light"
+                            className="p-2 px-2.5 rounded-3 hover-bg-light cursor-pointer transition-all d-flex align-items-center gap-2.5"
                             onClick={() => handleSelectSearchResult(product.slug)}
                             style={{ cursor: "pointer" }}
                           >
@@ -437,7 +463,7 @@ export function Header({
                             </div>
 
                             <div className="flex-fill overflow-hidden">
-                              <div className="fw-bold text-dark text-truncate" style={{ fontSize: "0.85rem" }}>
+                              <div className="fw-semibold text-dark text-truncate" style={{ fontSize: "0.85rem" }}>
                                 {product.name}
                               </div>
                               <div className="d-flex align-items-center gap-1.5 small text-muted" style={{ fontSize: "0.72rem" }}>
@@ -445,7 +471,7 @@ export function Header({
                                 <span>•</span>
                                 <span className="text-primary fw-semibold">£{product.price}</span>
                                 {product.condition && (
-                                  <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-1 py-0" style={{ fontSize: "0.62rem" }}>
+                                  <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-1 py-0 ms-1" style={{ fontSize: "0.62rem" }}>
                                     {product.condition}
                                   </span>
                                 )}
@@ -698,31 +724,39 @@ export function Header({
                     {/* Interactive Category Dropdown Popover */}
                     {isHovered && dropdownData && (
                       <div
-                        className="position-absolute start-0 top-100 bg-white border rounded-4 shadow-lg p-2.5 mt-1"
+                        className="position-absolute start-0 top-100 bg-white border rounded-4 shadow-lg mt-2 overflow-hidden"
                         style={{
-                          width: "270px",
+                          width: "300px",
                           zIndex: 1060,
-                          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                          boxShadow: "0 14px 30px -4px rgba(0, 0, 0, 0.12), 0 8px 12px -6px rgba(0, 0, 0, 0.08)",
+                          animation: "dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards",
                         }}
                       >
                         <div
-                          className="small fw-bold text-muted text-uppercase mb-2 px-2"
-                          style={{ letterSpacing: "0.05em", fontSize: "0.68rem" }}
+                          className="bg-light px-3 py-2 border-bottom d-flex align-items-center justify-content-between"
                         >
-                          {category.label} Models & Series
+                          <span
+                            className="small fw-bold text-muted text-uppercase"
+                            style={{ letterSpacing: "0.06em", fontSize: "0.68rem" }}
+                          >
+                            {category.label} Models &amp; Series
+                          </span>
+                          <span className="badge bg-white text-muted border px-1.5 py-0.5 fw-medium" style={{ fontSize: "0.62rem" }}>
+                            {dropdownData.items.length} options
+                          </span>
                         </div>
-                        <div className="d-flex flex-column gap-1">
+                        <div className="p-2 d-flex flex-column gap-1">
                           {dropdownData.items.map((subItem) => (
                             <Link
                               key={subItem.label}
                               href={subItem.href}
-                              className="p-2 rounded-3 text-decoration-none hover-bg-light transition-all d-block"
+                              className="category-dropdown-item px-3 py-2.5 rounded-3 text-decoration-none d-block transition-all"
                               onClick={() => setHoveredCategory(null)}
                             >
-                              <div className="fw-bold text-dark" style={{ fontSize: "0.82rem" }}>
+                              <div className="fw-semibold text-dark category-item-title mb-0.5" style={{ fontSize: "0.84rem" }}>
                                 {subItem.label}
                               </div>
-                              <div className="text-muted" style={{ fontSize: "0.72rem" }}>
+                              <div className="text-muted" style={{ fontSize: "0.74rem", lineHeight: 1.35 }}>
                                 {subItem.desc}
                               </div>
                             </Link>
@@ -782,6 +816,15 @@ export function Header({
         }
         .hover-bg-light:hover {
           background-color: #f8fafc !important;
+          color: #2563eb !important;
+        }
+        .category-dropdown-item {
+          transition: background-color 0.15s ease;
+        }
+        .category-dropdown-item:hover {
+          background-color: #f8fafc !important;
+        }
+        .category-dropdown-item:hover .category-item-title {
           color: #2563eb !important;
         }
       `}</style>

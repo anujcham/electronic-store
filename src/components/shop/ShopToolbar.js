@@ -24,12 +24,18 @@ export function ShopToolbar({
           <div className="position-relative w-100">
             <input
               type="text"
-              className="form-control ps-4 pe-4 bg-light border-0 rounded-pill"
+              className="form-control bg-light border-0 rounded-pill"
               placeholder="Search by model, brand, or spec (e.g. iPhone 13 256GB)..."
               value={searchValue}
               onChange={(event) => onSearchChange(event.target.value)}
+              style={{
+                height: "40px",
+                paddingLeft: "2.65rem",
+                paddingRight: "2.2rem",
+                fontSize: "0.86rem",
+              }}
             />
-            <Search size={15} className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" />
+            <Search size={16} className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted pointer-events-none" />
             {searchValue && (
               <button
                 type="button"

@@ -38,6 +38,7 @@ import {
   CreditCard,
   Calendar,
   ExternalLink,
+  Flame,
 } from "lucide-react";
 
 import { Container, Badge } from "../../components/ui";
@@ -73,6 +74,7 @@ const emptyProductForm = {
   shortDescription: "",
   description: "",
   featured: false,
+  isHotDeal: false,
 };
 
 const emptyNewAdminForm = {
@@ -584,6 +586,7 @@ export default function StaffPortalPage() {
       shortDescription: prod.shortDescription || "",
       description: prod.description || "",
       featured: Boolean(prod.featured),
+      isHotDeal: Boolean(prod.isHotDeal),
     });
     setIsProductModalOpen(true);
   };
@@ -601,6 +604,8 @@ export default function StaffPortalPage() {
       originalPrice: Number(productFormData.originalPrice || productFormData.price * 1.2),
       stock: Number(productFormData.stock),
       images: imageArray,
+      featured: Boolean(productFormData.featured),
+      isHotDeal: Boolean(productFormData.isHotDeal),
     };
 
     let res;
@@ -627,6 +632,19 @@ export default function StaffPortalPage() {
       setProducts((prev) =>
         prev.map((p) => (p.slug === prod.slug ? { ...p, featured: newFeatured } : p))
       );
+    }
+  };
+
+  const handleToggleHotDeal = async (prod) => {
+    const newHotDeal = !prod.isHotDeal;
+    const res = await updateAdminProduct(prod.slug, { isHotDeal: newHotDeal });
+    if (res.success) {
+      toast.info("Hot Deal Status Changed", `${prod.name} hot deal state: ${newHotDeal ? "ON" : "OFF"}`);
+      setProducts((prev) =>
+        prev.map((p) => (p.slug === prod.slug ? { ...p, isHotDeal: newHotDeal } : p))
+      );
+    } else {
+      toast.error("Update Failed", res.error || "Could not update hot deal status.");
     }
   };
 
@@ -1407,7 +1425,7 @@ export default function StaffPortalPage() {
                           <th className="py-3 px-3">Price</th>
                           <th className="py-3 px-3">Condition</th>
                           <th className="py-3 px-3">Stock Units</th>
-                          <th className="py-3 px-3">Featured</th>
+                          <th className="py-3 px-3">Featured &amp; Deals</th>
                           <th className="py-3 px-3 text-end">Actions</th>
                         </tr>
                       </thead>
@@ -1484,16 +1502,31 @@ export default function StaffPortalPage() {
                               </td>
 
                               <td className="px-3">
-                                <button
-                                  type="button"
-                                  className={`btn btn-sm py-0.5 px-2 rounded-pill fw-bold ${
-                                    prod.featured ? "btn-warning text-dark" : "btn-light text-muted border"
-                                  }`}
-                                  style={{ fontSize: "0.72rem" }}
-                                  onClick={() => handleToggleFeatured(prod)}
-                                >
-                                  {prod.featured ? "★ Featured" : "Standard"}
-                                </button>
+                                <div className="d-flex align-items-center gap-1.5 flex-wrap">
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm py-0.5 px-2 rounded-pill fw-bold ${
+                                      prod.featured ? "btn-warning text-dark shadow-xs" : "btn-light text-muted border"
+                                    }`}
+                                    style={{ fontSize: "0.72rem" }}
+                                    onClick={() => handleToggleFeatured(prod)}
+                                    title="Toggle Featured product on Home Page"
+                                  >
+                                    {prod.featured ? "★ Featured" : "Standard"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm py-0.5 px-2 rounded-pill fw-bold d-inline-flex align-items-center gap-1 ${
+                                      prod.isHotDeal ? "btn-danger text-white shadow-xs" : "btn-light text-muted border"
+                                    }`}
+                                    style={{ fontSize: "0.72rem" }}
+                                    onClick={() => handleToggleHotDeal(prod)}
+                                    title="Toggle Hot Deal on Home Page"
+                                  >
+                                    <Flame size={11} />
+                                    <span>{prod.isHotDeal ? "Hot Deal" : "Normal"}</span>
+                                  </button>
+                                </div>
                               </td>
 
                               <td className="px-3 text-end">
@@ -2069,6 +2102,38 @@ export default function StaffPortalPage() {
                     value={productFormData.images}
                     onChange={(e) => setProductFormData({ ...productFormData, images: e.target.value })}
                   />
+                </div>
+
+                <div className="col-12 col-md-6">
+                  <div className="form-check form-switch p-3 bg-light rounded-3 border">
+                    <input
+                      className="form-check-input ms-0 me-2"
+                      type="checkbox"
+                      role="switch"
+                      id="featuredSwitch"
+                      checked={Boolean(productFormData.featured)}
+                      onChange={(e) => setProductFormData({ ...productFormData, featured: e.target.checked })}
+                    />
+                    <label className="form-check-label small fw-bold text-dark cursor-pointer" htmlFor="featuredSwitch">
+                      ★ Featured Product (Show in Featured Phones)
+                    </label>
+                  </div>
+                </div>
+
+                <div className="col-12 col-md-6">
+                  <div className="form-check form-switch p-3 bg-danger-subtle rounded-3 border border-danger-subtle">
+                    <input
+                      className="form-check-input ms-0 me-2"
+                      type="checkbox"
+                      role="switch"
+                      id="hotDealSwitch"
+                      checked={Boolean(productFormData.isHotDeal)}
+                      onChange={(e) => setProductFormData({ ...productFormData, isHotDeal: e.target.checked })}
+                    />
+                    <label className="form-check-label small fw-bold text-danger cursor-pointer" htmlFor="hotDealSwitch">
+                      🔥 Hot Deal (Show in Home Page Hot Deals Section)
+                    </label>
+                  </div>
                 </div>
               </div>
 

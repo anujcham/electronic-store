@@ -76,14 +76,30 @@ export async function getFeaturedProducts() {
     const res = await fetch(`${baseUrl}/api/products?featured=true`, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
-      if (data.success && data.products && data.products.length > 0) {
+      if (data.success && Array.isArray(data.products)) {
         return data.products.map((p) => ({ ...p, id: p._id || p.id }));
       }
     }
   } catch (error) {
-    console.error("Error fetching featured products from API, using fallback:", error);
+    console.error("Error fetching featured products from API:", error);
   }
-  return fallbackFeatured.map((p) => ({ ...p, id: p._id || p.id }));
+  return [];
+}
+
+export async function getHotDeals() {
+  try {
+    const baseUrl = getBaseUrl();
+    const res = await fetch(`${baseUrl}/api/products?hotDeals=true`, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.products)) {
+        return data.products.map((p) => ({ ...p, id: p._id || p.id }));
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching hot deals from API:", error);
+  }
+  return [];
 }
 
 export async function getProductsByCategory(category) {
