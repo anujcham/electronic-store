@@ -1,12 +1,23 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
+import { verifyPassword, hashPassword } from '@/lib/auth';
+import { extractTokenFromRequest, verifyAccessToken, COOKIE_NAMES } from '@/lib/jwt';
 
 export async function GET(request) {
   try {
     await dbConnect();
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    let userId = searchParams.get('userId');
+
+    // Secure token extraction
+    const token = extractTokenFromRequest(request, COOKIE_NAMES.CUSTOMER_ACCESS);
+    if (token) {
+      const payload = await verifyAccessToken(token);
+      if (payload && payload.userId) {
+        userId = payload.userId;
+      }
+    }
 
     if (!userId) {
       return NextResponse.json(
@@ -30,7 +41,7 @@ export async function GET(request) {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role || 'user',
+        role: user.role || 'customer',
         isVerified: user.isVerified,
         addresses: user.addresses || [],
         createdAt: user.createdAt,
@@ -48,16 +59,25 @@ export async function GET(request) {
 export async function PUT(request) {
   try {
     await dbConnect();
-    const { userId, name, phone, currentPassword, newPassword, role, passkey } = await request.json();
+    const { userId: bodyUserId, name, phone, currentPassword, newPassword, role, passkey } = await request.json();
 
-    if (!userId) {
+    let targetUserId = bodyUserId;
+    const token = extractTokenFromRequest(request, COOKIE_NAMES.CUSTOMER_ACCESS);
+    if (token) {
+      const payload = await verifyAccessToken(token);
+      if (payload && payload.userId) {
+        targetUserId = payload.userId;
+      }
+    }
+
+    if (!targetUserId) {
       return NextResponse.json(
         { success: false, error: 'User ID is required.' },
         { status: 400 }
       );
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(targetUserId);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'User not found.' },
@@ -82,16 +102,20 @@ export async function PUT(request) {
         );
       }
 
-      if (user.password !== currentPassword) {
+      const isMatch = await verifyPassword(currentPassword, user.password);
+      if (!isMatch) {
         return NextResponse.json(
           { success: false, error: 'Incorrect current password.' },
           { status: 400 }
         );
       }
 
-      user.password = newPassword;
+      user.password = await hashPassword(newPassword);
+      // Invalidate existing sessions on password change
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
     }
 
+    user.lastActiveAt = new Date();
     await user.save();
 
     return NextResponse.json({
@@ -102,7 +126,7 @@ export async function PUT(request) {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role || 'user',
+        role: user.role || 'customer',
         isVerified: user.isVerified,
         addresses: user.addresses || [],
       },
@@ -115,4 +139,3 @@ export async function PUT(request) {
     );
   }
 }
-

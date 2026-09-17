@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
+import { hashPassword } from '@/lib/auth';
 
 export async function POST(request) {
   try {
@@ -14,7 +15,8 @@ export async function POST(request) {
       );
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const cleanEmail = email.toLowerCase().trim();
+    const existingUser = await User.findOne({ email: cleanEmail });
     if (existingUser) {
       return NextResponse.json(
         { success: false, error: 'An account with this email already exists. Please log in.' },
@@ -22,21 +24,26 @@ export async function POST(request) {
       );
     }
 
+    // Securely hash password with bcrypt
+    const hashedPassword = await hashPassword(password);
+
     // Generate 6-digit OTP
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
     const user = await User.create({
       name,
-      email: email.toLowerCase(),
+      email: cleanEmail,
       phone: phone || '',
-      password,
+      password: hashedPassword,
       otp: generatedOtp,
       otpExpiresAt,
       isVerified: false,
+      role: 'customer',
+      tokenVersion: 0,
     });
 
-    console.log(`📲 [SMS OTP SENT] Generated OTP for ${email}: ${generatedOtp}`);
+    console.log(`📲 [SMS/EMAIL OTP SENT] Generated OTP for ${cleanEmail}: ${generatedOtp}`);
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { apiGet, apiPost } from "./apiClient";
 
 const USER_STORAGE_KEY = "electroVault.user";
+const AUTH_TOKEN_KEY = "electroVault.authToken";
 
 export const defaultDemoUser = {
   id: "user-101",
@@ -35,8 +36,9 @@ export async function loginUser({ email, password }) {
     if (apiResult?.success && apiResult?.user) {
       if (typeof window !== "undefined") {
         window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(apiResult.user));
-        if (apiResult.token) {
-          window.localStorage.setItem("electroVault.authToken", apiResult.token);
+        const token = apiResult.accessToken || apiResult.token;
+        if (token) {
+          window.localStorage.setItem(AUTH_TOKEN_KEY, token);
         }
       }
       notifyUserChanged();
@@ -63,7 +65,7 @@ export async function registerUser(userData) {
       return {
         success: true,
         user: apiResult.user,
-        otp: apiResult.otp, // Dev OTP returned for instant testing
+        otp: apiResult.otp,
       };
     }
     return { success: false, error: apiResult?.error || "Registration failed." };
@@ -74,21 +76,28 @@ export async function registerUser(userData) {
 
 export async function sendOtpApi({ email, phone }) {
   try {
-    return await apiPost("/auth/send-otp", { email, phone });
+    const result = await apiPost("/auth/send-otp", { email, phone });
+    return result;
   } catch (err) {
-    return { success: false, error: err.message };
+    return { success: false, error: err.message || "Failed to send OTP code." };
   }
 }
 
 export async function verifyOtpApi({ email, phone, otp }) {
   try {
     const apiResult = await apiPost("/auth/verify-otp", { email, phone, otp });
-    if (apiResult?.success && apiResult?.user) {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(apiResult.user));
+    if (apiResult?.success) {
+      if (!apiResult.isNewUser && apiResult.user) {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(apiResult.user));
+          const token = apiResult.accessToken || apiResult.token;
+          if (token) {
+            window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+          }
+        }
+        notifyUserChanged();
       }
-      notifyUserChanged();
-      return { success: true, user: apiResult.user };
+      return apiResult;
     }
     return { success: false, error: apiResult?.error || "Invalid OTP entered." };
   } catch (err) {
@@ -96,11 +105,37 @@ export async function verifyOtpApi({ email, phone, otp }) {
   }
 }
 
-export async function logoutUser() {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(USER_STORAGE_KEY);
-    window.localStorage.removeItem("electroVault.authToken");
+export async function completeSignupApi({ name, firstName, lastName, email, phone }) {
+  try {
+    const apiResult = await apiPost("/auth/complete-signup", { name, firstName, lastName, email, phone });
+    if (apiResult?.success && apiResult?.user) {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(apiResult.user));
+        const token = apiResult.accessToken || apiResult.token;
+        if (token) {
+          window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+        }
+      }
+      notifyUserChanged();
+      return apiResult;
+    }
+    return { success: false, error: apiResult?.error || "Failed to complete signup." };
+  } catch (err) {
+    return { success: false, error: err.message || "Failed to complete signup." };
   }
-  notifyUserChanged();
+}
+
+export async function logoutUser() {
+  try {
+    await apiPost("/auth/logout", {});
+  } catch (err) {
+    console.error("Logout request error:", err);
+  } finally {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(USER_STORAGE_KEY);
+      window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    }
+    notifyUserChanged();
+  }
   return true;
 }

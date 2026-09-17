@@ -18,6 +18,10 @@ import {
   ChevronDown,
   Loader2,
   ArrowRight,
+  Package,
+  MapPin,
+  KeyRound,
+  LogOut,
 } from "lucide-react";
 
 import { useCart } from "../../features/cart/useCart";
@@ -28,8 +32,9 @@ import { Badge, Container } from "../ui";
 import { MobileMenu } from "./MobileMenu";
 import { CartDrawer } from "../cart/CartDrawer";
 import { AuthModal } from "../modals/AuthModal";
-import { getCurrentUser } from "../../services/authService";
+import { getCurrentUser, logoutUser } from "../../services/authService";
 import { Logo } from "../common/Logo";
+import { useToast } from "../common/Toast";
 
 const defaultNavItems = [
   { label: "Home", href: "/" },
@@ -124,6 +129,11 @@ export function Header({
   const [isAdminSession, setIsAdminSession] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState(null);
 
+  const toast = useToast();
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const userDropdownRef = useRef(null);
+  const userDropdownTimeoutRef = useRef(null);
+
   const router = useRouter();
   const pathname = usePathname();
   const { itemCount, openCartDrawer } = useCart();
@@ -192,11 +202,14 @@ export function Header({
     performSearch();
   }, [debouncedSearchQuery]);
 
-  // Click outside to close search popover
+  // Click outside to close search popover and user dropdown
   useEffect(() => {
     function handleClickOutside(e) {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setShowSearchDropdown(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(e.target)) {
+        setShowUserDropdown(false);
       }
     }
 
@@ -206,8 +219,34 @@ export function Header({
     };
   }, []);
 
+  const handleUserMouseEnter = () => {
+    if (currentUser && typeof window !== "undefined" && window.innerWidth >= 768) {
+      if (userDropdownTimeoutRef.current) clearTimeout(userDropdownTimeoutRef.current);
+      setShowUserDropdown(true);
+    }
+  };
+
+  const handleUserMouseLeave = () => {
+    if (currentUser) {
+      userDropdownTimeoutRef.current = setTimeout(() => {
+        setShowUserDropdown(false);
+      }, 220);
+    }
+  };
+
+  const handleDropdownLogout = async () => {
+    setShowUserDropdown(false);
+    await logoutUser();
+    setCurrentUser(null);
+    toast.info("Logged Out", "You have been logged out successfully.");
+    if (pathname === "/account" || pathname.startsWith("/account")) {
+      router.push("/");
+    }
+  };
+
   const handleAccountClick = () => {
     if (currentUser) {
+      setShowUserDropdown(false);
       router.push("/account");
     } else {
       setIsAuthModalOpen(true);
@@ -435,29 +474,125 @@ export function Header({
                 )}
               </div>
 
-              {/* Account Button (Triggers AuthModal if logged out) */}
-              <button
-                type="button"
-                className="btn btn-outline-light text-dark p-0 border-0 rounded-3 d-flex align-items-center justify-content-center transition-all"
-                onClick={handleAccountClick}
-                title={currentUser ? `Account (${currentUser.name})` : "Log In / Register"}
-                style={{ width: "40px", height: "40px" }}
-                suppressHydrationWarning
+              {/* Account Button & Hover Dropdown */}
+              <div
+                className="position-relative d-inline-block"
+                ref={userDropdownRef}
+                onMouseEnter={handleUserMouseEnter}
+                onMouseLeave={handleUserMouseLeave}
               >
-                <div className="position-relative d-inline-flex align-items-center justify-content-center">
-                  <CircleUserRound size={22} className="text-primary" />
-                  {currentUser && (
-                    <span
-                      className="position-absolute bottom-0 end-0 bg-success border border-white rounded-circle"
-                      style={{
-                        width: "8px",
-                        height: "8px",
-                        transform: "translate(15%, 15%)",
-                      }}
-                    />
-                  )}
-                </div>
-              </button>
+                <button
+                  type="button"
+                  className="btn btn-outline-light text-dark p-0 border-0 rounded-3 d-flex align-items-center justify-content-center transition-all"
+                  onClick={handleAccountClick}
+                  title={currentUser ? `Account (${currentUser.name})` : "Log In / Register"}
+                  style={{ width: "40px", height: "40px" }}
+                  suppressHydrationWarning
+                >
+                  <div className="position-relative d-inline-flex align-items-center justify-content-center">
+                    <CircleUserRound size={22} className="text-primary" />
+                    {currentUser && (
+                      <span
+                        className="position-absolute bottom-0 end-0 bg-success border border-white rounded-circle"
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          transform: "translate(15%, 15%)",
+                        }}
+                      />
+                    )}
+                  </div>
+                </button>
+
+                {/* Hover Dropdown Menu for Logged In Customer */}
+                {currentUser && showUserDropdown && (
+                  <div
+                    className="d-none d-md-block position-absolute end-0 top-100 mt-2 bg-white rounded-4 shadow-lg border overflow-hidden"
+                    style={{
+                      width: "270px",
+                      zIndex: 1060,
+                      animation: "dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+                    }}
+                  >
+                    {/* User Name Section at Top */}
+                    <div className="p-3 bg-light border-bottom">
+                      <div className="d-flex align-items-center gap-2.5">
+                        <div
+                          className="bg-primary text-white rounded-circle fw-bold d-flex align-items-center justify-content-center flex-shrink-0 shadow-xs"
+                          style={{ width: "38px", height: "38px", fontSize: "1rem" }}
+                        >
+                          {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+                        </div>
+                        <div className="overflow-hidden">
+                          <div className="fw-bold text-dark text-truncate" style={{ fontSize: "0.9rem" }}>
+                            {currentUser.name || "Customer"}
+                          </div>
+                          <div className="text-muted text-truncate small" style={{ fontSize: "0.75rem" }}>
+                            {currentUser.email || currentUser.phone || "Verified Customer"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Account Page Navigation Items */}
+                    <div className="p-2 d-flex flex-column gap-1">
+                      <Link
+                        href="/account?tab=orders"
+                        onClick={() => setShowUserDropdown(false)}
+                        className="dropdown-item d-flex align-items-center gap-2.5 px-3 py-2 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
+                        style={{ fontSize: "0.85rem" }}
+                      >
+                        <Package size={16} className="text-primary flex-shrink-0" />
+                        <span className="fw-medium">My Orders</span>
+                      </Link>
+
+                      <Link
+                        href="/account?tab=warranties"
+                        onClick={() => setShowUserDropdown(false)}
+                        className="dropdown-item d-flex align-items-center gap-2.5 px-3 py-2 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
+                        style={{ fontSize: "0.85rem" }}
+                      >
+                        <ShieldCheck size={16} className="text-primary flex-shrink-0" />
+                        <span className="fw-medium">Warranties &amp; Reports</span>
+                      </Link>
+
+                      <Link
+                        href="/account?tab=addresses"
+                        onClick={() => setShowUserDropdown(false)}
+                        className="dropdown-item d-flex align-items-center gap-2.5 px-3 py-2 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
+                        style={{ fontSize: "0.85rem" }}
+                      >
+                        <MapPin size={16} className="text-primary flex-shrink-0" />
+                        <span className="fw-medium">Saved Addresses</span>
+                      </Link>
+
+                      <Link
+                        href="/account?tab=security"
+                        onClick={() => setShowUserDropdown(false)}
+                        className="dropdown-item d-flex align-items-center gap-2.5 px-3 py-2 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
+                        style={{ fontSize: "0.85rem" }}
+                      >
+                        <KeyRound size={16} className="text-primary flex-shrink-0" />
+                        <span className="fw-medium">Profile &amp; Security</span>
+                      </Link>
+                    </div>
+
+                    {/* Logout Button Section */}
+                    <div className="p-2 border-top bg-light">
+                      <button
+                        type="button"
+                        onClick={handleDropdownLogout}
+                        className="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-2 py-1.5 rounded-3 fw-semibold transition-all border-0 bg-danger-subtle text-danger"
+                        style={{ fontSize: "0.82rem" }}
+                        suppressHydrationWarning
+                      >
+                        <LogOut size={14} />
+                        <span>Log Out</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Wishlist Link */}
               <Link
@@ -630,9 +765,26 @@ export function Header({
         onClose={() => setIsAuthModalOpen(false)}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          router.push("/account");
         }}
       />
+
+      {/* Keyframes and dropdown utilities */}
+      <style jsx global>{`
+        @keyframes dropdownFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .hover-bg-light:hover {
+          background-color: #f8fafc !important;
+          color: #2563eb !important;
+        }
+      `}</style>
     </header>
   );
 }

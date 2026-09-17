@@ -33,6 +33,11 @@ import {
   User,
   LogOut,
   Shield,
+  ShoppingCart,
+  MapPin,
+  CreditCard,
+  Calendar,
+  ExternalLink,
 } from "lucide-react";
 
 import { Container, Badge } from "../../components/ui";
@@ -47,7 +52,9 @@ import {
   updateAdminProduct,
   deleteAdminProduct,
   fetchAdminUsers,
+  fetchAdminCarts,
   adminStaffLogin,
+  adminStaffLogout,
   fetchAdminStaffList,
   createAdminStaffAccount,
 } from "../../services/adminService";
@@ -89,11 +96,17 @@ export default function StaffPortalPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
+  // Inactivity & Session Expiry State (30 min inactivity timeout, 2-hour max session)
+  const [inactivityWarningOpen, setInactivityWarningOpen] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState(60);
+  const lastActivityRef = useRef(Date.now());
+
   // Data states (populated directly from backend responses)
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);
+  const [carts, setCarts] = useState([]);
 
   // Store-wide Global KPI Metrics (independent of active table search/filters)
   const [kpiMetrics, setKpiMetrics] = useState({
@@ -104,6 +117,9 @@ export default function StaffPortalPage() {
     featuredCount: 0,
     staffCount: 0,
     customersCount: 0,
+    avgOrderValue: 0,
+    activeCartsCount: 0,
+    cartPipelineValue: 0,
   });
 
   // Tab-specific backend search & filter loading states
@@ -111,6 +127,7 @@ export default function StaffPortalPage() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [staffLoading, setStaffLoading] = useState(false);
+  const [cartsLoading, setCartsLoading] = useState(false);
 
   // Search & Filter states
   const [orderSearch, setOrderSearch] = useState("");
@@ -121,12 +138,14 @@ export default function StaffPortalPage() {
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [staffSearch, setStaffSearch] = useState("");
+  const [cartSearch, setCartSearch] = useState("");
 
   // Debounced Search inputs (avoids hammering the backend on every key stroke)
   const debouncedOrderSearch = useDebounce(orderSearch, 350);
   const debouncedProductSearch = useDebounce(productSearch, 350);
   const debouncedCustomerSearch = useDebounce(customerSearch, 350);
   const debouncedStaffSearch = useDebounce(staffSearch, 350);
+  const debouncedCartSearch = useDebounce(cartSearch, 350);
 
   const isInitialLoaded = useRef(false);
 
@@ -147,6 +166,13 @@ export default function StaffPortalPage() {
   const [isNewAdminModalOpen, setIsNewAdminModalOpen] = useState(false);
   const [newAdminFormData, setNewAdminFormData] = useState(emptyNewAdminForm);
 
+  // Detailed Row Inspection Modals State (Requirement: View full details for each row item)
+  const [viewingOrder, setViewingOrder] = useState(null);
+  const [viewingProduct, setViewingProduct] = useState(null);
+  const [viewingCustomer, setViewingCustomer] = useState(null);
+  const [viewingCart, setViewingCart] = useState(null);
+  const [viewingStaff, setViewingStaff] = useState(null);
+
   // Check stored admin session and persistent active tab on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -154,10 +180,19 @@ export default function StaffPortalPage() {
         const storedAdmin = window.localStorage.getItem("electroVault.adminUser");
         if (storedAdmin) {
           const parsed = JSON.parse(storedAdmin);
-          setAdminUser(parsed);
+          // Verify if session has already expired
+          if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+            window.localStorage.removeItem("electroVault.adminUser");
+            window.localStorage.removeItem("electroVault.adminAuthToken");
+            setLoginError("Previous admin session expired. Please log in again.");
+            setAdminUser(null);
+          } else {
+            setAdminUser(parsed);
+            lastActivityRef.current = Date.now();
+          }
         }
         const savedTab = window.localStorage.getItem("electroVault.adminActiveTab");
-        if (savedTab && ["orders", "products", "customers", "staff"].includes(savedTab)) {
+        if (savedTab && ["orders", "products", "customers", "carts", "staff"].includes(savedTab)) {
           setActiveTab(savedTab);
         }
       } catch (err) {
@@ -178,12 +213,14 @@ export default function StaffPortalPage() {
   };
 
   // Helper to compute KPI metrics from full store data
-  const updateGlobalKpiMetrics = (allOrders = [], allProducts = [], allUsers = [], allStaff = []) => {
+  const updateGlobalKpiMetrics = (allOrders = [], allProducts = [], allUsers = [], allStaff = [], allCarts = []) => {
     const rev = allOrders
       .filter((o) => o.orderStatus !== "Cancelled")
       .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
     const pending = allOrders.filter((o) => o.orderStatus === "Processing" || o.orderStatus === "Placed").length;
     const featured = allProducts.filter((p) => p.featured).length;
+    const aov = allOrders.length > 0 ? rev / allOrders.length : 0;
+    const cartPipeline = allCarts.reduce((sum, c) => sum + Number(c.cartTotal || 0), 0);
 
     setKpiMetrics({
       totalRevenue: rev,
@@ -193,6 +230,9 @@ export default function StaffPortalPage() {
       featuredCount: featured,
       staffCount: allStaff.length,
       customersCount: allUsers.length,
+      avgOrderValue: aov,
+      activeCartsCount: allCarts.length,
+      cartPipelineValue: cartPipeline,
     });
   };
 
@@ -200,19 +240,21 @@ export default function StaffPortalPage() {
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      const [ordersRes, productsRes, usersRes, staffRes] = await Promise.all([
+      const [ordersRes, productsRes, usersRes, staffRes, cartsRes] = await Promise.all([
         fetchAdminOrders(),
         fetchAdminProducts(),
         fetchAdminUsers(),
         fetchAdminStaffList(),
+        fetchAdminCarts(),
       ]);
 
       setOrders(ordersRes || []);
       setProducts(productsRes || []);
       setCustomers(usersRes || []);
       setStaffMembers(staffRes || []);
+      setCarts(cartsRes || []);
 
-      updateGlobalKpiMetrics(ordersRes || [], productsRes || [], usersRes || [], staffRes || []);
+      updateGlobalKpiMetrics(ordersRes || [], productsRes || [], usersRes || [], staffRes || [], cartsRes || []);
       isInitialLoaded.current = true;
     } catch (err) {
       console.error("Admin data load error:", err);
@@ -319,6 +361,94 @@ export default function StaffPortalPage() {
     };
   }, [debouncedStaffSearch, adminUser]);
 
+  // Backend API Filter: Carts (triggered on debounced search change)
+  useEffect(() => {
+    if (!isInitialLoaded.current || !adminUser) return;
+    let isCurrent = true;
+    setCartsLoading(true);
+
+    fetchAdminCarts({
+      search: debouncedCartSearch,
+    })
+      .then((res) => {
+        if (isCurrent) setCarts(res || []);
+      })
+      .catch((err) => console.error("Backend carts filter error:", err))
+      .finally(() => {
+        if (isCurrent) setCartsLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [debouncedCartSearch, adminUser]);
+
+  // Track Admin Inactivity (30 mins) and Absolute Session Lifetime (2 hours)
+  useEffect(() => {
+    if (!adminUser) return;
+
+    // Reset activity timer on real user interactions
+    const handleUserInteraction = () => {
+      lastActivityRef.current = Date.now();
+    };
+
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    events.forEach((evt) => window.addEventListener(evt, handleUserInteraction, { passive: true }));
+
+    // Listen to automatic token expiration notifications from apiClient
+    const handleRemoteSessionExpired = (e) => {
+      handleAdminLogout();
+      setLoginError(
+        e.detail?.reason === "expired"
+          ? "Administrative session expired on server. Please sign in again."
+          : "Session disconnected. Please re-authenticate."
+      );
+    };
+    window.addEventListener("electroVault-admin-session-expired", handleRemoteSessionExpired);
+
+    const INACTIVITY_LIMIT_MS = 30 * 60 * 1000; // 30 minutes
+    const WARNING_BUFFER_MS = 60 * 1000; // 60 seconds warning countdown
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+
+      // 1. Check absolute session lifetime (2 hours)
+      if (adminUser.expiresAt && now >= adminUser.expiresAt) {
+        clearInterval(interval);
+        setInactivityWarningOpen(false);
+        handleAdminLogout();
+        setLoginError("Your 2-hour administration session has concluded. Please sign in again.");
+        toast.warning("Session Expired", "Maximum 2-hour administrative session reached.");
+        return;
+      }
+
+      // 2. Check idle inactivity
+      const idleTime = now - lastActivityRef.current;
+      const timeLeftUntilLock = INACTIVITY_LIMIT_MS - idleTime;
+
+      if (timeLeftUntilLock <= 0) {
+        clearInterval(interval);
+        setInactivityWarningOpen(false);
+        handleAdminLogout();
+        setLoginError("Staff portal locked due to 30 minutes of inactivity. Please log in again.");
+        toast.error("Session Locked", "Logged out automatically due to 30 minutes of inactivity.");
+      } else if (timeLeftUntilLock <= WARNING_BUFFER_MS) {
+        setCountdownSeconds(Math.ceil(timeLeftUntilLock / 1000));
+        setInactivityWarningOpen(true);
+      } else {
+        if (inactivityWarningOpen) {
+          setInactivityWarningOpen(false);
+        }
+      }
+    }, 1000);
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, handleUserInteraction));
+      window.removeEventListener("electroVault-admin-session-expired", handleRemoteSessionExpired);
+      clearInterval(interval);
+    };
+  }, [adminUser, inactivityWarningOpen]);
+
   // Handle Dedicated Admin Login
   const handleAdminLogin = async (e) => {
     e.preventDefault();
@@ -333,6 +463,7 @@ export default function StaffPortalPage() {
     setLoginLoading(false);
 
     if (res.success && res.user) {
+      lastActivityRef.current = Date.now();
       setAdminUser(res.user);
       toast.success("Staff Login Successful", `Welcome back, ${res.user.name}!`);
     } else {
@@ -341,18 +472,39 @@ export default function StaffPortalPage() {
     }
   };
 
-  // Staff Logout
-  const handleAdminLogout = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("electroVault.adminUser");
-      window.localStorage.removeItem("electroVault.adminAuthToken");
-      window.localStorage.removeItem("electroVault.adminSession");
-      window.localStorage.removeItem("electroVault.adminActiveTab");
-      window.sessionStorage.removeItem("electroVault.adminSession");
+  // Staff Logout with server session revocation and cookie clearing
+  const handleAdminLogout = async () => {
+    try {
+      await adminStaffLogout();
+    } catch (err) {
+      console.error("Admin logout error:", err);
     }
     setAdminUser(null);
     setActiveTab("orders");
+    setInactivityWarningOpen(false);
     toast.info("Staff Logged Out", "Admin session ended securely.");
+  };
+
+  // Extend active session when user acknowledges warning modal
+  const handleExtendSession = async () => {
+    lastActivityRef.current = Date.now();
+    setInactivityWarningOpen(false);
+    try {
+      const res = await fetch("/api/admin/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (data.success && data.accessToken) {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("electroVault.adminAuthToken", data.accessToken);
+        }
+        toast.success("Session Extended", "Your administrative session has been refreshed.");
+      }
+    } catch {
+      toast.info("Activity Recorded", "Your session has been renewed.");
+    }
   };
 
   // Handle Order Status Update
@@ -753,6 +905,12 @@ export default function StaffPortalPage() {
                   >
                     Staff Portal
                   </span>
+                  <span
+                    className="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-2 py-0.5 d-none d-md-inline-block"
+                    style={{ fontSize: "0.68rem" }}
+                  >
+                    🔒 JWT Session
+                  </span>
                 </div>
                 <small className="text-white-50" style={{ fontSize: "0.76rem" }}>
                   Live Store & Inventory Management System
@@ -903,32 +1061,32 @@ export default function StaffPortalPage() {
             </div>
           </div>
 
-          {/* 4. Active Admin Team */}
+          {/* 4. Average Order Value (AOV) & Cart Pipeline (Replaced Staff card per user request) */}
           <div className="col-12 col-sm-6 col-lg-3">
             <div
               className="card border rounded-4 shadow-sm p-4 h-100 position-relative overflow-hidden transition-all"
               style={{
-                background: "linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)",
-                borderColor: "#fde68a",
+                background: "linear-gradient(135deg, #ffffff 0%, #fff7ed 100%)",
+                borderColor: "#ffedd5",
               }}
             >
               <div className="d-flex align-items-center justify-content-between mb-3">
                 <span className="small text-muted fw-bold text-uppercase" style={{ fontSize: "0.72rem", letterSpacing: "0.05em" }}>
-                  Active Admin Team
+                  Avg. Order Value (AOV)
                 </span>
                 <div
                   className="d-flex align-items-center justify-content-center text-white rounded-3 shadow-xs"
-                  style={{ width: "38px", height: "38px", backgroundColor: "#d97706" }}
+                  style={{ width: "38px", height: "38px", backgroundColor: "#ea580c" }}
                 >
-                  <UserPlus size={20} />
+                  <TrendingUp size={20} />
                 </div>
               </div>
               <h3 className="fw-bold text-dark mb-1" style={{ letterSpacing: "-0.02em" }}>
-                {kpiMetrics.staffCount}
+                £{Number(kpiMetrics.avgOrderValue || 0).toFixed(2)}
               </h3>
-              <div className="small fw-medium d-flex align-items-center gap-1.5 mt-2" style={{ fontSize: "0.78rem", color: "#b45309" }}>
-                <Users size={14} />
-                <span>{kpiMetrics.customersCount} registered buyers</span>
+              <div className="small fw-medium d-flex align-items-center gap-1.5 mt-2" style={{ fontSize: "0.78rem", color: "#c2410c" }}>
+                <ShoppingCart size={14} />
+                <span>{kpiMetrics.activeCartsCount || 0} active carts (£{Number(kpiMetrics.cartPipelineValue || 0).toFixed(2)})</span>
               </div>
             </div>
           </div>
@@ -966,6 +1124,16 @@ export default function StaffPortalPage() {
             >
               <Users size={18} className="me-2" />
               Customer Directory ({kpiMetrics.customersCount})
+            </button>
+            <button
+              type="button"
+              className={`btn px-4 py-2.5 fw-bold rounded-top-3 border-0 transition-all ${
+                activeTab === "carts" ? "bg-white text-primary shadow-xs border-top border-primary border-3" : "text-muted hover-bg-white"
+              }`}
+              onClick={() => handleTabChange("carts")}
+            >
+              <ShoppingCart size={18} className="me-2" />
+              Items in Cart ({kpiMetrics.activeCartsCount || 0})
             </button>
             <button
               type="button"
@@ -1153,6 +1321,15 @@ export default function StaffPortalPage() {
 
                                   <button
                                     type="button"
+                                    className="btn btn-sm btn-outline-secondary rounded-2 p-1.5"
+                                    onClick={() => setViewingOrder(order)}
+                                    title="View Complete Order Details"
+                                  >
+                                    <Eye size={14} />
+                                  </button>
+
+                                  <button
+                                    type="button"
                                     className="btn btn-sm btn-primary rounded-2 p-1.5"
                                     onClick={() => handleOpenOrderModal(order)}
                                     title="Edit order status & tracking"
@@ -1323,6 +1500,14 @@ export default function StaffPortalPage() {
                                 <div className="d-flex align-items-center justify-content-end gap-1.5">
                                   <button
                                     type="button"
+                                    className="btn btn-sm btn-outline-secondary rounded-2 p-1.5"
+                                    onClick={() => setViewingProduct(prod)}
+                                    title="View Product Full Specifications"
+                                  >
+                                    <Eye size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
                                     className="btn btn-sm btn-outline-primary rounded-2 p-1.5"
                                     onClick={() => handleOpenEditProductModal(prod)}
                                   >
@@ -1380,6 +1565,7 @@ export default function StaffPortalPage() {
                           <th className="py-3 px-3">Total Orders</th>
                           <th className="py-3 px-3">Lifetime Spent</th>
                           <th className="py-3 px-3">Member Since</th>
+                          <th className="py-3 px-3 text-end">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1401,6 +1587,18 @@ export default function StaffPortalPage() {
                                 year: "numeric",
                               })}
                             </td>
+                            <td className="px-3 text-end">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-primary rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1.5"
+                                onClick={() => setViewingCustomer(u)}
+                                title="View Customer Profile & History"
+                                style={{ fontSize: "0.76rem" }}
+                              >
+                                <Eye size={13} />
+                                <span>View Details</span>
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1410,7 +1608,143 @@ export default function StaffPortalPage() {
               </div>
             )}
 
-            {/* TAB 4: ADMIN TEAM & MULTI-ADMIN ACCOUNTS */}
+            {/* TAB 4: ACTIVE SHOPPING CARTS (ITEMS IN CART) */}
+            {activeTab === "carts" && (
+              <div>
+                <div className="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-3 mb-4">
+                  <AdminSearchInput
+                    value={cartSearch}
+                    onChange={setCartSearch}
+                    placeholder="Search active carts by customer, email, handset..."
+                    isLoading={cartsLoading}
+                    id="cart-search-input"
+                  />
+
+                  <div className="d-flex align-items-center gap-2">
+                    <span className="badge bg-warning bg-opacity-10 text-dark border border-warning px-3 py-2 rounded-3 fw-bold small">
+                      🛒 {carts.length} Active Carts (£{Number(carts.reduce((sum, c) => sum + (c.cartTotal || 0), 0)).toFixed(2)} in Cart Value)
+                    </span>
+                  </div>
+                </div>
+
+                {carts.length === 0 && !cartsLoading ? (
+                  <div className="text-center py-5 bg-light rounded-4 border border-dashed">
+                    <ShoppingCart size={40} className="text-muted mb-2" />
+                    <h6 className="fw-bold text-dark">No Active Carts Found</h6>
+                    <p className="text-muted small mb-0">No customers currently have pending items in their shopping cart.</p>
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className={`table table-hover align-middle border mb-0 rounded-3 overflow-hidden ${cartsLoading ? "opacity-75" : ""}`}>
+                      <thead className="table-light">
+                        <tr className="small text-uppercase text-muted" style={{ letterSpacing: "0.05em", fontSize: "0.72rem" }}>
+                          <th className="py-3 px-3">Customer / Shopper</th>
+                          <th className="py-3 px-3">Items in Cart</th>
+                          <th className="py-3 px-3">Cart Value</th>
+                          <th className="py-3 px-3">Handsets Preview</th>
+                          <th className="py-3 px-3">Last Activity</th>
+                          <th className="py-3 px-3 text-end">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {carts.map((cart) => (
+                          <tr key={cart._id || cart.id}>
+                            <td className="px-3">
+                              <div className="d-flex align-items-center gap-2.5">
+                                <div
+                                  className="d-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary fw-bold rounded-circle flex-shrink-0"
+                                  style={{ width: "36px", height: "36px", fontSize: "0.85rem" }}
+                                >
+                                  {cart.user?.name ? cart.user.name.charAt(0).toUpperCase() : "G"}
+                                </div>
+                                <div>
+                                  <div className="fw-bold text-dark" style={{ fontSize: "0.88rem" }}>
+                                    {cart.user?.name || "Guest Shopper"}
+                                  </div>
+                                  <span className="text-muted small" style={{ fontSize: "0.75rem" }}>
+                                    {cart.user?.email || "No email"}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-3">
+                              <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-2.5 py-1">
+                                🛒 {cart.totalItems || (cart.items || []).length} items
+                              </span>
+                            </td>
+
+                            <td className="px-3 fw-bold text-primary" style={{ fontSize: "0.95rem" }}>
+                              £{Number(cart.cartTotal || 0).toFixed(2)}
+                            </td>
+
+                            <td className="px-3">
+                              <div className="d-flex align-items-center gap-1.5 flex-wrap" style={{ maxWidth: "260px" }}>
+                                {(cart.items || []).slice(0, 3).map((it, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="position-relative bg-light rounded-2 border flex-shrink-0"
+                                    style={{ width: "36px", height: "36px" }}
+                                    title={`${it.name} (x${it.quantity})`}
+                                  >
+                                    <Image
+                                      src={it.image || "https://placehold.co/800x800/EEF2F7/0F172A?text=Phone"}
+                                      alt={it.name}
+                                      fill
+                                      sizes="36px"
+                                      style={{ objectFit: "cover" }}
+                                      className="rounded-2"
+                                      unoptimized
+                                    />
+                                    {it.quantity > 1 && (
+                                      <span
+                                        className="position-absolute bottom-0 end-0 bg-dark text-white rounded-circle font-monospace fw-bold"
+                                        style={{ fontSize: "0.55rem", width: "16px", height: "16px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                      >
+                                        {it.quantity}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                                {(cart.items || []).length > 3 && (
+                                  <span className="badge bg-secondary bg-opacity-15 text-muted rounded-pill px-2 py-1 small">
+                                    +{(cart.items || []).length - 3} more
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="px-3 text-muted small">
+                              {new Date(cart.updatedAt || cart.createdAt || Date.now()).toLocaleDateString("en-GB", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </td>
+
+                            <td className="px-3 text-end">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-primary rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1.5"
+                                onClick={() => setViewingCart(cart)}
+                                title="View Cart Details & Items"
+                                style={{ fontSize: "0.76rem" }}
+                              >
+                                <Eye size={13} />
+                                <span>View Details</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 5: ADMIN TEAM & MULTI-ADMIN ACCOUNTS */}
             {activeTab === "staff" && (
               <div>
                 <div className="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-3 mb-4">
@@ -1448,7 +1782,8 @@ export default function StaffPortalPage() {
                           <th className="py-3 px-3">Staff Email</th>
                           <th className="py-3 px-3">Access Level</th>
                           <th className="py-3 px-3">Account Status</th>
-                          <th className="py-3 px-3 text-end">Created Date</th>
+                          <th className="py-3 px-3">Created Date</th>
+                          <th className="py-3 px-3 text-end">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1480,12 +1815,24 @@ export default function StaffPortalPage() {
                                   ✓ Active
                                 </span>
                               </td>
-                              <td className="px-3 text-end text-muted small">
+                              <td className="px-3 text-muted small">
                                 {new Date(s.createdAt || Date.now()).toLocaleDateString("en-GB", {
                                   day: "numeric",
                                   month: "short",
                                   year: "numeric",
                                 })}
+                              </td>
+                              <td className="px-3 text-end">
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-secondary rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1.5"
+                                  onClick={() => setViewingStaff(s)}
+                                  title="View Staff Profile"
+                                  style={{ fontSize: "0.76rem" }}
+                                >
+                                  <Eye size={13} />
+                                  <span>View Details</span>
+                                </button>
                               </td>
                             </tr>
                           );
@@ -1825,6 +2172,61 @@ export default function StaffPortalPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SESSION INACTIVITY WARNING MODAL */}
+      {inactivityWarningOpen && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-3"
+          style={{ backgroundColor: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 1060 }}
+        >
+          <div
+            className="card border-0 rounded-4 shadow-2xl bg-white overflow-hidden"
+            style={{ maxWidth: "440px", width: "100%" }}
+          >
+            <div className="p-4 text-center bg-warning bg-opacity-10 border-bottom border-warning border-opacity-25">
+              <div
+                className="d-inline-flex align-items-center justify-content-center bg-warning text-dark p-3 rounded-circle mb-2 shadow-sm"
+                style={{ width: "56px", height: "56px" }}
+              >
+                <Clock size={28} />
+              </div>
+              <h5 className="fw-bold text-dark mb-1">Session Inactivity Warning</h5>
+              <p className="text-muted small mb-0">Staff Security Auto-Lock Active</p>
+            </div>
+
+            <div className="p-4 text-center">
+              <p className="text-secondary small mb-3">
+                You have been inactive for nearly 30 minutes. To protect store operations, your staff session will automatically lock in:
+              </p>
+
+              <div
+                className="d-inline-flex align-items-center justify-content-center px-4 py-2 rounded-3 bg-dark text-white fw-bold fs-4 font-monospace mb-4 shadow-sm"
+                style={{ minWidth: "120px" }}
+              >
+                {countdownSeconds}s
+              </div>
+
+              <div className="d-flex align-items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary w-50 py-2.5 rounded-3 fw-semibold small"
+                  onClick={handleAdminLogout}
+                >
+                  Log Out Now
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary w-50 py-2.5 rounded-3 fw-bold small shadow-sm d-flex align-items-center justify-content-center gap-1.5"
+                  onClick={handleExtendSession}
+                >
+                  <RefreshCw size={15} />
+                  <span>Stay Signed In</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

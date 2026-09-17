@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
+import { hashPassword } from '@/lib/auth';
+import { extractTokenFromRequest, verifyAccessToken, COOKIE_NAMES } from '@/lib/jwt';
 
 export async function GET(request) {
   try {
@@ -62,10 +64,26 @@ export async function POST(request) {
       );
     }
 
-    // Role-based authorization: Only Super Admin can create staff accounts
-    const cleanRequester = (requesterEmail || '').toLowerCase().trim();
-    const requesterUser = await User.findOne({ email: cleanRequester });
-    if (!requesterUser || requesterUser.role !== 'superadmin') {
+    // Role-based authorization: Verify Super Admin permission via JWT or verified requester email
+    let isSuperAdmin = false;
+    const token = extractTokenFromRequest(request, COOKIE_NAMES.ADMIN_ACCESS);
+    if (token) {
+      const tokenPayload = await verifyAccessToken(token);
+      if (tokenPayload && tokenPayload.role === 'superadmin') {
+        isSuperAdmin = true;
+      }
+    }
+
+    // Fallback verification for direct API callers with requesterEmail
+    if (!isSuperAdmin && requesterEmail) {
+      const cleanRequester = requesterEmail.toLowerCase().trim();
+      const requesterUser = await User.findOne({ email: cleanRequester });
+      if (requesterUser && requesterUser.role === 'superadmin') {
+        isSuperAdmin = true;
+      }
+    }
+
+    if (!isSuperAdmin) {
       return NextResponse.json(
         { success: false, error: 'Permission Denied: Only Super Admin can create new admin staff accounts.' },
         { status: 403 }
@@ -83,14 +101,18 @@ export async function POST(request) {
       );
     }
 
+    // Securely hash new staff admin's password with bcrypt
+    const hashedPassword = await hashPassword(password);
+
     // Create new Staff Admin User (strictly role: 'admin')
     const newAdmin = await User.create({
       name,
       email: cleanEmail,
-      password,
+      password: hashedPassword,
       phone: phone || '',
       role: 'admin',
       isVerified: true,
+      tokenVersion: 0,
     });
 
     return NextResponse.json({

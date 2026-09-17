@@ -40,6 +40,15 @@ export async function GET(request) {
         phone: user.phone || 'N/A',
         role: user.role || 'customer',
         createdAt: user.createdAt,
+        addresses: user.addresses || [],
+        orders: userOrders.map((o) => ({
+          id: o._id,
+          orderNumber: o.orderNumber,
+          totalAmount: o.totalAmount,
+          orderStatus: o.orderStatus,
+          createdAt: o.createdAt,
+          itemsCount: (o.items || []).length,
+        })),
         totalOrders: userOrders.length,
         totalSpent: userOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
       };

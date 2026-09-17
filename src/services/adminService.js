@@ -111,9 +111,15 @@ export async function adminStaffLogin({ email, password }) {
     const res = await apiPost("/admin/login", { email, password });
     if (res?.success && res.user) {
       if (typeof window !== "undefined") {
-        window.localStorage.setItem("electroVault.adminUser", JSON.stringify(res.user));
-        if (res.token) {
-          window.localStorage.setItem("electroVault.adminAuthToken", res.token);
+        const userWithMeta = {
+          ...res.user,
+          loginTimestamp: Date.now(),
+          expiresAt: Date.now() + (res.user.sessionLifetime || 7200) * 1000,
+        };
+        window.localStorage.setItem("electroVault.adminUser", JSON.stringify(userWithMeta));
+        const token = res.accessToken || res.token;
+        if (token) {
+          window.localStorage.setItem("electroVault.adminAuthToken", token);
         }
       }
       return { success: true, user: res.user };
@@ -122,6 +128,22 @@ export async function adminStaffLogin({ email, password }) {
   } catch (err) {
     return { success: false, error: err.message || "Network error logging in staff." };
   }
+}
+
+export async function adminStaffLogout() {
+  try {
+    await apiPost("/admin/logout", {});
+  } catch (err) {
+    console.error("Admin logout error:", err);
+  } finally {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("electroVault.adminUser");
+      window.localStorage.removeItem("electroVault.adminAuthToken");
+      window.localStorage.removeItem("electroVault.adminSession");
+      window.localStorage.removeItem("electroVault.adminActiveTab");
+    }
+  }
+  return true;
 }
 
 export async function fetchAdminStaffList(params = {}) {
@@ -150,5 +172,21 @@ export async function createAdminStaffAccount({ name, email, password, phone, re
   } catch (err) {
     return { success: false, error: err.message };
   }
+}
+
+export async function fetchAdminCarts(params = {}) {
+  try {
+    const query = new URLSearchParams();
+    if (params.search && params.search.trim()) query.set("search", params.search.trim());
+    const queryString = query.toString();
+    const endpoint = queryString ? `/admin/carts?${queryString}` : "/admin/carts";
+    const res = await apiGet(endpoint);
+    if (res?.success && Array.isArray(res.carts)) {
+      return res.carts;
+    }
+  } catch (err) {
+    console.error("Error fetching admin carts:", err);
+  }
+  return [];
 }
 

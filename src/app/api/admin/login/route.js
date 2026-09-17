@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
+import { verifyPassword, hashPassword } from '@/lib/auth';
+import { signAccessToken, signRefreshToken, setAuthCookies } from '@/lib/jwt';
 
 export async function POST(request) {
   try {
@@ -21,12 +23,14 @@ export async function POST(request) {
 
     // Seed default Super Admin account "Anuj Thakur" ONLY if the primary email does not exist
     if (!user && cleanEmail === 'anuj.chambyal@gmail.com') {
+      const hashedDefaultPassword = await hashPassword('root');
       user = await User.create({
         name: 'Anuj Thakur',
         email: 'anuj.chambyal@gmail.com',
-        password: 'root',
+        password: hashedDefaultPassword,
         role: 'superadmin',
         isVerified: true,
+        tokenVersion: 0,
       });
     }
 
@@ -38,17 +42,23 @@ export async function POST(request) {
 
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Account not found. Please check your email.' },
+        { success: false, error: 'Account not found. Please check your staff email.' },
         { status: 401 }
       );
     }
 
-    // Verify Password: exact match only
-    if (user.password !== password) {
+    // Verify Password using bcrypt (with legacy plain-text fallback)
+    const isMatch = await verifyPassword(password, user.password);
+    if (!isMatch) {
       return NextResponse.json(
         { success: false, error: 'Invalid password entered.' },
         { status: 401 }
       );
+    }
+
+    // Auto-migrate plain text password to bcrypt
+    if (!user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
+      user.password = await hashPassword(password);
     }
 
     // Verify Staff / Superadmin permissions
@@ -59,11 +69,29 @@ export async function POST(request) {
       );
     }
 
-    // Return the user's authentic role directly from database
-    return NextResponse.json({
+    user.lastActiveAt = new Date();
+    await user.save();
+
+    const payload = {
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role, // 'admin' or 'superadmin'
+      isAdminPortal: true,
+    };
+
+    // Admin Token Lifecycles: 15-minute access token, 2-hour refresh token
+    const accessToken = await signAccessToken(payload, '15m');
+    const refreshToken = await signRefreshToken(
+      { ...payload, tokenVersion: user.tokenVersion || 0 },
+      '2h'
+    );
+
+    const response = NextResponse.json({
       success: true,
       message: `${user.role === 'superadmin' ? 'Super Admin' : 'Staff Admin'} login successful!`,
-      token: `admin_token_${user._id}_${Date.now()}`,
+      accessToken,
+      refreshToken,
+      token: accessToken, // Backward compatibility
       user: {
         id: user._id.toString(),
         name: user.name,
@@ -71,8 +99,15 @@ export async function POST(request) {
         phone: user.phone || '',
         role: user.role, // 'superadmin' or 'admin'
         isVerified: true,
+        expiresIn: 15 * 60, // 15 minutes
+        sessionLifetime: 2 * 60 * 60, // 2 hours
       },
     });
+
+    // Set HttpOnly cookies for admin
+    setAuthCookies(response, { accessToken, refreshToken, isAdmin: true });
+
+    return response;
   } catch (error) {
     console.error('Error logging in admin:', error);
     return NextResponse.json(

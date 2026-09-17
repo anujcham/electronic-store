@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   User,
   Package,
@@ -32,11 +33,25 @@ import { getSavedAddresses, deleteAddress, setDefaultAddress } from "../../servi
 import { apiPut } from "../../services/apiClient";
 
 export default function AccountPage() {
+  const router = useRouter();
   const toast = useToast();
+
   const [currentUser, setCurrentUser] = useState(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("orders"); // "orders" | "warranties" | "addresses" | "security"
+
+  // Sync tab from URL query param if present (e.g. /account?tab=warranties)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam && ["orders", "warranties", "addresses", "security"].includes(tabParam)) {
+        setActiveTab(tabParam);
+      }
+    }
+  }, []);
 
   // Inspection Certificate Modal State
   const [selectedCertProduct, setSelectedCertProduct] = useState(null);
@@ -56,43 +71,44 @@ export default function AccountPage() {
   useEffect(() => {
     async function loadAccountData() {
       const user = await getCurrentUser();
-      setCurrentUser(user);
-
-      if (user) {
-        setProfileName(user.name || "");
-        setProfilePhone(user.phone || "");
-
-        const userId = user.id || user._id;
-        const userOrders = await getUserOrders(userId, user.email);
-        setOrders(userOrders || []);
-
-        const userAddresses = await getSavedAddresses(userId);
-        setAddresses(userAddresses || []);
-      } else {
-        setOrders([]);
-        setAddresses([]);
+      if (!user) {
+        setIsInitialLoading(false);
+        router.replace("/");
+        return;
       }
+
+      setCurrentUser(user);
+      setProfileName(user.name || "");
+      setProfilePhone(user.phone || "");
+
+      const userId = user.id || user._id;
+      const userOrders = await getUserOrders(userId, user.email);
+      setOrders(userOrders || []);
+
+      const userAddresses = await getSavedAddresses(userId);
+      setAddresses(userAddresses || []);
+      setIsInitialLoading(false);
     }
 
     loadAccountData();
 
     async function handleUserChange() {
       const user = await getCurrentUser();
-      setCurrentUser(user);
-      if (user) {
-        setProfileName(user.name || "");
-        setProfilePhone(user.phone || "");
-
-        const userId = user.id || user._id;
-        const userOrders = await getUserOrders(userId, user.email);
-        setOrders(userOrders || []);
-
-        const userAddresses = await getSavedAddresses(userId);
-        setAddresses(userAddresses || []);
-      } else {
-        setOrders([]);
-        setAddresses([]);
+      if (!user) {
+        router.replace("/");
+        return;
       }
+
+      setCurrentUser(user);
+      setProfileName(user.name || "");
+      setProfilePhone(user.phone || "");
+
+      const userId = user.id || user._id;
+      const userOrders = await getUserOrders(userId, user.email);
+      setOrders(userOrders || []);
+
+      const userAddresses = await getSavedAddresses(userId);
+      setAddresses(userAddresses || []);
     }
 
     if (typeof window !== "undefined") {
@@ -106,12 +122,13 @@ export default function AccountPage() {
         window.removeEventListener("storage", handleUserChange);
       }
     };
-  }, []);
+  }, [router]);
 
   async function handleLogOut() {
     await logoutUser();
     setCurrentUser(null);
-    toast.info("Logged Out", "You have been logged out.");
+    toast.info("Logged Out", "You have been logged out successfully.");
+    router.replace("/");
   }
 
   function handleOpenCertModal(product) {
@@ -173,6 +190,20 @@ export default function AccountPage() {
     }
   }
 
+  if (isInitialLoading) {
+    return (
+      <main className="py-5 bg-light min-vh-100 d-flex align-items-center justify-content-center">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading account...</span>
+        </div>
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    return null;
+  }
+
   return (
     <main className="py-5 py-lg-6 bg-soft min-vh-100">
       <Container>
@@ -187,25 +218,8 @@ export default function AccountPage() {
           </div>
         </nav>
 
-        {!currentUser ? (
-          /* Guest Unauthenticated Account Prompt */
-          <div className="bg-white border rounded-4 p-5 text-center shadow-sm max-w-2xl mx-auto my-5">
-            <div className="bg-primary text-white p-3 rounded-circle d-inline-flex mb-3">
-              <Lock size={32} />
-            </div>
-            <h3 className="fw-bold text-primary mb-2">Sign in to your Refurbished Account</h3>
-            <p className="text-muted mb-4" style={{ maxWidth: "28rem", margin: "0 auto" }}>
-              Track active refurbished smartphone orders, view 50-point quality inspection reports, download 12-month seller warranties, and manage delivery addresses.
-            </p>
-            <div className="d-flex justify-content-center gap-3">
-              <Button variant="primary" size="lg" onClick={() => setIsAuthModalOpen(true)}>
-                Sign In or Register
-              </Button>
-            </div>
-          </div>
-        ) : (
-          /* Logged In Customer Profile Dashboard */
-          <div>
+        {/* Logged In Customer Profile Dashboard */}
+        <div>
             {/* Header Banner */}
             <div className="bg-white border rounded-4 p-4 p-md-5 mb-4 shadow-sm position-relative overflow-hidden">
               <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 position-relative" style={{ zIndex: 2 }}>
@@ -651,7 +665,6 @@ export default function AccountPage() {
               </div>
             </div>
           </div>
-        )}
       </Container>
 
       <AuthModal

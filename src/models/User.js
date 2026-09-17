@@ -15,12 +15,14 @@ const UserSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
-    phone: { type: String },
-    password: { type: String, required: true },
+    phone: { type: String, index: true },
+    password: { type: String, required: false },
     otp: { type: String },
     otpExpiresAt: { type: Date },
     isVerified: { type: Boolean, default: false },
     role: { type: String, enum: ['user', 'customer', 'admin', 'superadmin'], default: 'customer' },
+    tokenVersion: { type: Number, default: 0 },
+    lastActiveAt: { type: Date },
     addresses: [AddressSchema],
   },
   { timestamps: true }
