@@ -42,6 +42,16 @@ const OrderSchema = new mongoose.Schema(
     shippingFee: { type: Number, default: 0 },
     tax: { type: Number, default: 0 },
     totalAmount: { type: Number, required: true },
+    warrantyPlan: {
+      id: { type: String, default: 'standard' },
+      title: { type: String, default: '12-Month Standard Warranty' },
+      price: { type: Number, default: 0 },
+    },
+    emiDetails: {
+      provider: { type: String },
+      tenureMonths: { type: Number },
+      monthlyAmount: { type: Number },
+    },
     courierName: { type: String, default: 'Royal Mail Tracked 24' },
     trackingNumber: { type: String },
     estimatedDelivery: { type: String, default: '2-4 working days' },

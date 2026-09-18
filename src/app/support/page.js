@@ -225,25 +225,84 @@ export default function SupportPage() {
                   return (
                     <div
                       key={index}
-                      className="bg-white border rounded-3 overflow-hidden shadow-sm transition-all"
+                      className={`bg-white border rounded-4 overflow-hidden shadow-xs transition-all ${
+                        isOpen ? "border-primary border-opacity-50 shadow-sm" : "border-light-subtle"
+                      }`}
+                      style={{ transition: "all 0.25s ease" }}
                     >
                       <button
                         type="button"
-                        className="w-100 p-3.5 text-start btn border-0 d-flex align-items-center justify-content-between text-primary fw-bold"
+                        className="w-100 text-start btn border-0 d-flex align-items-center justify-content-between text-dark fw-bold"
+                        style={{ padding: "18px 22px" }}
                         onClick={() => setOpenFaqIndex(isOpen ? null : index)}
                       >
-                        <span className="me-2">{faq.question}</span>
-                        <ChevronDown
-                          size={18}
-                          className={`transition-transform flex-shrink-0 ${
-                            isOpen ? "rotate-180 text-primary" : "text-muted"
+                        <span
+                          className={`pe-3 ${isOpen ? "text-primary fw-bold" : "text-dark"}`}
+                          style={{ fontSize: "0.95rem" }}
+                        >
+                          {faq.question}
+                        </span>
+
+                        {/* Animated + / - Toggle Indicator */}
+                        <div
+                          className={`rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 transition-all ${
+                            isOpen
+                              ? "bg-primary text-white shadow-xs"
+                              : "bg-light text-secondary border border-secondary border-opacity-25"
                           }`}
-                          style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}
-                        />
+                          style={{
+                            width: "30px",
+                            height: "30px",
+                            transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              position: "relative",
+                              width: "12px",
+                              height: "12px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {/* Horizontal Bar (always visible) */}
+                            <span
+                              style={{
+                                position: "absolute",
+                                width: "12px",
+                                height: "2px",
+                                backgroundColor: isOpen ? "#ffffff" : "#495057",
+                                borderRadius: "1px",
+                                transition: "background-color 0.2s ease",
+                              }}
+                            />
+                            {/* Vertical Bar (rotates 90deg and scales down to 0, forming '-') */}
+                            <span
+                              style={{
+                                position: "absolute",
+                                width: "2px",
+                                height: "12px",
+                                backgroundColor: isOpen ? "#ffffff" : "#495057",
+                                borderRadius: "1px",
+                                transform: isOpen ? "rotate(90deg) scaleY(0)" : "rotate(0deg) scaleY(1)",
+                                transition:
+                                  "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease",
+                              }}
+                            />
+                          </div>
+                        </div>
                       </button>
 
                       {isOpen && (
-                        <div className="px-3.5 pb-4 pt-1 text-secondary small border-top bg-light">
+                        <div
+                          className="text-secondary small border-top bg-light bg-opacity-40"
+                          style={{
+                            padding: "16px 22px 20px 22px",
+                            fontSize: "0.88rem",
+                            lineHeight: "1.65",
+                          }}
+                        >
                           {faq.answer}
                         </div>
                       )}
@@ -256,10 +315,13 @@ export default function SupportPage() {
 
           {/* Contact Support Sidebar Form */}
           <div className="col-12 col-lg-5">
-            <div className="bg-white border rounded-4 p-4 p-md-5 shadow-sm sticky-top" style={{ top: "100px" }}>
+            <div
+              className="bg-white border rounded-4 p-4 p-md-5 shadow-sm sticky-top"
+              style={{ top: "100px" }}
+            >
               <div className="d-flex align-items-center justify-content-between mb-3">
                 <h4 className="fw-bold text-primary mb-0">Contact Support</h4>
-                <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">
+                <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-1.5 small">
                   ● Live Support
                 </span>
               </div>
@@ -289,7 +351,7 @@ export default function SupportPage() {
                     <label className="form-label small fw-semibold text-dark mb-1">Your Name</label>
                     <input
                       type="text"
-                      className="form-control"
+                      className="form-control form-control-underline"
                       placeholder="John Doe"
                       required
                       value={formValues.name}
@@ -301,7 +363,7 @@ export default function SupportPage() {
                     <label className="form-label small fw-semibold text-dark mb-1">Email Address</label>
                     <input
                       type="email"
-                      className="form-control"
+                      className="form-control form-control-underline"
                       placeholder="john@example.com"
                       required
                       value={formValues.email}
@@ -314,7 +376,7 @@ export default function SupportPage() {
                       <label className="form-label small fw-semibold text-dark mb-1">Order # (Optional)</label>
                       <input
                         type="text"
-                        className="form-control"
+                        className="form-control form-control-underline"
                         placeholder="ORD-9283"
                         value={formValues.orderId}
                         onChange={(e) => setFormValues({ ...formValues, orderId: e.target.value })}
@@ -323,7 +385,7 @@ export default function SupportPage() {
                     <div className="col-6">
                       <label className="form-label small fw-semibold text-dark mb-1">Category</label>
                       <select
-                        className="form-select"
+                        className="form-select form-control-underline"
                         value={formValues.category}
                         onChange={(e) => setFormValues({ ...formValues, category: e.target.value })}
                       >
@@ -339,7 +401,7 @@ export default function SupportPage() {
                     <label className="form-label small fw-semibold text-dark mb-1">Your Message</label>
                     <textarea
                       rows={3}
-                      className="form-control"
+                      className="form-control form-control-underline"
                       placeholder="How can we assist you?"
                       required
                       value={formValues.message}
@@ -347,7 +409,10 @@ export default function SupportPage() {
                     />
                   </div>
 
-                  <button type="submit" className="btn btn-primary w-100 py-2.5 fw-bold d-flex align-items-center justify-content-center gap-2">
+                  <button
+                    type="submit"
+                    className="btn btn-primary w-100 py-2.5 rounded-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm mt-1"
+                  >
                     <Send size={16} /> Send Message
                   </button>
                 </form>
@@ -356,12 +421,18 @@ export default function SupportPage() {
               {/* Direct Channels */}
               <div className="border-top pt-3 mt-4">
                 <div className="d-flex align-items-center justify-content-between text-muted small">
-                  <span className="d-flex align-items-center gap-1.5">
+                  <a
+                    href="tel:+442079460912"
+                    className="d-flex align-items-center gap-1.5 text-decoration-none text-muted"
+                  >
                     <Phone size={14} className="text-primary" /> +44 20 7946 0912
-                  </span>
-                  <span className="d-flex align-items-center gap-1.5">
+                  </a>
+                  <a
+                    href="mailto:support@electronicstore.co.uk"
+                    className="d-flex align-items-center gap-1.5 text-decoration-none text-muted"
+                  >
                     <Mail size={14} className="text-primary" /> Email Support
-                  </span>
+                  </a>
                 </div>
               </div>
             </div>

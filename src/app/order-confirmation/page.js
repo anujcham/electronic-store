@@ -16,6 +16,8 @@ import {
 
 import { Button, Container, Badge } from "../../components/ui";
 import { InspectionReportModal } from "../../components/product/InspectionReportModal";
+import { OrderConfirmedModal } from "../../components/checkout/OrderConfirmedModal";
+import OrderProgressBar from "../../components/orders/OrderProgressBar";
 
 const ORDER_STORAGE_KEY = "electroVault.latestOrder";
 
@@ -29,6 +31,7 @@ function formatCurrency(value) {
 export default function OrderConfirmationPage() {
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
   const [selectedCertProduct, setSelectedCertProduct] = useState(null);
+  const [isConfirmedModalOpen, setIsConfirmedModalOpen] = useState(true);
 
   const [order] = useState(() => {
     if (typeof window === "undefined") {
@@ -113,43 +116,13 @@ export default function OrderConfirmationPage() {
 
         {/* Delivery Tracking Step Timeline Bar */}
         <div className="bg-white border rounded-4 p-4 mb-4 shadow-sm">
-          <h6 className="fw-bold text-primary mb-3 d-flex align-items-center gap-2">
-            <Truck size={18} /> Order Progress & Dispatch Timeline
-          </h6>
-
-          <div className="row g-3 text-center">
-            <div className="col-6 col-md-3">
-              <div className="p-3 bg-success bg-opacity-10 rounded-3 border border-success border-opacity-25 h-100">
-                <div className="badge bg-success mb-2">Completed</div>
-                <div className="fw-bold text-dark small">1. Order Placed</div>
-                <div className="text-muted" style={{ fontSize: "0.75rem" }}>Saved to Database</div>
-              </div>
-            </div>
-
-            <div className="col-6 col-md-3">
-              <div className="p-3 bg-success bg-opacity-10 rounded-3 border border-success border-opacity-25 h-100">
-                <div className="badge bg-success mb-2">Completed</div>
-                <div className="fw-bold text-dark small">2. 50-Point Inspection</div>
-                <div className="text-muted" style={{ fontSize: "0.75rem" }}>Diagnostic Passed</div>
-              </div>
-            </div>
-
-            <div className="col-6 col-md-3">
-              <div className="p-3 bg-primary bg-opacity-10 rounded-3 border border-primary border-opacity-25 h-100">
-                <div className="badge bg-primary mb-2">In Progress</div>
-                <div className="fw-bold text-dark small">3. Eco Packaging</div>
-                <div className="text-muted" style={{ fontSize: "0.75rem" }}>Sealed Box</div>
-              </div>
-            </div>
-
-            <div className="col-6 col-md-3">
-              <div className="p-3 bg-light rounded-3 border h-100">
-                <div className="badge bg-secondary mb-2">Scheduled</div>
-                <div className="fw-bold text-dark small">4. Tracked Delivery</div>
-                <div className="text-muted" style={{ fontSize: "0.75rem" }}>{order.estimatedDelivery || "2-4 Working Days"}</div>
-              </div>
-            </div>
-          </div>
+          <OrderProgressBar
+            orderStatus={order.orderStatus || "Processing"}
+            trackingNumber={trackingRef}
+            courierName={order.courierName || "Tracked UK Express"}
+            estimatedDelivery={order.estimatedDelivery || "2-4 Working Days"}
+            showTrackingHeader={true}
+          />
         </div>
 
         {/* Digital Quality Certificate Highlight Card */}
@@ -252,10 +225,30 @@ export default function OrderConfirmationPage() {
                   <span>Subtotal</span>
                   <span className="fw-bold text-dark">{formatCurrency(subtotal)}</span>
                 </div>
+                {order.warrantyPlan && (
+                  <div className="d-flex justify-content-between">
+                    <span>Warranty ({order.warrantyPlan.title})</span>
+                    <span className="fw-bold text-dark">
+                      {order.warrantyPlan.price > 0 ? formatCurrency(order.warrantyPlan.price) : "Included"}
+                    </span>
+                  </div>
+                )}
                 <div className="d-flex justify-content-between">
                   <span>Tracked UK Shipping</span>
                   <span className="fw-bold text-success">FREE</span>
                 </div>
+                <div className="d-flex justify-content-between">
+                  <span>Payment Method</span>
+                  <span className="fw-semibold text-dark">{order.paymentMethod || "Credit / Debit Card"}</span>
+                </div>
+                {order.emiDetails && (
+                  <div className="d-flex justify-content-between text-primary">
+                    <span>Instalments</span>
+                    <span className="fw-bold">
+                      £{Number(order.emiDetails.monthlyAmount).toFixed(2)} / mo ({order.emiDetails.tenureMonths} mo)
+                    </span>
+                  </div>
+                )}
                 <div className="d-flex justify-content-between border-top pt-2 mt-1 fs-5 font-weight-bold text-dark">
                   <span className="fw-bold text-primary">Total Paid</span>
                   <span className="fw-bold text-primary">{formatCurrency(totalAmount)}</span>
@@ -271,6 +264,13 @@ export default function OrderConfirmationPage() {
             Continue Shopping
           </Link>
         </div>
+
+        {/* Animated Tick Order Confirmed Modal */}
+        <OrderConfirmedModal
+          isOpen={isConfirmedModalOpen}
+          onClose={() => setIsConfirmedModalOpen(false)}
+          order={order}
+        />
 
         {/* Diagnostic Inspection Modal */}
         <InspectionReportModal

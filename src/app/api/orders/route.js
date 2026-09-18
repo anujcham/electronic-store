@@ -9,7 +9,7 @@ export async function POST(request) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { userId, guestEmail, items, shippingAddress, paymentMethod, subtotal, shippingFee, tax, totalAmount } = body;
+    const { userId, guestEmail, items, shippingAddress, paymentMethod, subtotal, shippingFee, tax, totalAmount, warrantyPlan, emiDetails } = body;
 
     if (!items || items.length === 0) {
       return NextResponse.json(
@@ -64,6 +64,8 @@ export async function POST(request) {
       shippingFee: shippingFee || 0,
       tax: tax || 0,
       totalAmount,
+      warrantyPlan: warrantyPlan || { id: 'standard', title: '12-Month Standard Warranty', price: 0 },
+      emiDetails: emiDetails || null,
       trackingNumber,
       estimatedDelivery: '2-4 working days',
     });

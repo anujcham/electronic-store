@@ -471,7 +471,7 @@ export function Header({
                         searchResults.map((product) => (
                           <div
                             key={product._id || product.slug}
-                            className="p-2 px-2.5 rounded-3 hover-bg-light cursor-pointer transition-all d-flex align-items-center gap-2.5"
+                            className="p-2 px-3 rounded-3 hover-bg-light cursor-pointer transition-all d-flex align-items-center gap-3"
                             onClick={() => handleSelectSearchResult(product.slug)}
                             style={{ cursor: "pointer" }}
                           >
@@ -566,10 +566,10 @@ export function Header({
                   >
                     {/* User Name Section at Top */}
                     <div className="p-3 bg-light border-bottom">
-                      <div className="d-flex align-items-center gap-2.5">
+                      <div className="d-flex align-items-center gap-3">
                         <div
                           className="bg-primary text-white rounded-circle fw-bold d-flex align-items-center justify-content-center flex-shrink-0 shadow-xs"
-                          style={{ width: "38px", height: "38px", fontSize: "1rem" }}
+                          style={{ width: "40px", height: "40px", fontSize: "1rem" }}
                         >
                           {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
                         </div>
@@ -589,40 +589,40 @@ export function Header({
                       <Link
                         href="/account?tab=orders"
                         onClick={() => setShowUserDropdown(false)}
-                        className="dropdown-item d-flex align-items-center gap-2.5 px-3 py-2 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
-                        style={{ fontSize: "0.85rem" }}
+                        className="dropdown-item d-flex align-items-center gap-3 px-3 py-2.5 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
+                        style={{ fontSize: "0.88rem" }}
                       >
-                        <Package size={16} className="text-primary flex-shrink-0" />
+                        <Package size={17} className="text-primary flex-shrink-0" />
                         <span className="fw-medium">My Orders</span>
                       </Link>
 
                       <Link
                         href="/account?tab=warranties"
                         onClick={() => setShowUserDropdown(false)}
-                        className="dropdown-item d-flex align-items-center gap-2.5 px-3 py-2 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
-                        style={{ fontSize: "0.85rem" }}
+                        className="dropdown-item d-flex align-items-center gap-3 px-3 py-2.5 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
+                        style={{ fontSize: "0.88rem" }}
                       >
-                        <ShieldCheck size={16} className="text-primary flex-shrink-0" />
+                        <ShieldCheck size={17} className="text-primary flex-shrink-0" />
                         <span className="fw-medium">Warranties &amp; Reports</span>
                       </Link>
 
                       <Link
                         href="/account?tab=addresses"
                         onClick={() => setShowUserDropdown(false)}
-                        className="dropdown-item d-flex align-items-center gap-2.5 px-3 py-2 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
-                        style={{ fontSize: "0.85rem" }}
+                        className="dropdown-item d-flex align-items-center gap-3 px-3 py-2.5 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
+                        style={{ fontSize: "0.88rem" }}
                       >
-                        <MapPin size={16} className="text-primary flex-shrink-0" />
+                        <MapPin size={17} className="text-primary flex-shrink-0" />
                         <span className="fw-medium">Saved Addresses</span>
                       </Link>
 
                       <Link
                         href="/account?tab=security"
                         onClick={() => setShowUserDropdown(false)}
-                        className="dropdown-item d-flex align-items-center gap-2.5 px-3 py-2 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
-                        style={{ fontSize: "0.85rem" }}
+                        className="dropdown-item d-flex align-items-center gap-3 px-3 py-2.5 rounded-3 text-dark text-decoration-none hover-bg-light transition-all"
+                        style={{ fontSize: "0.88rem" }}
                       >
-                        <KeyRound size={16} className="text-primary flex-shrink-0" />
+                        <KeyRound size={17} className="text-primary flex-shrink-0" />
                         <span className="fw-medium">Profile &amp; Security</span>
                       </Link>
                     </div>
@@ -632,11 +632,11 @@ export function Header({
                       <button
                         type="button"
                         onClick={handleDropdownLogout}
-                        className="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-2 py-1.5 rounded-3 fw-semibold transition-all border-0 bg-danger-subtle text-danger"
-                        style={{ fontSize: "0.82rem" }}
+                        className="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-2 py-2 rounded-3 fw-semibold transition-all border-0 bg-danger-subtle text-danger"
+                        style={{ fontSize: "0.85rem" }}
                         suppressHydrationWarning
                       >
-                        <LogOut size={14} />
+                        <LogOut size={15} />
                         <span>Log Out</span>
                       </button>
                     </div>

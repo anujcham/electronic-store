@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   AlertTriangle,
@@ -10,6 +11,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  CreditCard,
   Heart,
   HelpCircle,
   Info,
@@ -76,6 +78,7 @@ const SPEC_KEY_LABELS = {
 };
 
 export function ProductDetails({ product, relatedProducts = [], initialColor = null }) {
+  const router = useRouter();
   const { addItem } = useCart();
   const { toggleWishlist, isWishlisted } = useWishlist();
   const isProductWishlisted = isWishlisted(product);
@@ -342,6 +345,49 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
     );
 
     setTimeout(() => setStatusMessage(""), 5000);
+  };
+
+  const handleBuyNow = () => {
+    if (!inStock) return;
+
+    const directItem = {
+      id: product?.id,
+      slug: product?.slug,
+      name: product?.name,
+      brand: product?.brand,
+      image: currentMainImage || product?.images?.[0] || "",
+      price: Number(activeVariant.price || product?.price || 0),
+      originalPrice: Number(activeVariant.originalPrice || product?.originalPrice || activeVariant.price),
+      stock: Number(activeVariant.stock || 1),
+      quantity: safeQuantity,
+      itemKey: `buynow-${product?.slug || "item"}-${Date.now()}`,
+      category: product?.category,
+      condition: selectedCondition,
+      battery: selectedBattery,
+      storage: selectedStorage,
+      color: selectedColor,
+      sim: selectedSim,
+      deliveryRange: activeVariant.deliveryRange || "2-4 working days",
+      warrantyMonths: activeVariant.warrantyMonths || 12,
+      shippingIncluded: activeVariant.shippingIncluded ?? true,
+      selectedOptions: {
+        condition: selectedCondition,
+        storage: selectedStorage,
+        color: selectedColor,
+        battery: selectedBattery,
+        sim: selectedSim,
+      },
+    };
+
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem("electroVault.buyNowItem", JSON.stringify(directItem));
+      } catch (err) {
+        console.error("Failed to store buyNowItem in sessionStorage", err);
+      }
+    }
+
+    router.push("/checkout?direct=true");
   };
 
   const handleWishlistToggle = () => {
@@ -689,16 +735,38 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
                   </button>
                 </div>
 
-                <div className="d-grid gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-lg rounded-3 py-3 fw-extrabold fs-5 d-flex align-items-center justify-content-center gap-2 shadow-sm"
-                    onClick={handleAddToCart}
-                    disabled={!inStock}
-                  >
-                    <ShoppingCart size={22} />
-                    <span>{inStock ? `Add to Cart — ${formatPrice(currentPrice * safeQuantity)}` : "Currently Out of Stock"}</span>
-                  </button>
+                <div className="row g-2.5 pt-1">
+                  {/* Buy Now — Direct Express Checkout */}
+                  <div className="col-12 col-sm-6">
+                    <button
+                      type="button"
+                      className="btn btn-dark btn-lg w-100 rounded-3 py-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm transition-all text-white h-100"
+                      style={{
+                        backgroundColor: "#0f172a",
+                        borderColor: "#0f172a",
+                        fontSize: "0.95rem",
+                      }}
+                      onClick={handleBuyNow}
+                      disabled={!inStock}
+                    >
+                      <Zap size={20} className="text-warning fill-warning flex-shrink-0" />
+                      <span>{inStock ? `Buy Now — ${formatPrice(currentPrice * safeQuantity)}` : "Out of Stock"}</span>
+                    </button>
+                  </div>
+
+                  {/* Add to Cart */}
+                  <div className="col-12 col-sm-6">
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-lg w-100 rounded-3 py-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm transition-all h-100"
+                      style={{ fontSize: "0.95rem" }}
+                      onClick={handleAddToCart}
+                      disabled={!inStock}
+                    >
+                      <ShoppingCart size={20} className="flex-shrink-0" />
+                      <span>Add to Cart</span>
+                    </button>
+                  </div>
                 </div>
 
                 {statusMessage && (

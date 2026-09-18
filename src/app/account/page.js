@@ -26,6 +26,7 @@ import { Container, Badge, Button } from "../../components/ui";
 import { AuthModal } from "../../components/modals/AuthModal";
 import { AddAddressModal } from "../../components/modals/AddAddressModal";
 import { InspectionReportModal } from "../../components/product/InspectionReportModal";
+import OrderProgressBar, { getOrderTimelineInfo } from "../../components/orders/OrderProgressBar";
 import { useToast } from "../../components/common/Toast";
 import { getCurrentUser, logoutUser } from "../../services/authService";
 import { getUserOrders } from "../../services/orderService";
@@ -252,7 +253,7 @@ export default function AccountPage() {
                 <div className="bg-white border rounded-4 p-3 shadow-sm d-flex flex-column gap-1">
                   <button
                     type="button"
-                    className={`btn text-start d-flex align-items-center gap-2.5 py-2.5 px-3 rounded-3 fw-medium ${
+                    className={`btn text-start d-flex align-items-center gap-3 py-2 px-3 rounded-3 fw-medium ${
                       activeTab === "orders" ? "btn-primary text-white shadow-sm" : "btn-light text-dark"
                     }`}
                     onClick={() => setActiveTab("orders")}
@@ -263,7 +264,7 @@ export default function AccountPage() {
 
                   <button
                     type="button"
-                    className={`btn text-start d-flex align-items-center gap-2.5 py-2.5 px-3 rounded-3 fw-medium ${
+                    className={`btn text-start d-flex align-items-center gap-3 py-2 px-3 rounded-3 fw-medium ${
                       activeTab === "warranties" ? "btn-primary text-white shadow-sm" : "btn-light text-dark"
                     }`}
                     onClick={() => setActiveTab("warranties")}
@@ -274,7 +275,7 @@ export default function AccountPage() {
 
                   <button
                     type="button"
-                    className={`btn text-start d-flex align-items-center gap-2.5 py-2.5 px-3 rounded-3 fw-medium ${
+                    className={`btn text-start d-flex align-items-center gap-3 py-2 px-3 rounded-3 fw-medium ${
                       activeTab === "addresses" ? "btn-primary text-white shadow-sm" : "btn-light text-dark"
                     }`}
                     onClick={() => setActiveTab("addresses")}
@@ -285,7 +286,7 @@ export default function AccountPage() {
 
                   <button
                     type="button"
-                    className={`btn text-start d-flex align-items-center gap-2.5 py-2.5 px-3 rounded-3 fw-medium ${
+                    className={`btn text-start d-flex align-items-center gap-3 py-2 px-3 rounded-3 fw-medium ${
                       activeTab === "security" ? "btn-primary text-white shadow-sm" : "btn-light text-dark"
                     }`}
                     onClick={() => setActiveTab("security")}
@@ -323,8 +324,11 @@ export default function AccountPage() {
                     ) : (
                       <div className="d-flex flex-column gap-4">
                         {orders.map((order) => {
-                          const isShipped = order.orderStatus === "Shipped" || order.orderStatus === "Delivered";
-                          const isDelivered = order.orderStatus === "Delivered";
+                          const timeline = getOrderTimelineInfo(
+                            order.orderStatus,
+                            order.estimatedDelivery,
+                            order.courierName
+                          );
                           const recipientName = order.shippingAddress?.fullName || currentUser.name;
                           const recipientAddress = order.shippingAddress
                             ? `${order.shippingAddress.addressLine1}, ${order.shippingAddress.city}, ${order.shippingAddress.postcode}`
@@ -349,64 +353,20 @@ export default function AccountPage() {
                                   <strong className="text-primary">£{order.totalAmount}</strong>
                                 </div>
                                 <div>
-                                  <span className={`badge ${isDelivered ? "bg-success" : isShipped ? "bg-primary" : "bg-warning text-dark"} px-3 py-1.5 fs-7 rounded-pill`}>
-                                    Status: {order.orderStatus || "Processing"}
+                                  <span className={`badge ${timeline.topBadgeClass} px-3 py-1.5 fs-7 rounded-pill`}>
+                                    {timeline.topBadgeText}
                                   </span>
                                 </div>
                               </div>
 
                               {/* Interactive Live Delivery Progress Step Timeline Bar */}
                               <div className="p-3 p-md-4 border-bottom bg-light bg-opacity-40">
-                                <div className="d-flex align-items-center justify-content-between mb-3">
-                                  <span className="small fw-bold text-primary d-flex align-items-center gap-1.5">
-                                    <Truck size={16} /> Live Shipment Tracking & Dispatch Status
-                                  </span>
-                                  <span className="small text-muted" style={{ fontSize: "0.78rem" }}>
-                                    Tracking ID: <strong className="text-dark font-monospace">{order.trackingNumber || "GB-EV-992100"}</strong>
-                                  </span>
-                                </div>
-
-                                <div className="row g-2 text-center">
-                                  {/* Step 1 */}
-                                  <div className="col-3">
-                                    <div className="p-2.5 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 h-100">
-                                      <div className="badge bg-success mb-1" style={{ fontSize: "0.65rem" }}>✓ Done</div>
-                                      <div className="fw-bold text-dark small" style={{ fontSize: "0.78rem" }}>1. Placed</div>
-                                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>Saved</div>
-                                    </div>
-                                  </div>
-
-                                  {/* Step 2 */}
-                                  <div className="col-3">
-                                    <div className="p-2.5 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 h-100">
-                                      <div className="badge bg-success mb-1" style={{ fontSize: "0.65rem" }}>✓ Passed</div>
-                                      <div className="fw-bold text-dark small" style={{ fontSize: "0.78rem" }}>2. 50-Point Checked</div>
-                                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>Verified</div>
-                                    </div>
-                                  </div>
-
-                                  {/* Step 3 */}
-                                  <div className="col-3">
-                                    <div className={`p-2.5 rounded-3 h-100 border ${isShipped ? "bg-success bg-opacity-10 border-success border-opacity-25" : "bg-primary bg-opacity-10 border-primary border-opacity-25"}`}>
-                                      <div className={`badge ${isShipped ? "bg-success" : "bg-primary"} mb-1`} style={{ fontSize: "0.65rem" }}>
-                                        {isShipped ? "✓ Dispatched" : "In Progress"}
-                                      </div>
-                                      <div className="fw-bold text-dark small" style={{ fontSize: "0.78rem" }}>3. Eco Sealed</div>
-                                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>Packaged</div>
-                                    </div>
-                                  </div>
-
-                                  {/* Step 4 */}
-                                  <div className="col-3">
-                                    <div className={`p-2.5 rounded-3 h-100 border ${isDelivered ? "bg-success bg-opacity-10 border-success border-opacity-25" : "bg-light border-light-subtle"}`}>
-                                      <div className={`badge ${isDelivered ? "bg-success" : "bg-secondary"} mb-1`} style={{ fontSize: "0.65rem" }}>
-                                        {isDelivered ? "✓ Delivered" : "Scheduled"}
-                                      </div>
-                                      <div className="fw-bold text-dark small" style={{ fontSize: "0.78rem" }}>4. Delivery</div>
-                                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>{order.estimatedDelivery || "2-4 Days"}</div>
-                                    </div>
-                                  </div>
-                                </div>
+                                <OrderProgressBar
+                                  orderStatus={order.orderStatus}
+                                  trackingNumber={order.trackingNumber}
+                                  courierName={order.courierName}
+                                  estimatedDelivery={order.estimatedDelivery}
+                                />
                               </div>
 
                               {/* Order Items Breakdown */}
@@ -462,7 +422,7 @@ export default function AccountPage() {
 
                                 <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 text-muted small pt-1" style={{ fontSize: "0.78rem" }}>
                                   <span>📍 Delivered to: <strong>{recipientName}</strong> ({recipientAddress})</span>
-                                  <span>🚚 Courier: <strong>Tracked UK Express (Royal Mail / DPD)</strong></span>
+                                  <span>🚚 Courier: <strong>{order.courierName || "Tracked UK Express (Royal Mail / DPD)"}</strong></span>
                                 </div>
                               </div>
                             </div>
