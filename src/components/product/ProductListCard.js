@@ -273,24 +273,47 @@ export const ProductListCard = memo(function ProductListCard({ product, onWishli
               />
             </button>
 
-            {/* Hot Deal / Featured Badge */}
-            {product?.isHotDeal ? (
-              <div className="position-absolute top-0 start-0 m-1.5" style={{ zIndex: 3 }}>
-                <span
-                  className="badge bg-danger text-white fw-bold d-inline-flex align-items-center gap-1 shadow-sm px-2 py-1 rounded-pill"
-                  style={{ fontSize: "0.68rem" }}
-                >
-                  <Flame size={11} className="text-warning" />
-                  <span>Hot Deal</span>
-                </span>
+            {/* Badges Row (Same row on either sides with space between) */}
+            {(product?.isHotDeal || product?.featured) && (
+              <div
+                className="position-absolute bottom-0 start-0 end-0 p-1.5 d-flex align-items-center justify-content-between pointer-events-none"
+                style={{ zIndex: 3 }}
+              >
+                {/* Left Side Badge */}
+                <div>
+                  {product?.isHotDeal ? (
+                    <span
+                      className="badge bg-danger text-white fw-bold d-inline-flex align-items-center gap-1 shadow-sm px-2 py-1 rounded-pill pointer-events-auto"
+                      style={{ fontSize: "0.68rem" }}
+                    >
+                      <Flame size={11} className="text-warning" />
+                      <span>Hot Deal</span>
+                    </span>
+                  ) : product?.featured ? (
+                    <span
+                      className="badge bg-success text-white fw-bold d-inline-flex align-items-center gap-1 shadow-sm px-2 py-1 rounded-pill pointer-events-auto"
+                      style={{ fontSize: "0.68rem" }}
+                    >
+                      <Star size={11} className="text-warning fill-warning" />
+                      <span>Featured</span>
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* Right Side Badge (Only when both are marked) */}
+                <div>
+                  {product?.isHotDeal && product?.featured ? (
+                    <span
+                      className="badge bg-success text-white fw-bold d-inline-flex align-items-center gap-1 shadow-sm px-2 py-1 rounded-pill pointer-events-auto"
+                      style={{ fontSize: "0.68rem" }}
+                    >
+                      <Star size={11} className="text-warning fill-warning" />
+                      <span>Featured</span>
+                    </span>
+                  ) : null}
+                </div>
               </div>
-            ) : product?.featured ? (
-              <div className="position-absolute top-0 start-0 m-1.5" style={{ zIndex: 3 }}>
-                <Badge variant="success" size="sm">
-                  Featured
-                </Badge>
-              </div>
-            ) : null}
+            )}
 
             {/* In-Card Slide Ahead / Back Buttons & Pill Indicators */}
             {currentImages.length > 1 && (

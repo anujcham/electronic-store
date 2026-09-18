@@ -28,6 +28,7 @@ import { useCart } from "../../features/cart/useCart";
 import { useWishlist } from "../../features/wishlist/useWishlist";
 import { useDebounce } from "../../hooks/useDebounce";
 import { apiGet } from "../../services/apiClient";
+import { products as fallbackProducts } from "../../data/products.js";
 import { Badge, Container } from "../ui";
 import { MobileMenu } from "./MobileMenu";
 import { CartDrawer } from "../cart/CartDrawer";
@@ -43,63 +44,65 @@ const defaultNavItems = [
   { label: "Contact", href: "/support" },
 ];
 
-const categoryDropdownMap = {
-  "iPhone": {
+const categoryConfigs = {
+  iPhone: {
     brand: "Apple",
-    items: [
-      { label: "iPhone 15 Series", desc: "iPhone 15, 15 Pro, 15 Pro Max", href: "/shop?brand=Apple&search=15" },
-      { label: "iPhone 14 Series", desc: "iPhone 14, 14 Pro, 14 Pro Max", href: "/shop?brand=Apple&search=14" },
-      { label: "iPhone 13 Series", desc: "iPhone 13, 13 Mini, 13 Pro", href: "/shop?brand=Apple&search=13" },
-      { label: "iPhone 12 & SE", desc: "iPhone 12, SE 3rd Gen", href: "/shop?brand=Apple&search=12" },
-      { label: "View All iPhones", desc: "Full collection of pre-owned Apple handsets", href: "/shop?brand=Apple" },
-    ],
+    title: "In-Stock iPhone Models",
+    allHref: "/shop?brand=Apple",
+    filter: (p) => {
+      const b = (p.brand || "").toLowerCase();
+      const n = (p.name || "").toLowerCase();
+      return b === "apple" && (n.includes("iphone") || p.category?.toLowerCase() === "smartphones");
+    },
   },
-  "Samsung": {
+  Samsung: {
     brand: "Samsung",
-    items: [
-      { label: "Galaxy S24 Series", desc: "S24 Ultra, S24+, S24", href: "/shop?brand=Samsung&search=S24" },
-      { label: "Galaxy S23 Series", desc: "S23 Ultra, S23+, S23", href: "/shop?brand=Samsung&search=S23" },
-      { label: "Galaxy S22 Series", desc: "S22 Ultra, S22+, S22", href: "/shop?brand=Samsung&search=S22" },
-      { label: "Galaxy Z Fold & Flip", desc: "Foldable Z Fold 5 & Z Flip 5", href: "/shop?brand=Samsung&search=Fold" },
-      { label: "View All Samsung", desc: "Full collection of Samsung smartphones", href: "/shop?brand=Samsung" },
-    ],
+    title: "In-Stock Samsung Galaxy",
+    allHref: "/shop?brand=Samsung",
+    filter: (p) => (p.brand || "").toLowerCase() === "samsung",
   },
   "Google Pixel": {
     brand: "Google",
-    items: [
-      { label: "Pixel 8 & 8 Pro", desc: "AI Camera & Tensor G3", href: "/shop?brand=Google&search=Pixel%208" },
-      { label: "Pixel 7 & 7 Pro / 7a", desc: "Pixel 7, 7 Pro & 7a", href: "/shop?brand=Google&search=Pixel%207" },
-      { label: "Pixel 6 & 6a", desc: "Great value Google phones", href: "/shop?brand=Google&search=Pixel%206" },
-      { label: "View All Pixels", desc: "Explore all Google Pixel models", href: "/shop?brand=Google" },
-    ],
+    title: "In-Stock Google Pixel",
+    allHref: "/shop?brand=Google",
+    filter: (p) => (p.brand || "").toLowerCase() === "google" || (p.name || "").toLowerCase().includes("pixel"),
   },
-  "OnePlus": {
+  OnePlus: {
     brand: "OnePlus",
-    items: [
-      { label: "OnePlus 12 Series", desc: "Flagship 12 & Snapdragon 8 Gen 3", href: "/shop?brand=OnePlus&search=12" },
-      { label: "OnePlus 11 / 11R", desc: "Fast charge 11 & 11R series", href: "/shop?brand=OnePlus&search=11" },
-      { label: "OnePlus Nord Series", desc: "Nord 3 & Budget models", href: "/shop?brand=OnePlus&search=Nord" },
-      { label: "View All OnePlus", desc: "Full OnePlus phone collection", href: "/shop?brand=OnePlus" },
-    ],
+    title: "In-Stock OnePlus Models",
+    allHref: "/shop?brand=OnePlus",
+    filter: (p) => (p.brand || "").toLowerCase() === "oneplus",
   },
-  "Xiaomi": {
+  Xiaomi: {
     brand: "Xiaomi",
-    items: [
-      { label: "Xiaomi 13 / 13 Pro", desc: "Leica Camera & Snapdragon 8 Gen 2", href: "/shop?brand=Xiaomi&search=13" },
-      { label: "Poco F & X Series", desc: "Gaming & High-performance", href: "/shop?brand=Xiaomi&search=Poco" },
-      { label: "Redmi Note Series", desc: "Redmi Note 12 & 11", href: "/shop?brand=Xiaomi&search=Redmi" },
-      { label: "View All Xiaomi", desc: "Full Xiaomi smartphone catalog", href: "/shop?brand=Xiaomi" },
-    ],
+    title: "In-Stock Xiaomi Models",
+    allHref: "/shop?brand=Xiaomi",
+    filter: (p) => (p.brand || "").toLowerCase() === "xiaomi",
   },
   "Other Brands": {
     brand: "Other",
-    items: [
-      { label: "Nothing Phone Series", desc: "Nothing Phone (2) & (1) Glyph LEDs", href: "/shop?search=Nothing" },
-      { label: "Motorola Edge & Razr", desc: "Edge 40 Pro & Foldables", href: "/shop?search=Motorola" },
-      { label: "Sony Xperia Series", desc: "Xperia 1 V & 5 V", href: "/shop?search=Sony" },
-      { label: "View All Refurbished Phones", desc: "Browse full phone catalog", href: "/shop" },
-    ],
+    title: "Other In-Stock Tech",
+    allHref: "/shop",
+    filter: (p) => !["apple", "samsung", "google", "oneplus", "xiaomi"].includes((p.brand || "").toLowerCase()),
   },
+};
+
+const getMinPrice = (product) => {
+  if (Array.isArray(product?.variantPricing) && product.variantPricing.length > 0) {
+    const validPrices = product.variantPricing
+      .filter((v) => Number(v.stock) > 0 || v.isAvailable !== false)
+      .map((v) => Number(v.price))
+      .filter((p) => !isNaN(p) && p > 0);
+    if (validPrices.length > 0) return Math.min(...validPrices);
+  }
+  return Number(product?.price || 0);
+};
+
+const isProductInStock = (product) => {
+  if (Array.isArray(product?.variantPricing) && product.variantPricing.length > 0) {
+    return product.variantPricing.some((v) => Number(v.stock) > 0);
+  }
+  return Number(product?.stock ?? 0) > 0;
 };
 
 const defaultCategories = [
@@ -140,6 +143,27 @@ export function Header({
   const { itemCount, openCartDrawer } = useCart();
   const { wishlistCount: contextWishlistCount } = useWishlist();
   const wishlistCount = propWishlistCount !== undefined ? propWishlistCount : contextWishlistCount;
+
+  const [catalogProducts, setCatalogProducts] = useState(fallbackProducts);
+
+  // Live dynamic fetch for in-stock catalog products
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCatalog() {
+      try {
+        const res = await apiGet("/products?limit=100");
+        if (isMounted && res?.success && Array.isArray(res.products) && res.products.length > 0) {
+          setCatalogProducts(res.products);
+        }
+      } catch (err) {
+        // Fallback products already initialized in state
+      }
+    }
+    loadCatalog();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // 300ms Debounce for live search API queries
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -694,7 +718,10 @@ export function Header({
                 Phone Categories:
               </span>
               {categories.map((category) => {
-                const dropdownData = categoryDropdownMap[category.label];
+                const config = categoryConfigs[category.label];
+                const inStockItems = config
+                  ? catalogProducts.filter((p) => config.filter(p) && isProductInStock(p))
+                  : [];
                 const isHovered = hoveredCategory === category.label;
 
                 return (
@@ -721,8 +748,8 @@ export function Header({
                       />
                     </Link>
 
-                    {/* Interactive Category Dropdown Popover */}
-                    {isHovered && dropdownData && (
+                    {/* Dynamic In-Stock Category Dropdown Popover */}
+                    {isHovered && config && (
                       <div
                         className="position-absolute start-0 top-100 bg-white border rounded-4 shadow-lg mt-2 overflow-hidden"
                         style={{
@@ -732,35 +759,68 @@ export function Header({
                           animation: "dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards",
                         }}
                       >
-                        <div
-                          className="bg-light px-3 py-2 border-bottom d-flex align-items-center justify-content-between"
-                        >
+                        <div className="bg-light px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
                           <span
                             className="small fw-bold text-muted text-uppercase"
                             style={{ letterSpacing: "0.06em", fontSize: "0.68rem" }}
                           >
-                            {category.label} Models &amp; Series
+                            {config.title || `In-Stock ${category.label}`}
                           </span>
-                          <span className="badge bg-white text-muted border px-1.5 py-0.5 fw-medium" style={{ fontSize: "0.62rem" }}>
-                            {dropdownData.items.length} options
+                          <span className="badge bg-white text-primary border px-1.5 py-0.5 fw-bold" style={{ fontSize: "0.65rem" }}>
+                            {inStockItems.length} in stock
                           </span>
                         </div>
-                        <div className="p-2 d-flex flex-column gap-1">
-                          {dropdownData.items.map((subItem) => (
-                            <Link
-                              key={subItem.label}
-                              href={subItem.href}
-                              className="category-dropdown-item px-3 py-2.5 rounded-3 text-decoration-none d-block transition-all"
-                              onClick={() => setHoveredCategory(null)}
-                            >
-                              <div className="fw-semibold text-dark category-item-title mb-0.5" style={{ fontSize: "0.84rem" }}>
-                                {subItem.label}
-                              </div>
-                              <div className="text-muted" style={{ fontSize: "0.74rem", lineHeight: 1.35 }}>
-                                {subItem.desc}
-                              </div>
-                            </Link>
-                          ))}
+
+                        {inStockItems.length > 0 ? (
+                          <div className="p-2 d-flex flex-column gap-1" style={{ maxHeight: "360px", overflowY: "auto" }}>
+                            {inStockItems.map((prod) => {
+                              const variantList = prod.availableStorage?.length
+                                ? prod.availableStorage.join(" / ")
+                                : prod.storage || (prod.availableColors?.length ? prod.availableColors.join(" / ") : null);
+
+                              return (
+                                <Link
+                                  key={prod.slug || prod.id || prod._id}
+                                  href={`/product/${prod.slug}`}
+                                  className="category-dropdown-item px-3 py-2 rounded-3 text-decoration-none d-block transition-all"
+                                  onClick={() => setHoveredCategory(null)}
+                                >
+                                  <div
+                                    className="fw-semibold text-dark category-item-title text-truncate"
+                                    style={{ fontSize: "0.85rem" }}
+                                  >
+                                    {prod.name}
+                                  </div>
+                                  {variantList && (
+                                    <div
+                                      className="text-muted text-truncate mt-0.5"
+                                      style={{ fontSize: "0.74rem", lineHeight: 1.35 }}
+                                    >
+                                      {variantList}
+                                    </div>
+                                  )}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-3 text-center text-muted small">
+                            <p className="mb-0 fw-medium">No models currently in stock</p>
+                            <span className="text-secondary small">Check back soon for new arrivals</span>
+                          </div>
+                        )}
+
+                        {/* View all link at bottom */}
+                        <div className="p-2 border-top bg-light">
+                          <Link
+                            href={config.allHref || category.href}
+                            className="btn btn-outline-primary btn-sm w-100 py-1.5 rounded-3 fw-semibold d-flex align-items-center justify-content-center gap-1.5"
+                            style={{ fontSize: "0.78rem" }}
+                            onClick={() => setHoveredCategory(null)}
+                          >
+                            <span>View All {category.label} ({inStockItems.length} in stock)</span>
+                            <ArrowRight size={13} />
+                          </Link>
                         </div>
                       </div>
                     )}

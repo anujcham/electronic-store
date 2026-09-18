@@ -139,7 +139,43 @@ export function ShopPage({
     fetchProductsFromBackend();
   }, [fetchProductsFromBackend]);
 
-  // Synchronize filter state into URL parameters for deep-linking
+  // Track current URL query string so we don't clobber external navigation with stale state
+  const prevQueryStringRef = useRef(searchParams.toString());
+
+  // Synchronize state when URL searchParams changes externally (e.g., clicking Header dropdown "View All")
+  useEffect(() => {
+    const currentQueryString = searchParams.toString();
+    if (currentQueryString !== prevQueryStringRef.current) {
+      prevQueryStringRef.current = currentQueryString;
+
+      const brandParam = searchParams.get("brand") || searchParams.get("category");
+      const nextBrands = brandParam ? brandParam.split(",").map((s) => s.trim()).filter(Boolean) : [];
+      setSelectedBrands(nextBrands);
+
+      const nextSearch = searchParams.get("search") || "";
+      setSearchTerm(nextSearch);
+      setDebouncedSearch(nextSearch);
+
+      const nextMinPrice = searchParams.get("minPrice") || "";
+      setMinPrice(nextMinPrice);
+
+      const nextMaxPrice = searchParams.get("maxPrice") || "";
+      setMaxPrice(nextMaxPrice);
+
+      const nextSort = searchParams.get("sortBy") || searchParams.get("sort") || "featured";
+      setSortValue(nextSort);
+
+      const nextView = searchParams.get("view");
+      if (nextView === "list" || nextView === "grid") {
+        setViewMode(nextView);
+      }
+
+      const nextPage = parseInt(searchParams.get("page"), 10) || 1;
+      setPage(nextPage);
+    }
+  }, [searchParams]);
+
+  // Synchronize filter state into URL parameters for in-page filter interactions
   useEffect(() => {
     const params = new URLSearchParams();
     if (selectedBrands.length > 0) params.set("brand", selectedBrands.join(","));
@@ -150,10 +186,15 @@ export function ShopPage({
     if (page > 1) params.set("page", String(page));
     if (viewMode === "list") params.set("view", "list");
 
-    const queryString = params.toString();
-    const newURL = queryString ? `${pathname}?${queryString}` : pathname;
-    router.replace(newURL, { scroll: false });
-  }, [selectedBrands, debouncedSearch, minPrice, maxPrice, sortValue, page, viewMode, pathname, router]);
+    const newQueryString = params.toString();
+    const currentQueryString = searchParams.toString();
+
+    if (newQueryString !== currentQueryString) {
+      prevQueryStringRef.current = newQueryString;
+      const newURL = newQueryString ? `${pathname}?${newQueryString}` : pathname;
+      router.replace(newURL, { scroll: false });
+    }
+  }, [selectedBrands, debouncedSearch, minPrice, maxPrice, sortValue, page, viewMode, pathname, router, searchParams]);
 
   // Lock body scroll when mobile filter drawer is open
   useEffect(() => {
