@@ -523,3 +523,4 @@ export const ProductListCard = memo(function ProductListCard({ product, onWishli
     </article>
   );
 });
+

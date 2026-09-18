@@ -54,7 +54,46 @@ export function ShopPage({
   const [sortValue, setSortValue] = useState(() => searchParams.get("sortBy") || searchParams.get("sort") || "featured");
   
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [viewMode, setViewMode] = useState("grid");
+  
+  // Persistent View Mode (List vs Grid) backed by URL param and localStorage
+  const [viewMode, setViewMode] = useState(() => {
+    const urlView = searchParams.get("view") || initialSearchParams?.view;
+    if (urlView === "list" || urlView === "grid") return urlView;
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("shop_view_mode");
+        if (saved === "list" || saved === "grid") return saved;
+      } catch (e) {}
+    }
+    return "grid";
+  });
+
+  // Client hydration check for saved viewMode
+  useEffect(() => {
+    const urlView = searchParams.get("view");
+    if (urlView === "list" || urlView === "grid") {
+      setViewMode(urlView);
+      try {
+        localStorage.setItem("shop_view_mode", urlView);
+      } catch (e) {}
+    } else {
+      try {
+        const saved = localStorage.getItem("shop_view_mode");
+        if (saved === "list" || saved === "grid") {
+          setViewMode(saved);
+        }
+      } catch (e) {}
+    }
+  }, [searchParams]);
+
+  const handleViewModeChange = useCallback((mode) => {
+    setViewMode(mode);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("shop_view_mode", mode);
+      } catch (e) {}
+    }
+  }, []);
 
   // 300ms Debounce for Search input
   useEffect(() => {
@@ -109,11 +148,12 @@ export function ShopPage({
     if (maxPrice) params.set("maxPrice", maxPrice);
     if (sortValue && sortValue !== "featured") params.set("sortBy", sortValue);
     if (page > 1) params.set("page", String(page));
+    if (viewMode === "list") params.set("view", "list");
 
     const queryString = params.toString();
     const newURL = queryString ? `${pathname}?${queryString}` : pathname;
     router.replace(newURL, { scroll: false });
-  }, [selectedBrands, debouncedSearch, minPrice, maxPrice, sortValue, page, pathname, router]);
+  }, [selectedBrands, debouncedSearch, minPrice, maxPrice, sortValue, page, viewMode, pathname, router]);
 
   // Lock body scroll when mobile filter drawer is open
   useEffect(() => {
@@ -146,18 +186,6 @@ export function ShopPage({
     minPrice !== "" ||
     maxPrice !== "" ||
     sortValue !== "featured";
-
-  const handleAddToCart = (product, event) => {
-    if (event) event.stopPropagation();
-    addItem(product, {
-      condition: product?.condition,
-      storage: product?.availableStorage?.[0] || product?.storage,
-      color: product?.availableColors?.[0] || product?.color,
-      price: product?.price,
-      originalPrice: product?.originalPrice,
-      stock: product?.stock,
-    });
-  };
 
   return (
     <main className="py-5 py-lg-6 bg-soft">
@@ -192,7 +220,7 @@ export function ShopPage({
           showMobileFilters={showMobileFilters}
           onToggleFilters={() => setShowMobileFilters((current) => !current)}
           viewMode={viewMode}
-          onViewModeChange={setViewMode}
+          onViewModeChange={handleViewModeChange}
           hasActiveFilters={hasActiveFilters}
           debouncedSearch={debouncedSearch}
           selectedBrands={selectedBrands}
