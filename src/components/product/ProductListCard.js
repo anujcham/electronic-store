@@ -478,15 +478,24 @@ export const ProductListCard = memo(function ProductListCard({ product, onWishli
         <div className="col-12 col-md-3 p-4 bg-light bg-opacity-50 h-100 d-flex flex-column justify-content-between text-md-end border-top border-top-md-0">
           {/* Star Rating on Top */}
           <div className="d-flex align-items-center justify-content-md-end gap-1.5 mb-2">
-            <div className="d-inline-flex align-items-center gap-1 bg-white px-2 py-1 rounded-pill border border-light-subtle shadow-xs">
-              <Star size={12} className="text-warning fill-warning" />
-              <span className="small fw-bold text-dark" style={{ fontSize: "0.76rem" }}>
-                {product?.rating || 4.8}
-              </span>
-              <span className="text-muted small" style={{ fontSize: "0.72rem" }}>
-                ({product?.reviewCount || 40})
-              </span>
-            </div>
+            {product?.reviewCount > 0 && product?.rating > 0 ? (
+              <div className="d-inline-flex align-items-center gap-1 bg-white px-2 py-1 rounded-pill border border-light-subtle shadow-xs">
+                <Star size={12} className="text-warning fill-warning" />
+                <span className="small fw-bold text-dark" style={{ fontSize: "0.76rem" }}>
+                  {Number(product.rating).toFixed(1)}
+                </span>
+                <span className="text-muted small" style={{ fontSize: "0.72rem" }}>
+                  ({product.reviewCount})
+                </span>
+              </div>
+            ) : (
+              <div className="d-inline-flex align-items-center gap-1 bg-white px-2 py-1 rounded-pill border border-light-subtle shadow-xs">
+                <Star size={12} className="text-muted" />
+                <span className="text-muted fw-medium" style={{ fontSize: "0.72rem" }}>
+                  No reviews
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Price Section */}

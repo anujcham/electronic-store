@@ -7,9 +7,8 @@ import {
   X,
   SlidersHorizontal,
   Check,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
+import { Pagination } from "@heroui/react";
 
 import { getProducts } from "../../services/productService";
 import { ProductGrid } from "../product/ProductGrid";
@@ -18,6 +17,9 @@ import { ProductSkeletonGrid } from "../product/ProductSkeletonGrid";
 import { Button, Container } from "../ui";
 import { ShopFilters } from "./ShopFilters";
 import { ShopToolbar } from "./ShopToolbar";
+
+const linkClass = "text-muted hover:bg-surface hover:text-foreground";
+const activeClass = "bg-accent text-accent-foreground hover:bg-accent-hover";
 
 const toggleMultiSelection = (values, value) =>
   values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
@@ -319,48 +321,55 @@ export function ShopPage({
 
                 {/* Pagination Controls */}
                 {totalPages > 1 && (
-                  <div className="d-flex align-items-center justify-content-between bg-white border rounded-4 p-3 mt-4 shadow-sm">
+                  <div className="d-flex flex-column flex-md-row align-items-center justify-content-between bg-white border rounded-4 p-3 mt-4 shadow-sm gap-3">
                     <span className="small text-muted fw-semibold">
                       Showing page <strong>{page}</strong> of <strong>{totalPages}</strong> ({totalCount} total devices)
                     </span>
 
-                    <div className="d-flex align-items-center gap-1">
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary btn-sm rounded-circle p-2"
-                        style={{ width: "36px", height: "36px" }}
-                        disabled={page <= 1}
-                        onClick={() => { setPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                        aria-label="Previous Page"
-                      >
-                        <ChevronLeft size={16} />
-                      </button>
+                    <Pagination className="justify-center">
+                      <Pagination.Content className="gap-1 rounded-xl bg-default p-1">
+                        <Pagination.Item>
+                          <Pagination.Previous
+                            className={linkClass}
+                            isDisabled={page <= 1}
+                            onPress={() => {
+                              setPage((p) => Math.max(1, p - 1));
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                          >
+                            <Pagination.PreviousIcon />
+                          </Pagination.Previous>
+                        </Pagination.Item>
 
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
-                        <button
-                          key={pNum}
-                          type="button"
-                          className={`btn btn-sm rounded-circle fw-bold ${
-                            pNum === Number(page) ? "btn-primary shadow-sm" : "btn-outline-secondary"
-                          }`}
-                          style={{ width: "36px", height: "36px" }}
-                          onClick={() => { setPage(pNum); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                        >
-                          {pNum}
-                        </button>
-                      ))}
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                          <Pagination.Item key={p}>
+                            <Pagination.Link
+                              className={p === Number(page) ? activeClass : linkClass}
+                              isActive={p === Number(page)}
+                              onPress={() => {
+                                setPage(p);
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                              }}
+                            >
+                              {p}
+                            </Pagination.Link>
+                          </Pagination.Item>
+                        ))}
 
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary btn-sm rounded-circle p-2"
-                        style={{ width: "36px", height: "36px" }}
-                        disabled={page >= totalPages}
-                        onClick={() => { setPage((p) => Math.min(totalPages, Number(page) + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                        aria-label="Next Page"
-                      >
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
+                        <Pagination.Item>
+                          <Pagination.Next
+                            className={linkClass}
+                            isDisabled={page >= totalPages}
+                            onPress={() => {
+                              setPage((p) => Math.min(totalPages, Number(page) + 1));
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                          >
+                            <Pagination.NextIcon />
+                          </Pagination.Next>
+                        </Pagination.Item>
+                      </Pagination.Content>
+                    </Pagination>
                   </div>
                 )}
               </>

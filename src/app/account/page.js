@@ -9,13 +9,12 @@ import {
   Package,
   ShieldCheck,
   MapPin,
-  KeyRound,
   LogOut,
   Award,
   Truck,
   Plus,
-  Lock,
   ArrowRight,
+  AlertCircle,
   CheckCircle2,
   Trash2,
   FileCheck2,
@@ -25,13 +24,13 @@ import {
 import { Container, Badge, Button } from "../../components/ui";
 import { AuthModal } from "../../components/modals/AuthModal";
 import { AddAddressModal } from "../../components/modals/AddAddressModal";
+import { EditProfileModal } from "../../components/modals/EditProfileModal";
 import { InspectionReportModal } from "../../components/product/InspectionReportModal";
 import OrderProgressBar, { getOrderTimelineInfo } from "../../components/orders/OrderProgressBar";
 import { useToast } from "../../components/common/Toast";
 import { getCurrentUser, logoutUser } from "../../services/authService";
 import { getUserOrders } from "../../services/orderService";
 import { getSavedAddresses, deleteAddress, setDefaultAddress } from "../../services/addressService";
-import { apiPut } from "../../services/apiClient";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -41,14 +40,15 @@ export default function AccountPage() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("orders"); // "orders" | "warranties" | "addresses" | "security"
+  const [activeTab, setActiveTab] = useState("orders"); // "orders" | "warranties" | "addresses"
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
 
   // Sync tab from URL query param if present (e.g. /account?tab=warranties)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam && ["orders", "warranties", "addresses", "security"].includes(tabParam)) {
+      if (tabParam && ["orders", "warranties", "addresses"].includes(tabParam)) {
         setActiveTab(tabParam);
       }
     }
@@ -62,13 +62,6 @@ export default function AccountPage() {
   const [orders, setOrders] = useState([]);
   const [addresses, setAddresses] = useState([]);
 
-  // Profile Edit State
-  const [profileName, setProfileName] = useState("");
-  const [profilePhone, setProfilePhone] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [updatingProfile, setUpdatingProfile] = useState(false);
-
   useEffect(() => {
     async function loadAccountData() {
       const user = await getCurrentUser();
@@ -79,8 +72,6 @@ export default function AccountPage() {
       }
 
       setCurrentUser(user);
-      setProfileName(user.name || "");
-      setProfilePhone(user.phone || "");
 
       const userId = user.id || user._id;
       const userOrders = await getUserOrders(userId, user.email);
@@ -101,8 +92,6 @@ export default function AccountPage() {
       }
 
       setCurrentUser(user);
-      setProfileName(user.name || "");
-      setProfilePhone(user.phone || "");
 
       const userId = user.id || user._id;
       const userOrders = await getUserOrders(userId, user.email);
@@ -161,35 +150,6 @@ export default function AccountPage() {
     }
   }
 
-  async function handleUpdateProfile(e) {
-    e.preventDefault();
-    if (!currentUser) return;
-    setUpdatingProfile(true);
-
-    try {
-      const userId = currentUser.id || currentUser._id;
-      const res = await apiPut("/user/profile", {
-        userId,
-        name: profileName,
-        phone: profilePhone,
-        currentPassword: currentPassword || undefined,
-        newPassword: newPassword || undefined,
-      });
-
-      setUpdatingProfile(false);
-      if (res.success) {
-        setCurrentUser(res.user);
-        setCurrentPassword("");
-        setNewPassword("");
-        toast.success("Profile Updated", "Your profile and security settings have been saved to MongoDB!");
-      } else {
-        toast.error("Update Failed", res.error || "Failed to update profile.");
-      }
-    } catch (err) {
-      setUpdatingProfile(false);
-      toast.error("Update Failed", err.message || "Failed to update profile.");
-    }
-  }
 
   if (isInitialLoading) {
     return (
@@ -219,86 +179,110 @@ export default function AccountPage() {
           </div>
         </nav>
 
-        {/* Logged In Customer Profile Dashboard */}
-        <div>
-            {/* Header Banner */}
-            <div className="bg-white border rounded-4 p-4 p-md-5 mb-4 shadow-sm position-relative overflow-hidden">
-              <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 position-relative" style={{ zIndex: 2 }}>
-                <div className="d-flex align-items-center gap-3">
-                  <div className="bg-primary text-white p-3 rounded-circle fw-bold fs-4 d-flex align-items-center justify-content-center" style={{ width: "60px", height: "60px" }}>
-                    {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
-                  </div>
-                  <div>
-                    <div className="d-flex align-items-center gap-2">
-                      <h4 className="fw-bold text-dark mb-0">{currentUser.name}</h4>
-                      {currentUser.isVerified && (
-                        <Badge variant="success">Verified Account</Badge>
-                      )}
-                    </div>
-                    <p className="text-muted small mb-0">{currentUser.email} • {currentUser.phone || "No phone added"}</p>
-                  </div>
-                </div>
+        {/* Navigation & Content Dashboard */}
+        <div className="row g-4 align-items-start">
+          {/* Left Column: My Profile Card & Navigation Menu */}
+          <div className="col-12 col-lg-4 col-xl-3">
+            <h4 className="fw-bold text-dark mb-3">My Profile</h4>
 
-                <div className="d-flex align-items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleLogOut}>
-                    <LogOut size={16} className="me-1" /> Logout
-                  </Button>
-                </div>
+            {/* Dark Profile Card matching design */}
+            <div
+              className="rounded-4 shadow-sm overflow-hidden mb-3 text-white position-relative"
+              style={{ backgroundColor: "#111827" }}
+            >
+              <div className="p-4">
+                <h5 className="fw-bold text-white mb-1 fs-5">{currentUser.name || "Customer"}</h5>
+                <p
+                  className="small mb-3"
+                  style={{ color: "#9ca3af", fontSize: "0.85rem", wordBreak: "break-word" }}
+                >
+                  {[currentUser.phone, currentUser.email].filter(Boolean).join(" | ")}
+                </p>
+
+                <button
+                  type="button"
+                  className="btn btn-link text-white text-decoration-none p-0 d-inline-flex align-items-center gap-1.5 fw-medium small"
+                  style={{ fontSize: "0.9rem" }}
+                  onClick={() => setIsEditProfileModalOpen(true)}
+                >
+                  <span>Edit Profile</span>
+                  <ArrowRight size={15} />
+                </button>
               </div>
+
+              {/* Email Verification Pending Banner */}
+              {!currentUser.isVerified && (
+                <div
+                  className="px-3 py-2 d-flex align-items-center justify-content-between text-dark small fw-medium"
+                  style={{ backgroundColor: "#FEEED4", color: "#854D0E" }}
+                >
+                  <div className="d-flex align-items-center gap-2">
+                    <AlertCircle size={15} className="flex-shrink-0" style={{ color: "#B45309" }} />
+                    <span style={{ fontSize: "0.78rem" }}>Email Verification Pending. Click here to verify</span>
+                  </div>
+                  <ArrowRight size={13} className="flex-shrink-0 ms-1" />
+                </div>
+              )}
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="row g-4">
-              <div className="col-12 col-lg-3">
-                <div className="bg-white border rounded-4 p-3 shadow-sm d-flex flex-column gap-1">
-                  <button
-                    type="button"
-                    className={`btn text-start d-flex align-items-center gap-3 py-2 px-3 rounded-3 fw-medium ${
-                      activeTab === "orders" ? "btn-primary text-white shadow-sm" : "btn-light text-dark"
-                    }`}
-                    onClick={() => setActiveTab("orders")}
-                    suppressHydrationWarning
-                  >
-                    <Package size={18} /> My Orders ({orders.length})
-                  </button>
+            {/* Navigation Menu Card */}
+            <div className="bg-white border rounded-4 p-2.5 shadow-sm d-flex flex-column gap-1">
+              <button
+                type="button"
+                className="btn text-start py-2.5 px-3 rounded-3 fw-medium border-0"
+                style={
+                  activeTab === "orders"
+                    ? { backgroundColor: "#E6F8F6", color: "#0D9488", fontWeight: "600" }
+                    : { color: "#374151", backgroundColor: "transparent" }
+                }
+                onClick={() => setActiveTab("orders")}
+                suppressHydrationWarning
+              >
+                My Orders
+              </button>
 
-                  <button
-                    type="button"
-                    className={`btn text-start d-flex align-items-center gap-3 py-2 px-3 rounded-3 fw-medium ${
-                      activeTab === "warranties" ? "btn-primary text-white shadow-sm" : "btn-light text-dark"
-                    }`}
-                    onClick={() => setActiveTab("warranties")}
-                    suppressHydrationWarning
-                  >
-                    <ShieldCheck size={18} /> 12-Month Warranties
-                  </button>
+              <button
+                type="button"
+                className="btn text-start py-2.5 px-3 rounded-3 fw-medium border-0"
+                style={
+                  activeTab === "warranties"
+                    ? { backgroundColor: "#E6F8F6", color: "#0D9488", fontWeight: "600" }
+                    : { color: "#374151", backgroundColor: "transparent" }
+                }
+                onClick={() => setActiveTab("warranties")}
+                suppressHydrationWarning
+              >
+                12-Month Warranties
+              </button>
 
-                  <button
-                    type="button"
-                    className={`btn text-start d-flex align-items-center gap-3 py-2 px-3 rounded-3 fw-medium ${
-                      activeTab === "addresses" ? "btn-primary text-white shadow-sm" : "btn-light text-dark"
-                    }`}
-                    onClick={() => setActiveTab("addresses")}
-                    suppressHydrationWarning
-                  >
-                    <MapPin size={18} /> Saved Addresses ({addresses.length})
-                  </button>
+              <button
+                type="button"
+                className="btn text-start py-2.5 px-3 rounded-3 fw-medium border-0"
+                style={
+                  activeTab === "addresses"
+                    ? { backgroundColor: "#E6F8F6", color: "#0D9488", fontWeight: "600" }
+                    : { color: "#374151", backgroundColor: "transparent" }
+                }
+                onClick={() => setActiveTab("addresses")}
+                suppressHydrationWarning
+              >
+                Saved Addresses
+              </button>
 
-                  <button
-                    type="button"
-                    className={`btn text-start d-flex align-items-center gap-3 py-2 px-3 rounded-3 fw-medium ${
-                      activeTab === "security" ? "btn-primary text-white shadow-sm" : "btn-light text-dark"
-                    }`}
-                    onClick={() => setActiveTab("security")}
-                    suppressHydrationWarning
-                  >
-                    <KeyRound size={18} /> Security & Profile
-                  </button>
-                </div>
-              </div>
+              <div className="border-top my-1 opacity-25"></div>
 
-              {/* Main Content Pane */}
-              <div className="col-12 col-lg-9">
+              <button
+                type="button"
+                className="btn text-start py-2 px-3 rounded-3 fw-medium text-danger border-0 d-flex align-items-center gap-2"
+                onClick={handleLogOut}
+              >
+                <LogOut size={16} /> Logout
+              </button>
+            </div>
+          </div>
+
+          {/* Right Column: Main Content Pane */}
+          <div className="col-12 col-lg-8 col-xl-9">
                 {/* TAB 1: ORDERS */}
                 {activeTab === "orders" && (
                   <div className="bg-white border rounded-4 p-4 p-md-5 shadow-sm">
@@ -551,81 +535,18 @@ export default function AccountPage() {
                   </div>
                 )}
 
-                {/* TAB 4: SECURITY & PROFILE */}
-                {activeTab === "security" && (
-                  <div className="bg-white border rounded-4 p-4 p-md-5 shadow-sm">
-                    <h5 className="fw-bold text-primary mb-3">Security & Profile Settings</h5>
-                    <form onSubmit={handleUpdateProfile}>
-                      <div className="row g-3 mb-4">
-                        <div className="col-12 col-md-6">
-                          <label className="form-label small fw-semibold text-dark">Full Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={profileName}
-                            onChange={(e) => setProfileName(e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div className="col-12 col-md-6">
-                          <label className="form-label small fw-semibold text-dark">Email Address (Read Only)</label>
-                          <input
-                            type="email"
-                            className="form-control bg-light"
-                            value={currentUser.email}
-                            disabled
-                          />
-                        </div>
-                        <div className="col-12 col-md-6">
-                          <label className="form-label small fw-semibold text-dark">Phone Number</label>
-                          <input
-                            type="tel"
-                            className="form-control"
-                            value={profilePhone}
-                            onChange={(e) => setProfilePhone(e.target.value)}
-                            placeholder="+44 7700 900077"
-                          />
-                        </div>
-                      </div>
-
-                      <hr className="my-4" />
-
-                      <h6 className="fw-bold text-dark mb-3">Change Password (Optional)</h6>
-                      <div className="row g-3 mb-4">
-                        <div className="col-12 col-md-6">
-                          <label className="form-label small fw-semibold text-dark">Current Password</label>
-                          <input
-                            type="password"
-                            className="form-control"
-                            placeholder="••••••••"
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                          />
-                        </div>
-                        <div className="col-12 col-md-6">
-                          <label className="form-label small fw-semibold text-dark">New Password</label>
-                          <input
-                            type="password"
-                            className="form-control"
-                            placeholder="••••••••"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="text-end">
-                        <Button type="submit" variant="primary" loading={updatingProfile}>
-                          Save Profile Changes
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
-                )}
               </div>
             </div>
-          </div>
       </Container>
+
+      <EditProfileModal
+        isOpen={isEditProfileModalOpen}
+        onClose={() => setIsEditProfileModalOpen(false)}
+        currentUser={currentUser}
+        onProfileUpdated={(updatedUser) => {
+          setCurrentUser(updatedUser);
+        }}
+      />
 
       <AuthModal
         isOpen={isAuthModalOpen}

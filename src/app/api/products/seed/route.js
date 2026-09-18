@@ -18,6 +18,19 @@ export async function GET() {
       count++;
     }
 
+    // Ensure all products without reviews strictly have rating: 0 and reviewCount: 0
+    await Product.updateMany(
+      {
+        $or: [
+          { reviews: { $size: 0 } },
+          { reviews: { $exists: false } },
+        ],
+      },
+      {
+        $set: { rating: 0, reviewCount: 0 },
+      }
+    );
+
     const totalCount = await Product.countDocuments();
 
     return NextResponse.json({

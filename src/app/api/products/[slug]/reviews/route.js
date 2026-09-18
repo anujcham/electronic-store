@@ -12,11 +12,18 @@ export async function GET(request, { params }) {
       return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 });
     }
 
+    const reviews = Array.isArray(product.reviews) ? product.reviews : [];
+    const reviewCount = reviews.length;
+    const rating =
+      reviewCount > 0
+        ? Number((reviews.reduce((acc, curr) => acc + Number(curr.rating || 0), 0) / reviewCount).toFixed(1))
+        : 0;
+
     return NextResponse.json({
       success: true,
-      rating: product.rating,
-      reviewCount: product.reviewCount || (product.reviews ? product.reviews.length : 0),
-      reviews: product.reviews || [],
+      rating,
+      reviewCount,
+      reviews,
     });
   } catch (error) {
     console.error('Error fetching product reviews:', error);

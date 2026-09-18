@@ -28,7 +28,7 @@ const ProductSchema = new mongoose.Schema(
     price: { type: Number, required: true },
     originalPrice: { type: Number, required: true },
     condition: { type: String, default: 'Good' },
-    rating: { type: Number, default: 4.5 },
+    rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
     images: [{ type: String }],
     shortDescription: { type: String },
@@ -98,6 +98,21 @@ async function seed() {
       );
       count++;
     }
+
+    // Ensure all products without reviews strictly have rating: 0 and reviewCount: 0
+    const zeroRes = await Product.updateMany(
+      {
+        $or: [
+          { reviews: { $size: 0 } },
+          { reviews: { $exists: false } },
+        ],
+      },
+      {
+        $set: { rating: 0, reviewCount: 0 },
+      }
+    );
+    console.log(`Cleaned non-reviewed products to rating 0: ${zeroRes.modifiedCount}`);
+
     const totalCount = await Product.countDocuments();
     console.log(`✅ SUCCESS: Synced ${count} products to MongoDB Atlas! (Total in DB: ${totalCount})`);
     process.exit(0);

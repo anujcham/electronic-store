@@ -16,9 +16,20 @@ export async function GET(request, { params }) {
       );
     }
 
+    const productObj = product.toObject ? product.toObject() : product;
+    const reviews = Array.isArray(productObj.reviews) ? productObj.reviews : [];
+    if (reviews.length > 0) {
+      const sum = reviews.reduce((acc, curr) => acc + Number(curr.rating || 0), 0);
+      productObj.rating = Number((sum / reviews.length).toFixed(1));
+      productObj.reviewCount = reviews.length;
+    } else {
+      productObj.rating = 0;
+      productObj.reviewCount = 0;
+    }
+
     return NextResponse.json({
       success: true,
-      product,
+      product: productObj,
     });
   } catch (error) {
     console.error('Error fetching single product:', error);

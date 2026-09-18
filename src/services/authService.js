@@ -18,6 +18,20 @@ function notifyUserChanged() {
   }
 }
 
+export function updateStoredUser(updatedUser) {
+  if (typeof window !== "undefined" && updatedUser) {
+    try {
+      const stored = window.localStorage.getItem(USER_STORAGE_KEY);
+      const existing = stored ? JSON.parse(stored) : {};
+      const merged = { ...existing, ...updatedUser };
+      window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged));
+    } catch {
+      window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
+    }
+    notifyUserChanged();
+  }
+}
+
 export async function getCurrentUser() {
   if (typeof window !== "undefined") {
     try {

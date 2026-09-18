@@ -458,17 +458,26 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
             )}
           </div>
 
-          <div className="d-flex align-items-center gap-1 bg-light px-2 py-1 rounded-pill border border-light-subtle flex-shrink-0">
-            <div className="d-flex align-items-center gap-1 text-warning">
-              <Star size={12} fill="currentColor" />
-              <span className="small fw-bold text-dark" style={{ fontSize: "0.78rem" }}>
-                {product?.rating || "0.0"}
+          {product?.reviewCount > 0 && product?.rating > 0 ? (
+            <div className="d-flex align-items-center gap-1 bg-light px-2 py-1 rounded-pill border border-light-subtle flex-shrink-0">
+              <div className="d-flex align-items-center gap-1 text-warning">
+                <Star size={12} fill="currentColor" />
+                <span className="small fw-bold text-dark" style={{ fontSize: "0.78rem" }}>
+                  {Number(product.rating).toFixed(1)}
+                </span>
+              </div>
+              <span className="text-muted" style={{ fontSize: "0.72rem" }}>
+                ({product.reviewCount})
               </span>
             </div>
-            <span className="text-muted" style={{ fontSize: "0.72rem" }}>
-              ({product?.reviewCount || 0})
-            </span>
-          </div>
+          ) : (
+            <div className="d-flex align-items-center gap-1 bg-light px-2 py-1 rounded-pill border border-light-subtle flex-shrink-0">
+              <Star size={12} className="text-muted" />
+              <span className="text-muted fw-medium" style={{ fontSize: "0.72rem" }}>
+                No reviews
+              </span>
+            </div>
+          )}
         </div>
 
         {hasVariants ? (

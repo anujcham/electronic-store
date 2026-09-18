@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Award,
   Box,
+  Calendar,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -183,13 +184,40 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
   }, [activeColorVariant, product]);
 
   // Reviews State (MongoDB Atlas API Sync)
-  const [reviewsList, setReviewsList] = useState(product?.reviews || []);
-  const [currentRating, setCurrentRating] = useState(product?.rating || 4.8);
-  const [currentReviewCount, setCurrentReviewCount] = useState(product?.reviewCount || 0);
+  const initialReviews = Array.isArray(product?.reviews) ? product.reviews : [];
+  const [reviewsList, setReviewsList] = useState(initialReviews);
+  const [currentRating, setCurrentRating] = useState(() => {
+    if (initialReviews.length > 0) {
+      const sum = initialReviews.reduce((acc, curr) => acc + Number(curr.rating || 0), 0);
+      return Number((sum / initialReviews.length).toFixed(1));
+    }
+    return product?.reviewCount > 0 && product?.rating ? Number(product.rating) : 0;
+  });
+  const [currentReviewCount, setCurrentReviewCount] = useState(() => {
+    if (initialReviews.length > 0) return initialReviews.length;
+    return product?.reviewCount || 0;
+  });
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [newReview, setNewReview] = useState({ userName: "", rating: 5, comment: "" });
+  const [hoverRating, setHoverRating] = useState(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewFormMessage, setReviewFormMessage] = useState("");
+
+  const ratingLabels = {
+    5: "5 - Excellent",
+    4: "4 - Very Good",
+    3: "3 - Average",
+    2: "2 - Below Expectation",
+    1: "1 - Poor",
+  };
+
+  const ratingBreakdown = useMemo(() => {
+    return [5, 4, 3, 2, 1].map((star) => {
+      const count = reviewsList.filter((r) => Math.round(Number(r.rating)) === star).length;
+      const percentage = reviewsList.length > 0 ? Math.round((count / reviewsList.length) * 100) : 0;
+      return { star, count, percentage };
+    });
+  }, [reviewsList]);
 
   // Dynamic Variant Calculation from Inventory Matrix or Synthetic Rules
   const activeVariant = useMemo(() => {
@@ -301,11 +329,12 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
     if (!product?.slug) return;
     try {
       const res = await apiGet(`/products/${product.slug}/reviews`);
-      if (res?.success) {
-        setReviewsList(res.reviews || []);
-        if (res.rating) setCurrentRating(res.rating);
-        if (res.reviewCount !== undefined) setCurrentReviewCount(res.reviewCount);
-      }
+        if (res?.success) {
+          const revs = Array.isArray(res.reviews) ? res.reviews : [];
+          setReviewsList(revs);
+          setCurrentRating(res.rating !== undefined ? Number(res.rating) : 0);
+          setCurrentReviewCount(res.reviewCount !== undefined ? Number(res.reviewCount) : revs.length);
+        }
     } catch (err) {
       console.error("Error fetching product reviews:", err);
     }
@@ -548,22 +577,50 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
               <h1 className="h2 fw-extrabold text-primary mb-2">{product?.name || "Refurbished Smartphone"}</h1>
 
               {/* Rating & Review Counter */}
-              <div className="d-flex align-items-center gap-2 mb-3">
-                <div className="d-flex align-items-center gap-1 text-warning">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star key={s} size={16} fill={s <= Math.round(currentRating) ? "currentColor" : "none"} />
-                  ))}
-                  <span className="fw-bold text-dark ms-1 small">{currentRating}</span>
+              {currentReviewCount > 0 ? (
+                <div className="d-flex align-items-center gap-2 mb-3">
+                  <div className="d-flex align-items-center gap-1 text-warning">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star key={s} size={16} fill={s <= Math.round(currentRating) ? "currentColor" : "none"} />
+                    ))}
+                    <span className="fw-bold text-dark ms-1 small">{Number(currentRating).toFixed(1)}</span>
+                  </div>
+                  <span className="text-muted small">•</span>
+                  <button
+                    type="button"
+                    className="btn btn-link btn-sm p-0 text-secondary text-decoration-none small"
+                    onClick={() => {
+                      setActiveTab("reviews");
+                      const el = document.getElementById("product-tabs-section");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                  >
+                    {currentReviewCount} Verified Customer {currentReviewCount === 1 ? "Review" : "Reviews"}
+                  </button>
                 </div>
-                <span className="text-muted small">•</span>
-                <button
-                  type="button"
-                  className="btn btn-link btn-sm p-0 text-secondary text-decoration-none small"
-                  onClick={() => setActiveTab("reviews")}
-                >
-                  {currentReviewCount} Verified Customer Reviews
-                </button>
-              </div>
+              ) : (
+                <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
+                  <div className="d-flex align-items-center gap-1 text-muted">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star key={s} size={16} className="text-secondary opacity-25" />
+                    ))}
+                  </div>
+                  <span className="text-muted small">No reviews yet</span>
+                  <span className="text-muted small">•</span>
+                  <button
+                    type="button"
+                    className="btn btn-link btn-sm p-0 text-primary text-decoration-none small fw-semibold"
+                    onClick={() => {
+                      setActiveTab("reviews");
+                      setShowReviewForm(true);
+                      const el = document.getElementById("product-tabs-section");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                  >
+                    Be the first to review
+                  </button>
+                </div>
+              )}
 
               {/* Dynamic Price Display */}
               <div className="p-3.5 bg-light rounded-3 border mb-4">
@@ -794,7 +851,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
         </div>
 
         {/* TABBED INFORMATION SECTION (Overview, Specifications, Certificate, Reviews) */}
-        <div className="bg-white border rounded-4 overflow-hidden shadow-sm p-4 p-md-5 mb-5">
+        <div id="product-tabs-section" className="bg-white border rounded-4 overflow-hidden shadow-sm p-4 p-md-5 mb-5">
           {/* Nav Tabs */}
           <ul className="nav nav-tabs border-bottom mb-4 gap-2">
             <li className="nav-item">
@@ -1002,29 +1059,76 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
           {/* Tab 4: MongoDB Customer Reviews */}
           {activeTab === "reviews" && (
             <div>
-              <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4 p-4 bg-light rounded-4 border">
-                <div>
-                  <div className="display-5 fw-extrabold text-primary mb-1">
-                    {currentRating} <span className="fs-5 text-muted fw-normal">out of 5</span>
+              {reviewsList.length > 0 ? (
+                <div className="row g-4 mb-4 p-4 bg-light rounded-4 border align-items-center">
+                  <div className="col-12 col-md-4 text-center text-md-start">
+                    <div className="display-4 fw-extrabold text-primary mb-1">
+                      {Number(currentRating).toFixed(1)} <span className="fs-5 text-muted fw-normal">/ 5</span>
+                    </div>
+                    <div className="d-flex align-items-center justify-content-center justify-content-md-start gap-1 text-warning mb-2">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} size={20} fill={s <= Math.round(currentRating) ? "currentColor" : "none"} />
+                      ))}
+                    </div>
+                    <div className="small text-muted">
+                      Based on {currentReviewCount} verified customer {currentReviewCount === 1 ? "review" : "reviews"}
+                    </div>
                   </div>
-                  <div className="d-flex align-items-center gap-1 text-warning mb-1">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star key={s} size={18} fill={s <= Math.round(currentRating) ? "currentColor" : "none"} />
-                    ))}
+
+                  {/* Star Distribution Progress Bars */}
+                  <div className="col-12 col-md-5 border-start-md ps-md-4">
+                    <div className="d-flex flex-column gap-1.5">
+                      {ratingBreakdown.map(({ star, count, percentage }) => (
+                        <div key={star} className="d-flex align-items-center gap-2 small">
+                          <span className="text-muted text-nowrap" style={{ width: "45px" }}>
+                            {star} star
+                          </span>
+                          <div className="progress flex-grow-1" style={{ height: "8px" }}>
+                            <div
+                              className="progress-bar bg-warning"
+                              role="progressbar"
+                              style={{ width: `${percentage}%` }}
+                              aria-valuenow={percentage}
+                              aria-valuemin="0"
+                              aria-valuemax="100"
+                            />
+                          </div>
+                          <span className="text-muted text-end" style={{ width: "35px" }}>
+                            {count}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="small text-muted">
-                    Based on {currentReviewCount} verified customer reviews
+
+                  <div className="col-12 col-md-3 text-center text-md-end">
+                    <button
+                      type="button"
+                      className="btn btn-primary rounded-pill px-4 fw-bold shadow-xs w-100 w-md-auto"
+                      onClick={() => setShowReviewForm(!showReviewForm)}
+                    >
+                      {showReviewForm ? "Cancel Review" : "Write a Review"}
+                    </button>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  className="btn btn-outline-primary rounded-pill px-4 fw-bold"
-                  onClick={() => setShowReviewForm(!showReviewForm)}
-                >
-                  {showReviewForm ? "Cancel Review" : "Write a Review"}
-                </button>
-              </div>
+              ) : (
+                <div className="text-center py-5 px-3 bg-light rounded-4 border mb-4">
+                  <div className="d-inline-flex align-items-center justify-content-center p-3 rounded-circle bg-white shadow-xs mb-3 text-warning">
+                    <Star size={32} />
+                  </div>
+                  <h4 className="fw-bold text-dark mb-1">No Customer Reviews Yet</h4>
+                  <p className="text-muted small mx-auto mb-4" style={{ maxWidth: "420px" }}>
+                    Have you experienced the {product?.name || "device"}? Be the first to share your verified review to help fellow buyers make informed choices.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-primary rounded-pill px-4 fw-bold shadow-xs"
+                    onClick={() => setShowReviewForm(!showReviewForm)}
+                  >
+                    {showReviewForm ? "Cancel Review" : "Write the First Review"}
+                  </button>
+                </div>
+              )}
 
               {/* Review Submission Form */}
               {showReviewForm && (
@@ -1045,18 +1149,34 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-dark">Star Rating</label>
-                      <select
-                        className="form-select"
-                        value={newReview.rating}
-                        onChange={(e) => setNewReview({ ...newReview, rating: Number(e.target.value) })}
-                      >
-                        <option value={5}>⭐⭐⭐⭐⭐ (5 - Excellent)</option>
-                        <option value={4}>⭐⭐⭐⭐ (4 - Very Good)</option>
-                        <option value={3}>⭐⭐⭐ (3 - Average)</option>
-                        <option value={2}>⭐⭐ (2 - Below Expectation)</option>
-                        <option value={1}>⭐ (1 - Poor)</option>
-                      </select>
+                      <label className="form-label small fw-semibold text-dark d-block">Star Rating</label>
+                      <div className="d-flex align-items-center gap-2 pt-1">
+                        <div className="d-flex align-items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((starValue) => {
+                            const isFilled = starValue <= (hoverRating || newReview.rating);
+                            return (
+                              <button
+                                key={starValue}
+                                type="button"
+                                className="btn p-0 border-0 bg-transparent text-warning"
+                                style={{ lineHeight: 1, cursor: "pointer" }}
+                                onMouseEnter={() => setHoverRating(starValue)}
+                                onMouseLeave={() => setHoverRating(0)}
+                                onClick={() => setNewReview({ ...newReview, rating: starValue })}
+                              >
+                                <Star
+                                  size={24}
+                                  fill={isFilled ? "currentColor" : "none"}
+                                  stroke="currentColor"
+                                />
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <span className="small fw-bold text-dark ms-2">
+                          {ratingLabels[hoverRating || newReview.rating]}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="col-12">
@@ -1072,14 +1192,14 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
                     </div>
                   </div>
 
-                  <div className="d-flex align-items-center justify-content-between">
+                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
                     {reviewFormMessage ? (
                       <span className="small fw-semibold text-danger">{reviewFormMessage}</span>
                     ) : <span />}
 
                     <button
                       type="submit"
-                      className="btn btn-primary rounded-pill px-4 fw-bold"
+                      className="btn btn-primary rounded-pill px-4 fw-bold shadow-xs"
                       disabled={isSubmittingReview}
                     >
                       {isSubmittingReview ? "Submitting..." : "Submit Review"}
@@ -1089,35 +1209,95 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
               )}
 
               {/* Reviews List */}
-              <div className="d-flex flex-column gap-3">
-                {reviewsList.length > 0 ? (
-                  reviewsList.map((rev, idx) => (
-                    <div key={rev._id || idx} className="p-3.5 border rounded-3 bg-white shadow-xs">
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <div className="d-flex align-items-center gap-2">
-                          <span className="fw-bold text-dark">{rev.userName}</span>
-                          <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-2 py-0.5 small">
-                            Verified Buyer
+              {reviewsList.length > 0 && (
+                <div className="d-flex flex-column gap-3">
+                  {reviewsList.map((rev, idx) => {
+                    const initials = (rev.userName || "U")
+                      .trim()
+                      .split(" ")
+                      .map((n) => n[0])
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase() || "U";
+
+                    const formattedDate = rev.createdAt
+                      ? new Date(rev.createdAt).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "Recently";
+
+                    return (
+                      <div
+                        key={rev._id || idx}
+                        className="p-4 rounded-4 border bg-white shadow-xs"
+                        style={{ borderColor: "#e2e8f0" }}
+                      >
+                        {/* Review Header: User Avatar + Name + Verified Badge + Date */}
+                        <div className="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+                          <div className="d-flex align-items-center gap-3">
+                            <div
+                              className="rounded-circle bg-primary bg-opacity-10 text-primary fw-bold d-flex align-items-center justify-content-center flex-shrink-0 shadow-xs"
+                              style={{
+                                width: "44px",
+                                height: "44px",
+                                fontSize: "0.95rem",
+                                letterSpacing: "0.5px",
+                              }}
+                            >
+                              {initials}
+                            </div>
+                            <div>
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <span className="fw-bold text-dark fs-6">{rev.userName}</span>
+                                <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-2.5 py-1 small fw-semibold d-inline-flex align-items-center gap-1">
+                                  <CheckCircle2 size={12} className="text-success" /> Verified Buyer
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <span className="small text-muted d-inline-flex align-items-center gap-1.5 pt-1">
+                            <Calendar size={13} className="text-muted opacity-75" />
+                            {formattedDate}
                           </span>
                         </div>
-                        <span className="small text-muted">
-                          {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString("en-GB") : "Recently"}
-                        </span>
+
+                        {/* Star Rating */}
+                        <div className="d-flex align-items-center gap-2 mb-2 pb-1">
+                          <div className="d-flex align-items-center gap-1 text-warning">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star
+                                key={s}
+                                size={16}
+                                fill={s <= (rev.rating || 5) ? "currentColor" : "none"}
+                                stroke="currentColor"
+                              />
+                            ))}
+                          </div>
+                          <span className="small fw-bold text-dark ms-1">
+                            {Number(rev.rating || 5).toFixed(1)} / 5
+                          </span>
+                        </div>
+
+                        {/* Review Content */}
+                        <p
+                          className="mb-0 text-secondary"
+                          style={{
+                            fontSize: "0.95rem",
+                            lineHeight: "1.65",
+                            color: "#334155",
+                          }}
+                        >
+                          {rev.comment}
+                        </p>
                       </div>
-                      <div className="d-flex align-items-center gap-1 text-warning mb-1">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star key={s} size={14} fill={s <= (rev.rating || 5) ? "currentColor" : "none"} />
-                        ))}
-                      </div>
-                      <p className="small text-secondary mb-0">{rev.comment}</p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4 bg-light rounded-3 border">
-                    <p className="text-muted small mb-0">No customer reviews yet. Be the first to leave a review!</p>
-                  </div>
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

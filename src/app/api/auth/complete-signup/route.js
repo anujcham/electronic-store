@@ -12,7 +12,7 @@ export async function POST(request) {
     const fullName = (name || passedFullName || `${firstName || ''} ${lastName || ''}`).trim();
     if (!fullName) {
       return NextResponse.json(
-        { success: false, error: 'Please enter your full name.' },
+        { success: false, error: 'Please enter your first and last name.' },
         { status: 400 }
       );
     }
@@ -20,27 +20,29 @@ export async function POST(request) {
     const cleanEmail = email ? email.toLowerCase().trim() : '';
     const cleanPhone = phone ? phone.trim().replace(/\s+/g, '') : '';
 
-    if (!cleanEmail) {
+    if (!cleanEmail && !cleanPhone) {
       return NextResponse.json(
-        { success: false, error: 'Email address is required to complete your account setup.' },
+        { success: false, error: 'Email address or mobile phone number is required.' },
         { status: 400 }
       );
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      return NextResponse.json(
-        { success: false, error: 'Please enter a valid email address.' },
-        { status: 400 }
-      );
-    }
+    if (cleanEmail) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return NextResponse.json(
+          { success: false, error: 'Please enter a valid email address.' },
+          { status: 400 }
+        );
+      }
 
-    // Check if email already registered
-    const existingByEmail = await User.findOne({ email: cleanEmail });
-    if (existingByEmail) {
-      return NextResponse.json(
-        { success: false, error: `An account with email "${cleanEmail}" already exists. Please sign in with that email.` },
-        { status: 400 }
-      );
+      // Check if email already registered
+      const existingByEmail = await User.findOne({ email: cleanEmail });
+      if (existingByEmail) {
+        return NextResponse.json(
+          { success: false, error: `An account with email "${cleanEmail}" already exists. Please sign in with that email.` },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if phone already registered (if provided)
@@ -55,15 +57,17 @@ export async function POST(request) {
     }
 
     // Create new customer account in MongoDB Atlas
-    const newUser = await User.create({
+    const userData = {
       name: fullName,
-      email: cleanEmail,
-      phone: cleanPhone || '',
       isVerified: true,
       role: 'customer',
       tokenVersion: 0,
       lastActiveAt: new Date(),
-    });
+    };
+    if (cleanEmail) userData.email = cleanEmail;
+    if (cleanPhone) userData.phone = cleanPhone;
+
+    const newUser = await User.create(userData);
 
     // Remove used OTP records
     await Otp.deleteMany({
@@ -73,7 +77,7 @@ export async function POST(request) {
     // Generate JWT access & refresh tokens
     const payload = {
       userId: newUser._id.toString(),
-      email: newUser.email,
+      email: newUser.email || newUser.phone,
       role: 'customer',
     };
 

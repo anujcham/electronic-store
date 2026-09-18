@@ -26,10 +26,9 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
   const [canResend, setCanResend] = useState(false);
   const timerRef = useRef(null);
 
-  // Profile Form State (Single Full Name + counterpart contact)
-  const [name, setName] = useState("");
-  const [extraEmail, setExtraEmail] = useState("");
-  const [extraPhone, setExtraPhone] = useState("");
+  // Profile Form State (First Name & Last Name)
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
 
   const [loading, setLoading] = useState(false);
 
@@ -53,9 +52,8 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       setPhoneNumber("");
       setEmail("");
       setOtpDigits(["", "", "", "", "", ""]);
-      setName("");
-      setExtraEmail("");
-      setExtraPhone("");
+      setFirstName("");
+      setLastName("");
       setLoading(false);
       if (timerRef.current) clearInterval(timerRef.current);
     }
@@ -226,29 +224,28 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
   async function handleCompleteSignup(e) {
     if (e) e.preventDefault();
 
-    if (!name.trim()) {
-      toast.error("Name Required", "Please enter your full name.");
+    const cleanFirstName = firstName.trim();
+    const cleanLastName = lastName.trim();
+
+    if (!cleanFirstName) {
+      toast.error("First Name Required", "Please enter your first name.");
       return;
     }
 
-    const finalEmail = authMethod === "email" ? email : extraEmail.trim();
-    const finalPhone = authMethod === "phone" ? getFullPhone() : extraPhone.trim();
-
-    if (authMethod === "phone") {
-      if (!finalEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(finalEmail)) {
-        toast.error("Email Required", "Please provide a valid email address.");
-        return;
-      }
-    } else {
-      if (!finalPhone || finalPhone.replace(/\D/g, "").length < 7) {
-        toast.error("Phone Required", "Please provide a valid mobile phone number.");
-        return;
-      }
+    if (!cleanLastName) {
+      toast.error("Last Name Required", "Please enter your last name.");
+      return;
     }
+
+    const fullName = `${cleanFirstName} ${cleanLastName}`.trim();
+    const finalEmail = authMethod === "email" ? email.trim().toLowerCase() : "";
+    const finalPhone = authMethod === "phone" ? getFullPhone() : "";
 
     setLoading(true);
     const res = await completeSignupApi({
-      name: name.trim(),
+      name: fullName,
+      firstName: cleanFirstName,
+      lastName: cleanLastName,
       email: finalEmail,
       phone: finalPhone,
     });
@@ -354,7 +351,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               <div className="d-flex p-1 bg-light rounded-3 mb-3 border">
                 <button
                   type="button"
-                  className={`btn flex-fill py-2 fw-semibold rounded-2 border-0 transition-all ${
+                  className={`btn flex-fill py-2 fw-semibold rounded-2 border-0 transition-all d-inline-flex align-items-center justify-content-center gap-2 ${
                     authMethod === "phone"
                       ? "btn-primary shadow-sm"
                       : "text-muted hover:text-dark"
@@ -363,12 +360,12 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   onClick={() => setAuthMethod("phone")}
                   suppressHydrationWarning
                 >
-                  <Phone size={14} className="me-1.5 d-inline" />
-                  Phone Number
+                  <Phone size={15} />
+                  <span>Phone Number</span>
                 </button>
                 <button
                   type="button"
-                  className={`btn flex-fill py-2 fw-semibold rounded-2 border-0 transition-all ${
+                  className={`btn flex-fill py-2 fw-semibold rounded-2 border-0 transition-all d-inline-flex align-items-center justify-content-center gap-2 ${
                     authMethod === "email"
                       ? "btn-primary shadow-sm"
                       : "text-muted hover:text-dark"
@@ -377,8 +374,8 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   onClick={() => setAuthMethod("email")}
                   suppressHydrationWarning
                 >
-                  <Mail size={14} className="me-1.5 d-inline" />
-                  Email Address
+                  <Mail size={15} />
+                  <span>Email Address</span>
                 </button>
               </div>
 
@@ -388,13 +385,13 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   <label className="form-label small fw-semibold text-dark mb-1">
                     Mobile Phone Number <span className="text-danger">*</span>
                   </label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light border-end-0 fw-bold text-dark px-3" style={{ fontSize: "0.9rem" }}>
+                  <div className="input-group input-group-underline">
+                    <span className="input-group-text fw-bold text-dark px-3" style={{ fontSize: "0.9rem" }}>
                       {countryCode}
                     </span>
                     <input
                       type="tel"
-                      className="form-control form-control-lg border-start-0 fs-6 py-2.5"
+                      className="form-control form-control-lg fs-6 py-2.5"
                       placeholder="07700 900077"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
@@ -402,7 +399,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                       required
                     />
                   </div>
-                  <small className="text-muted mt-1 d-block" style={{ fontSize: "0.75rem" }}>
+                  <small className="text-muted mt-1.5 d-block" style={{ fontSize: "0.75rem" }}>
                     We will send a 6-digit verification code via SMS.
                   </small>
                 </div>
@@ -414,13 +411,13 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   <label className="form-label small fw-semibold text-dark mb-1">
                     Email Address <span className="text-danger">*</span>
                   </label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light border-end-0 text-muted px-3">
+                  <div className="input-group input-group-underline">
+                    <span className="input-group-text text-muted px-3">
                       <Mail size={18} />
                     </span>
                     <input
                       type="email"
-                      className="form-control form-control-lg border-start-0 fs-6 py-2.5"
+                      className="form-control form-control-lg fs-6 py-2.5"
                       placeholder="name@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -428,7 +425,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                       required
                     />
                   </div>
-                  <small className="text-muted mt-1 d-block" style={{ fontSize: "0.75rem" }}>
+                  <small className="text-muted mt-1.5 d-block" style={{ fontSize: "0.75rem" }}>
                     We will send a 6-digit verification code to your email.
                   </small>
                 </div>
@@ -550,7 +547,8 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
           {step === "profile" && (
             <form onSubmit={handleCompleteSignup}>
               {/* Selected Identifier without background div (clean white border card) */}
-              <div className="d-flex align-items-center justify-content-between py-2 px-3 border rounded-3 mb-2.5 bg-white">
+              {/* Selected Identifier Card */}
+              <div className="d-flex align-items-center justify-content-between py-2 px-3 border rounded-3 mb-3 bg-white">
                 <div className="d-flex align-items-center gap-2 text-truncate">
                   {authMethod === "phone" ? (
                     <Phone size={17} className="text-primary flex-shrink-0" />
@@ -573,72 +571,51 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               </div>
 
               {/* Verified Status Banner */}
-              <div className="d-flex align-items-center gap-2 p-2 px-3 rounded-3 bg-success-subtle text-success border border-success-subtle mb-3.5 small fw-medium" style={{ fontSize: "0.8rem" }}>
+              <div className="d-flex align-items-center gap-2 p-2.5 px-3 rounded-3 bg-success-subtle text-success border border-success-subtle mb-4 small fw-medium" style={{ fontSize: "0.85rem" }}>
                 <CheckCircle2 size={16} className="flex-shrink-0" />
                 <span>OTP verified! Please complete your details below.</span>
               </div>
 
-              {/* Full Name Input Field */}
+              {/* First Name Field */}
               <div className="mb-3">
                 <label className="form-label small fw-semibold text-dark mb-1">
-                  Full Name <span className="text-danger">*</span>
+                  First Name <span className="text-danger">*</span>
                 </label>
-                <div className="input-group">
-                  <span className="input-group-text bg-light border-end-0 text-muted px-3">
+                <div className="input-group input-group-underline">
+                  <span className="input-group-text text-muted px-3">
                     <User size={18} />
                   </span>
                   <input
                     type="text"
-                    className="form-control border-start-0 py-2.5 fs-6"
-                    placeholder="e.g. John Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    className="form-control py-2.5 fs-6"
+                    placeholder="e.g. John"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
                     required
                     autoFocus
                   />
                 </div>
               </div>
 
-              {/* Counterpart Contact Field */}
-              {authMethod === "phone" ? (
-                <div className="mb-4">
-                  <label className="form-label small fw-semibold text-dark mb-1">
-                    Email Address <span className="text-danger">*</span>
-                  </label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light border-end-0 text-muted px-3">
-                      <Mail size={18} />
-                    </span>
-                    <input
-                      type="email"
-                      className="form-control border-start-0 py-2.5 fs-6"
-                      placeholder="e.g. john.doe@example.co.uk"
-                      value={extraEmail}
-                      onChange={(e) => setExtraEmail(e.target.value)}
-                      required
-                    />
-                  </div>
+              {/* Last Name Field */}
+              <div className="mb-4">
+                <label className="form-label small fw-semibold text-dark mb-1">
+                  Last Name <span className="text-danger">*</span>
+                </label>
+                <div className="input-group input-group-underline">
+                  <span className="input-group-text text-muted px-3">
+                    <User size={18} />
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control py-2.5 fs-6"
+                    placeholder="e.g. Doe"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                  />
                 </div>
-              ) : (
-                <div className="mb-4">
-                  <label className="form-label small fw-semibold text-dark mb-1">
-                    Mobile Phone Number <span className="text-danger">*</span>
-                  </label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light border-end-0 text-muted px-3">
-                      <Phone size={18} />
-                    </span>
-                    <input
-                      type="tel"
-                      className="form-control border-start-0 py-2.5 fs-6"
-                      placeholder="07700 900077"
-                      value={extraPhone}
-                      onChange={(e) => setExtraPhone(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-              )}
+              </div>
 
               {/* Action Button */}
               <button

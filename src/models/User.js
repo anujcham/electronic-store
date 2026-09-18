@@ -14,8 +14,8 @@ const AddressSchema = new mongoose.Schema({
 const UserSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true, lowercase: true },
-    phone: { type: String, index: true },
+    email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
+    phone: { type: String, unique: true, sparse: true, trim: true },
     password: { type: String, required: false },
     otp: { type: String },
     otpExpiresAt: { type: Date },

@@ -126,13 +126,27 @@ export async function GET(request) {
       .skip(skip)
       .limit(limit);
 
+    const sanitizedProducts = products.map((prod) => {
+      const p = prod.toObject ? prod.toObject() : prod;
+      const reviews = Array.isArray(p.reviews) ? p.reviews : [];
+      if (reviews.length > 0) {
+        const sum = reviews.reduce((acc, curr) => acc + Number(curr.rating || 0), 0);
+        p.rating = Number((sum / reviews.length).toFixed(1));
+        p.reviewCount = reviews.length;
+      } else {
+        p.rating = 0;
+        p.reviewCount = 0;
+      }
+      return p;
+    });
+
     return NextResponse.json({
       success: true,
-      count: products.length,
+      count: sanitizedProducts.length,
       total: totalProducts,
       page,
       totalPages: Math.ceil(totalProducts / limit) || 1,
-      products,
+      products: sanitizedProducts,
     });
   } catch (error) {
     console.error('Error fetching products from database:', error);
@@ -246,8 +260,8 @@ export async function POST(request) {
       colorVariants: Array.isArray(colorVariants) ? colorVariants : [],
       variantPricing: Array.isArray(variantPricing) ? variantPricing : [],
       specifications: specifications || {},
-      rating: 4.8,
-      reviewCount: 12,
+      rating: 0,
+      reviewCount: 0,
     });
 
     return NextResponse.json({
