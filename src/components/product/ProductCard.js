@@ -3,7 +3,7 @@
 import { memo, useMemo, useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Heart, ShoppingCart, Star, Flame, ChevronLeft, ChevronRight } from "lucide-react";
+import { Heart, ShoppingCart, Star, Flame, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 
 import { useCart } from "../../features/cart/useCart";
 import { useWishlist } from "../../features/wishlist/useWishlist";
@@ -131,6 +131,41 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
     setActiveImageIndex((prev) => (prev < currentImages.length - 1 ? prev + 1 : 0));
   };
 
+  // Calculate minimum price from variant inventory matrix or base product
+  const { minPrice, minOriginalPrice, hasVariants } = useMemo(() => {
+    // 1. If product has variantPricing matrix configured
+    if (Array.isArray(product?.variantPricing) && product.variantPricing.length > 0) {
+      const validVariants = product.variantPricing.filter((v) => Number(v.price) > 0);
+      const inStockVariants = validVariants.filter((v) => Number(v.stock) > 0);
+      const pool = inStockVariants.length > 0 ? inStockVariants : validVariants;
+
+      if (pool.length > 0) {
+        const sorted = [...pool].sort((a, b) => Number(a.price) - Number(b.price));
+        const cheapest = sorted[0];
+        return {
+          minPrice: Number(cheapest.price),
+          minOriginalPrice: Number(cheapest.originalPrice || cheapest.price),
+          hasVariants: product.variantPricing.length > 1,
+        };
+      }
+    }
+
+    // 2. Base pricing fallback
+    const basePrice = Number(product?.price ?? 0);
+    const baseOrig = Number(product?.originalPrice ?? basePrice);
+    const hasMultipleOptions =
+      (Array.isArray(product?.availableStorage) && product.availableStorage.length > 1) ||
+      (Array.isArray(product?.conditionOptions) && product.conditionOptions.length > 1) ||
+      (Array.isArray(product?.colorVariants) && product.colorVariants.length > 1) ||
+      (Array.isArray(product?.availableColors) && product.availableColors.length > 1);
+
+    return {
+      minPrice: basePrice,
+      minOriginalPrice: baseOrig,
+      hasVariants: hasMultipleOptions,
+    };
+  }, [product]);
+
   const handleWishlistClick = (event) => {
     event.stopPropagation();
     if (onWishlistClick) {
@@ -153,8 +188,8 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
       storage: product?.availableStorage?.[0] || product?.storage,
       color: selectedColor || product?.availableColors?.[0] || product?.color,
       image: displayedImage,
-      price: product?.price,
-      originalPrice: product?.originalPrice,
+      price: minPrice,
+      originalPrice: minOriginalPrice,
       stock: product?.stock,
       warrantyMonths: product?.warrantyMonths,
       deliveryRange: product?.deliveryRange,
@@ -164,8 +199,14 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
 
   const handleCardClick = () => {
     if (product?.slug) {
-      router.push(`/product/${product.slug}`);
+      const colorQuery = selectedColor ? `?color=${encodeURIComponent(selectedColor)}` : "";
+      router.push(`/product/${product.slug}${colorQuery}`);
     }
+  };
+
+  const handleSelectOptions = (event) => {
+    event.stopPropagation();
+    handleCardClick();
   };
 
   return (
@@ -368,22 +409,28 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
         {/* Price on Left & Rating on Right in same row */}
         <div className="d-flex align-items-center justify-content-between gap-2 mt-auto pt-2">
           <div>
-            <div className="d-flex align-items-baseline gap-2">
-              <span className="fw-bold text-primary mb-0" style={{ fontSize: "1.18rem" }}>
-                £{product?.price ?? 0}
+            <div className="d-flex align-items-baseline gap-1.5 flex-wrap">
+              <span className="fw-extrabold text-primary mb-0" style={{ fontSize: "1.18rem" }}>
+                £{minPrice}
               </span>
-              {product?.originalPrice && product.originalPrice > product.price ? (
-                <span className="text-muted small text-decoration-line-through" style={{ fontSize: "0.78rem" }}>
-                  £{product.originalPrice}
+              {hasVariants ? (
+                <span className="text-muted small fw-medium" style={{ fontSize: "0.78rem" }}>
+                  onwards
                 </span>
-              ) : null}
+              ) : (
+                minOriginalPrice > minPrice && (
+                  <span className="text-muted small text-decoration-line-through ms-0.5" style={{ fontSize: "0.78rem" }}>
+                    £{minOriginalPrice}
+                  </span>
+                )
+              )}
             </div>
 
-            {product?.originalPrice && product.originalPrice > product.price ? (
+            {!hasVariants && minOriginalPrice > minPrice && (
               <div className="small text-success fw-bold" style={{ fontSize: "0.74rem" }}>
-                Save {product.discountPercentage || Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
+                Save {Math.round(((minOriginalPrice - minPrice) / minOriginalPrice) * 100)}%
               </div>
-            ) : null}
+            )}
           </div>
 
           <div className="d-flex align-items-center gap-1 bg-light px-2 py-1 rounded-pill border border-light-subtle flex-shrink-0">
@@ -399,16 +446,29 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
           </div>
         </div>
 
-        <Button
-          variant="primary"
-          className="w-100 mt-2 py-2 rounded-3 fw-bold shadow-xs d-flex align-items-center justify-content-center gap-1.5"
-          size="sm"
-          style={{ fontSize: "0.85rem" }}
-          startIcon={<ShoppingCart size={15} />}
-          onClick={handleAddToCart}
-        >
-          Add to Cart
-        </Button>
+        {hasVariants ? (
+          <Button
+            variant="primary"
+            className="w-100 mt-2 py-2 rounded-3 fw-bold shadow-xs d-flex align-items-center justify-content-center gap-1.5"
+            size="sm"
+            style={{ fontSize: "0.85rem" }}
+            endIcon={<ArrowRight size={15} />}
+            onClick={handleSelectOptions}
+          >
+            Select Options
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            className="w-100 mt-2 py-2 rounded-3 fw-bold shadow-xs d-flex align-items-center justify-content-center gap-1.5"
+            size="sm"
+            style={{ fontSize: "0.85rem" }}
+            startIcon={<ShoppingCart size={15} />}
+            onClick={handleAddToCart}
+          >
+            Add to Cart
+          </Button>
+        )}
       </div>
     </article>
   );

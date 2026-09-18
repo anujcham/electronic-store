@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { ProductDetails } from "../../../components/product/ProductDetails";
 import { getProductBySlug, getProducts } from "../../../services/productService";
 
-export default async function ProductPage({ params }) {
+export default async function ProductPage({ params, searchParams }) {
   const { slug } = await params;
+  const query = searchParams ? await searchParams : {};
 
   const product = await getProductBySlug(slug);
 
@@ -19,5 +20,11 @@ export default async function ProductPage({ params }) {
     .filter((item) => item.slug !== product.slug && item.category === product.category)
     .slice(0, 4);
 
-  return <ProductDetails product={product} relatedProducts={relatedProducts} />;
+  return (
+    <ProductDetails
+      product={product}
+      relatedProducts={relatedProducts}
+      initialColor={query?.color}
+    />
+  );
 }

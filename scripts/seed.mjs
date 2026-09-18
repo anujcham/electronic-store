@@ -39,6 +39,7 @@ const ProductSchema = new mongoose.Schema(
     availableStorage: [{ type: String }],
     stock: { type: Number, default: 10 },
     featured: { type: Boolean, default: false },
+    isHotDeal: { type: Boolean, default: false },
     tags: [{ type: String }],
     conditionOptions: [{ type: String }],
     batteryOptions: [{ type: String }],
@@ -46,7 +47,6 @@ const ProductSchema = new mongoose.Schema(
     shippingIncluded: { type: Boolean, default: true },
     deliveryRange: { type: String, default: '2-4 working days' },
     warrantyMonths: { type: Number, default: 12 },
-    variantPricing: Array,
     specifications: {
       display: { type: String },
       processor: { type: String },
@@ -56,6 +56,14 @@ const ProductSchema = new mongoose.Schema(
       network: { type: String },
       waterResistance: { type: String },
     },
+    colorVariants: [
+      {
+        colorName: { type: String, required: true },
+        hexCode: { type: String, default: '#000000' },
+        images: [{ type: String }],
+      },
+    ],
+    variantPricing: Array,
     reviews: [
       {
         userName: { type: String, required: true },
@@ -80,9 +88,18 @@ async function seed() {
   console.log('Connecting to MongoDB Atlas for seeding...');
   try {
     await mongoose.connect(uri);
-    await Product.deleteMany({});
-    const inserted = await Product.insertMany(products);
-    console.log(`✅ SUCCESS: Seeded database with ${inserted.length} real phone products with dynamic specifications & multi-image arrays!`);
+    let count = 0;
+    for (const prod of products) {
+      const { id, ...prodData } = prod;
+      await Product.findOneAndUpdate(
+        { slug: prod.slug },
+        { $set: prodData },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      count++;
+    }
+    const totalCount = await Product.countDocuments();
+    console.log(`✅ SUCCESS: Synced ${count} products to MongoDB Atlas! (Total in DB: ${totalCount})`);
     process.exit(0);
   } catch (err) {
     console.error('❌ ERROR seeding database:', err.message);
@@ -91,4 +108,3 @@ async function seed() {
 }
 
 seed();
-

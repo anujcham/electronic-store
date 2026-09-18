@@ -7,14 +7,23 @@ export async function GET() {
   try {
     await dbConnect();
     
-    // Clear existing products to prevent duplicates during initial setup
-    await Product.deleteMany({});
-    const createdProducts = await Product.insertMany(products);
+    let count = 0;
+    for (const prod of products) {
+      const { id, ...prodData } = prod;
+      await Product.findOneAndUpdate(
+        { slug: prod.slug },
+        { $set: prodData },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+      );
+      count++;
+    }
+
+    const totalCount = await Product.countDocuments();
 
     return NextResponse.json({
       success: true,
-      message: `Database successfully seeded with ${createdProducts.length} products!`,
-      count: createdProducts.length,
+      message: `Database successfully synced with ${count} catalog products!`,
+      totalInDatabase: totalCount,
     });
   } catch (error) {
     console.error('Error seeding database:', error);
@@ -24,4 +33,3 @@ export async function GET() {
     );
   }
 }
-

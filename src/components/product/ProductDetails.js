@@ -75,7 +75,7 @@ const SPEC_KEY_LABELS = {
   waterResistance: "Water & Dust Protection",
 };
 
-export function ProductDetails({ product, relatedProducts = [] }) {
+export function ProductDetails({ product, relatedProducts = [], initialColor = null }) {
   const { addItem } = useCart();
   const { toggleWishlist, isWishlisted } = useWishlist();
   const isProductWishlisted = isWishlisted(product);
@@ -121,9 +121,28 @@ export function ProductDetails({ product, relatedProducts = [] }) {
   const [selectedStorage, setSelectedStorage] = useState(
     storageOptions[0] || product?.storage || "128GB"
   );
-  const [selectedColor, setSelectedColor] = useState(
-    colorOptions[0] || product?.color || "Midnight"
-  );
+  const [selectedColor, setSelectedColor] = useState(() => {
+    if (initialColor) {
+      const match = colorOptions.find(
+        (c) => c.toLowerCase().trim() === initialColor.toLowerCase().trim()
+      );
+      if (match) return match;
+    }
+    return colorOptions[0] || product?.color || "Midnight";
+  });
+
+  // Sync color if initialColor changes
+  useEffect(() => {
+    if (initialColor && colorOptions.length > 0) {
+      const match = colorOptions.find(
+        (c) => c.toLowerCase().trim() === initialColor.toLowerCase().trim()
+      );
+      if (match) {
+        setSelectedColor(match);
+      }
+    }
+  }, [initialColor, colorOptions]);
+
   const [selectedSim, setSelectedSim] = useState(
     simOptions[0] || "Single SIM"
   );
