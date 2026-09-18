@@ -1,8 +1,8 @@
-import { getHotDeals } from "../../services/productService";
+import { getHotDealsDirect } from "../../lib/products.server";
 import { ProductCarousel } from "../product/ProductCarousel";
 
 export async function HotDealsSection() {
-  const hotDeals = await getHotDeals();
+  const hotDeals = await getHotDealsDirect();
 
   // If no hot deals selected in admin panel, do not render the section at all
   if (!hotDeals || hotDeals.length === 0) {

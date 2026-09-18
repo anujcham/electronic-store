@@ -81,9 +81,10 @@ export async function getFeaturedProducts() {
       }
     }
   } catch (error) {
+    if (error?.digest === "DYNAMIC_SERVER_USAGE") throw error;
     console.error("Error fetching featured products from API:", error);
   }
-  return [];
+  return fallbackFeatured.map((p) => ({ ...p, id: p._id || p.id }));
 }
 
 export async function getHotDeals() {
@@ -97,9 +98,12 @@ export async function getHotDeals() {
       }
     }
   } catch (error) {
+    if (error?.digest === "DYNAMIC_SERVER_USAGE") throw error;
     console.error("Error fetching hot deals from API:", error);
   }
-  return [];
+  return fallbackProducts
+    .filter((p) => p.isHotDeal || (p.price && p.originalPrice && p.price < p.originalPrice))
+    .map((p) => ({ ...p, id: p._id || p.id }));
 }
 
 export async function getProductsByCategory(category) {

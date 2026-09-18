@@ -1,9 +1,9 @@
 import { PRODUCT_CATEGORIES } from "../../constants/productConstants";
-import { getFeaturedProducts } from "../../services/productService";
+import { getFeaturedProductsDirect } from "../../lib/products.server";
 import { ProductCarousel } from "../product/ProductCarousel";
 
 export async function FeaturedPhones() {
-  const featuredProducts = await getFeaturedProducts();
+  const featuredProducts = await getFeaturedProductsDirect();
   const phoneProducts = featuredProducts.filter(
     (product) => !product.category || product.category === PRODUCT_CATEGORIES.SMARTPHONES
   );

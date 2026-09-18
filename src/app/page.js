@@ -11,6 +11,9 @@ import { Testimonials } from "../components/home/Testimonials";
 import { TrustBenefits } from "../components/home/TrustBenefits";
 import { WhyBuyRefurbished } from "../components/home/WhyBuyRefurbished";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default function Home() {
   return (
     <main>
