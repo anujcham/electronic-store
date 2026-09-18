@@ -21,6 +21,7 @@ import {
   Sparkles,
   RefreshCw,
   Eye,
+  History,
   X,
   Lock,
   ChevronRight,
@@ -49,6 +50,7 @@ import { Container, Badge } from "../../components/ui";
 import { useToast } from "../../components/common/Toast";
 import { useDebounce } from "../../hooks/useDebounce";
 import AdminSearchInput from "../../components/admin/AdminSearchInput";
+import { OrderDetailsModal, OrderActivityModal } from "../../components/admin";
 import {
   fetchAdminOrders,
   updateOrderFulfillment,
@@ -201,6 +203,7 @@ export default function StaffPortalPage() {
 
   // Detailed Row Inspection Modals State (Requirement: View full details for each row item)
   const [viewingOrder, setViewingOrder] = useState(null);
+  const [viewingOrderTimeline, setViewingOrderTimeline] = useState(null);
   const [viewingProduct, setViewingProduct] = useState(null);
   const [viewingCustomer, setViewingCustomer] = useState(null);
   const [viewingCart, setViewingCart] = useState(null);
@@ -563,6 +566,10 @@ export default function StaffPortalPage() {
       courierName: orderModalData.courierName,
       trackingNumber: orderModalData.trackingNumber,
       estimatedDelivery: orderModalData.estimatedDelivery,
+      performedBy: adminUser?.name || "Admin Staff",
+      performedByEmail: adminUser?.email || "",
+      performedByRole: adminUser?.role || "admin",
+      note: `Order status set to '${orderModalData.orderStatus}' with tracking '${orderModalData.trackingNumber}'.`,
     });
 
     if (res.success) {
@@ -580,13 +587,17 @@ export default function StaffPortalPage() {
       orderId: order._id || order.id,
       orderNumber: order.orderNumber,
       orderStatus: nextStatus,
+      performedBy: adminUser?.name || "Admin Staff",
+      performedByEmail: adminUser?.email || "",
+      performedByRole: adminUser?.role || "admin",
+      note: `Quick advanced status to '${nextStatus}'.`,
     });
 
     if (res.success) {
       toast.success("Status Updated", `Order ${order.orderNumber} advanced to '${nextStatus}'`);
       setOrders((prev) =>
         prev.map((o) =>
-          (o._id || o.id) === (order._id || order.id) ? { ...o, orderStatus: nextStatus } : o
+          (o._id || o.id) === (order._id || order.id) ? (res.order || { ...o, orderStatus: nextStatus }) : o
         )
       );
     } else {
@@ -1162,12 +1173,6 @@ export default function StaffPortalPage() {
                   >
                     Staff Portal
                   </span>
-                  <span
-                    className="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25 rounded-pill px-2 py-0.5 d-none d-md-inline-block"
-                    style={{ fontSize: "0.68rem" }}
-                  >
-                    🔒 JWT Session
-                  </span>
                 </div>
                 <small className="text-white-50" style={{ fontSize: "0.76rem" }}>
                   Live Store & Inventory Management System
@@ -1544,7 +1549,7 @@ export default function StaffPortalPage() {
                               </td>
 
                               <td className="px-3 text-end">
-                                <div className="d-flex align-items-center justify-content-end gap-1.5">
+                                <div className="d-flex align-items-center justify-content-end gap-2">
                                   {status === "Processing" && (
                                     <button
                                       type="button"
@@ -1578,16 +1583,28 @@ export default function StaffPortalPage() {
 
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-secondary rounded-2 p-1.5"
-                                    onClick={() => setViewingOrder(order)}
-                                    title="View Complete Order Details"
+                                    className="btn btn-sm btn-outline-info rounded-2 d-inline-flex align-items-center justify-content-center"
+                                    style={{ width: "32px", height: "32px", padding: 0 }}
+                                    onClick={() => setViewingOrderTimeline(order)}
+                                    title="View Activity Timeline & Admin Audit Log"
                                   >
-                                    <Eye size={14} />
+                                    <History size={15} />
                                   </button>
 
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-primary rounded-2 p-1.5"
+                                    className="btn btn-sm btn-outline-secondary rounded-2 d-inline-flex align-items-center justify-content-center"
+                                    style={{ width: "32px", height: "32px", padding: 0 }}
+                                    onClick={() => setViewingOrder(order)}
+                                    title="View Complete Order Details"
+                                  >
+                                    <Eye size={15} />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-primary rounded-2 d-inline-flex align-items-center justify-content-center"
+                                    style={{ width: "32px", height: "32px", padding: 0 }}
                                     onClick={() => handleOpenOrderModal(order)}
                                     title="Edit order status & tracking"
                                   >
@@ -1769,26 +1786,31 @@ export default function StaffPortalPage() {
                               </td>
 
                               <td className="px-3 text-end">
-                                <div className="d-flex align-items-center justify-content-end gap-1.5">
+                                <div className="d-flex align-items-center justify-content-end gap-2">
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-secondary rounded-2 p-1.5"
+                                    className="btn btn-sm btn-outline-secondary rounded-2 d-inline-flex align-items-center justify-content-center"
+                                    style={{ width: "32px", height: "32px", padding: 0 }}
                                     onClick={() => setViewingProduct(prod)}
                                     title="View Product Full Specifications"
                                   >
-                                    <Eye size={14} />
+                                    <Eye size={15} />
                                   </button>
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-primary rounded-2 p-1.5"
+                                    className="btn btn-sm btn-outline-primary rounded-2 d-inline-flex align-items-center justify-content-center"
+                                    style={{ width: "32px", height: "32px", padding: 0 }}
                                     onClick={() => handleOpenEditProductModal(prod)}
+                                    title="Edit Product"
                                   >
                                     <Pencil size={14} />
                                   </button>
                                   <button
                                     type="button"
-                                    className="btn btn-sm btn-outline-danger rounded-2 p-1.5"
+                                    className="btn btn-sm btn-outline-danger rounded-2 d-inline-flex align-items-center justify-content-center"
+                                    style={{ width: "32px", height: "32px", padding: 0 }}
                                     onClick={() => handleDeleteProduct(prod)}
+                                    title="Delete Product"
                                   >
                                     <Trash2 size={14} />
                                   </button>
@@ -2118,6 +2140,32 @@ export default function StaffPortalPage() {
           </div>
         </div>
       </Container>
+
+      {/* VIEW ORDER DETAILS MODAL */}
+      <OrderDetailsModal
+        order={viewingOrder}
+        isOpen={Boolean(viewingOrder)}
+        onClose={() => setViewingOrder(null)}
+        onEditStatus={(order) => {
+          setViewingOrder(null);
+          handleOpenOrderModal(order);
+        }}
+        onQuickAdvance={(order, newStatus) => {
+          handleQuickAdvanceStatus(order, newStatus);
+          setViewingOrder((prev) => (prev ? { ...prev, orderStatus: newStatus } : null));
+        }}
+        onViewTimeline={(order) => {
+          setViewingOrder(null);
+          setViewingOrderTimeline(order);
+        }}
+      />
+
+      {/* ACTIVITY TIMELINE & AUDIT LOG MODAL */}
+      <OrderActivityModal
+        order={viewingOrderTimeline}
+        isOpen={Boolean(viewingOrderTimeline)}
+        onClose={() => setViewingOrderTimeline(null)}
+      />
 
       {/* MODAL 1: ORDER FULFILLMENT EDIT MODAL */}
       {isOrderModalOpen && selectedOrder && (

@@ -68,6 +68,17 @@ export async function POST(request) {
       emiDetails: emiDetails || null,
       trackingNumber,
       estimatedDelivery: '2-4 working days',
+      activityLog: [
+        {
+          action: 'Order Placed & Payment Confirmed',
+          newStatus: 'Processing',
+          performedBy: shippingAddress?.fullName || 'Customer',
+          performedByEmail: shippingAddress?.email || guestEmail || '',
+          performedByRole: 'customer',
+          note: `Initial order created with ${paymentMethod || 'Credit / Debit Card'}. Awaiting 50-point diagnostic inspection.`,
+          timestamp: new Date(),
+        },
+      ],
     });
 
     // 1. Decrement product stock in MongoDB Atlas
@@ -164,7 +175,18 @@ export async function PATCH(request) {
   try {
     await dbConnect();
     const body = await request.json();
-    const { orderId, orderNumber, orderStatus, trackingNumber, courierName, estimatedDelivery } = body;
+    const {
+      orderId,
+      orderNumber,
+      orderStatus,
+      trackingNumber,
+      courierName,
+      estimatedDelivery,
+      performedBy,
+      performedByEmail,
+      performedByRole,
+      note,
+    } = body;
 
     if (!orderId && !orderNumber) {
       return NextResponse.json(
@@ -174,22 +196,104 @@ export async function PATCH(request) {
     }
 
     const query = orderId ? { _id: orderId } : { orderNumber };
-    const update = {};
-    if (orderStatus) update.orderStatus = orderStatus;
-    if (trackingNumber !== undefined) update.trackingNumber = trackingNumber;
-    if (courierName !== undefined) update.courierName = courierName;
-    if (estimatedDelivery !== undefined) update.estimatedDelivery = estimatedDelivery;
+    const existingOrder = await Order.findOne(query);
 
-    const updatedOrder = await Order.findOneAndUpdate(query, { $set: update }, { new: true });
-
-    if (!updatedOrder) {
+    if (!existingOrder) {
       return NextResponse.json({ success: false, error: 'Order not found.' }, { status: 404 });
     }
 
+    // Ensure activityLog array exists
+    if (!Array.isArray(existingOrder.activityLog)) {
+      existingOrder.activityLog = [];
+    }
+
+    // Synthesize initial placement event if log was empty
+    if (existingOrder.activityLog.length === 0) {
+      existingOrder.activityLog.push({
+        action: 'Order Placed & Payment Confirmed',
+        newStatus: 'Processing',
+        performedBy: existingOrder.shippingAddress?.fullName || 'Customer',
+        performedByEmail: existingOrder.shippingAddress?.email || existingOrder.guestEmail || '',
+        performedByRole: 'customer',
+        note: 'Order placed by customer via checkout.',
+        timestamp: existingOrder.createdAt || new Date(),
+      });
+    }
+
+    const performer = performedBy || 'Admin Staff';
+    const performerEmail = performedByEmail || '';
+    const performerRole = performedByRole || 'admin';
+
+    // 1. Log order status changes
+    if (orderStatus && orderStatus !== existingOrder.orderStatus) {
+      const prevStatus = existingOrder.orderStatus;
+      existingOrder.orderStatus = orderStatus;
+      existingOrder.activityLog.push({
+        action: `Status Changed to '${orderStatus}'`,
+        previousStatus: prevStatus,
+        newStatus: orderStatus,
+        performedBy: performer,
+        performedByEmail: performerEmail,
+        performedByRole: performerRole,
+        note: note || `Order status updated from '${prevStatus}' to '${orderStatus}'.`,
+        timestamp: new Date(),
+      });
+    }
+
+    // 2. Log tracking number updates
+    if (trackingNumber !== undefined && trackingNumber !== existingOrder.trackingNumber) {
+      const prevTracking = existingOrder.trackingNumber;
+      existingOrder.trackingNumber = trackingNumber;
+      existingOrder.activityLog.push({
+        action: 'Tracking Reference Updated',
+        previousStatus: prevTracking || 'Unassigned',
+        newStatus: trackingNumber,
+        performedBy: performer,
+        performedByEmail: performerEmail,
+        performedByRole: performerRole,
+        note: `Tracking number set to '${trackingNumber}' (${courierName || existingOrder.courierName || 'Royal Mail'}).`,
+        timestamp: new Date(),
+      });
+    }
+
+    // 3. Log Courier partner updates
+    if (courierName !== undefined && courierName.trim() !== (existingOrder.courierName || "").trim()) {
+      const prevCourier = existingOrder.courierName || "Royal Mail Tracked 24";
+      existingOrder.courierName = courierName;
+      existingOrder.activityLog.push({
+        action: `Courier Name Updated to '${courierName}'`,
+        previousStatus: prevCourier,
+        newStatus: courierName,
+        performedBy: performer,
+        performedByEmail: performerEmail,
+        performedByRole: performerRole,
+        note: `Fulfillment courier changed from '${prevCourier}' to '${courierName}'.`,
+        timestamp: new Date(),
+      });
+    }
+
+    // 4. Log estimated delivery updates
+    if (estimatedDelivery !== undefined && estimatedDelivery.trim() !== (existingOrder.estimatedDelivery || "").trim()) {
+      const prevEst = existingOrder.estimatedDelivery || "2-4 working days";
+      existingOrder.estimatedDelivery = estimatedDelivery;
+      existingOrder.activityLog.push({
+        action: `Estimated Delivery Window Updated`,
+        previousStatus: prevEst,
+        newStatus: estimatedDelivery,
+        performedBy: performer,
+        performedByEmail: performerEmail,
+        performedByRole: performerRole,
+        note: `Estimated delivery updated from '${prevEst}' to '${estimatedDelivery}'.`,
+        timestamp: new Date(),
+      });
+    }
+
+    await existingOrder.save();
+
     return NextResponse.json({
       success: true,
-      message: 'Order updated successfully!',
-      order: updatedOrder,
+      message: 'Order updated successfully with activity logged!',
+      order: existingOrder,
     });
   } catch (error) {
     console.error('Error updating order:', error);

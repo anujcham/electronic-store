@@ -177,5 +177,11 @@
   pointer-events: none !important;
 }
 
+/* Fractional gap utility support for Bootstrap */
+.gap-1\.5 {
+  gap: 0.5rem !important;
+}
+
+
 
 

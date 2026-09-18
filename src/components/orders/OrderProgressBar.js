@@ -268,8 +268,64 @@ export default function OrderProgressBar({
   courierName = "Tracked UK Express",
   estimatedDelivery = "2-4 working days",
   showTrackingHeader = true,
+  createdAt = null,
+  updatedAt = null,
+  activityLog = [],
+  showTimestamps = true,
 }) {
   const timeline = getOrderTimelineInfo(orderStatus, estimatedDelivery, courierName);
+
+  // Format date and time for milestone stage timestamp
+  const formatTime = (ts) => {
+    if (!ts) return null;
+    try {
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return null;
+      return d.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const logs = Array.isArray(activityLog) ? activityLog : [];
+
+  const findLogTime = (keywords = []) => {
+    const matching = logs.filter((l) => {
+      const text = `${l.action || ""} ${l.newStatus || ""}`.toLowerCase();
+      return keywords.some((k) => text.includes(k.toLowerCase()));
+    });
+    if (matching.length === 0) return null;
+    return formatTime(matching[0].timestamp);
+  };
+
+  const getStageTime = (stageId, isCompleted, isCurrent) => {
+    if (!isCompleted && !isCurrent) return null;
+
+    if (stageId === 1) {
+      return formatTime(createdAt) || findLogTime(["placed", "confirmed"]);
+    }
+    if (stageId === 2) {
+      return findLogTime(["50-point", "checked", "inspect"]);
+    }
+    if (stageId === 3) {
+      return (
+        findLogTime(["dispatch", "shipped", "eco sealed"]) ||
+        (isCompleted && (orderStatus === "Dispatched" || orderStatus === "Delivered") ? formatTime(updatedAt) : null)
+      );
+    }
+    if (stageId === 4) {
+      return (
+        findLogTime(["deliver", "delivered"]) ||
+        (isCompleted && orderStatus === "Delivered" ? formatTime(updatedAt) : null)
+      );
+    }
+    return null;
+  };
 
   return (
     <div>
@@ -332,6 +388,7 @@ export default function OrderProgressBar({
           {timeline.stages.map((stage) => {
             const isCompleted = stage.isComplete;
             const isCurrent = stage.isCurrent;
+            const stageTime = getStageTime(stage.id, isCompleted, isCurrent);
 
             return (
               <div
@@ -376,7 +433,7 @@ export default function OrderProgressBar({
                   )}
                 </div>
 
-                {/* Stage Badge, Title, and Description Directly Below Node */}
+                {/* Stage Badge, Title, Description, and Timestamp Directly Below Node */}
                 <div className="mt-2 d-flex flex-column align-items-center" style={{ width: "100%" }}>
                   <span
                     className={`badge mb-1 ${stage.badgeClass}`}
@@ -398,6 +455,14 @@ export default function OrderProgressBar({
                   >
                     {stage.desc}
                   </div>
+                  {showTimestamps && stageTime && (
+                    <div
+                      className="text-secondary font-monospace mt-1 px-1.5 py-0.5 rounded bg-white border border-light-subtle shadow-xs"
+                      style={{ fontSize: "0.68rem", lineHeight: "1.2" }}
+                    >
+                      {stageTime}
+                    </div>
+                  )}
                 </div>
               </div>
             );

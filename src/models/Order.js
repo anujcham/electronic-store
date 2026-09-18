@@ -15,6 +15,17 @@ const OrderItemSchema = new mongoose.Schema({
   },
 });
 
+const ActivityLogSchema = new mongoose.Schema({
+  action: { type: String, required: true },
+  previousStatus: { type: String },
+  newStatus: { type: String },
+  performedBy: { type: String, default: 'Admin Staff' },
+  performedByEmail: { type: String },
+  performedByRole: { type: String },
+  note: { type: String },
+  timestamp: { type: Date, default: Date.now },
+});
+
 const OrderSchema = new mongoose.Schema(
   {
     orderNumber: { type: String, required: true, unique: true },
@@ -55,6 +66,7 @@ const OrderSchema = new mongoose.Schema(
     courierName: { type: String, default: 'Royal Mail Tracked 24' },
     trackingNumber: { type: String },
     estimatedDelivery: { type: String, default: '2-4 working days' },
+    activityLog: [ActivityLogSchema],
   },
   { timestamps: true }
 );

@@ -17,7 +17,18 @@ export async function fetchAdminOrders(params = {}) {
   return [];
 }
 
-export async function updateOrderFulfillment({ orderId, orderNumber, orderStatus, trackingNumber, courierName, estimatedDelivery }) {
+export async function updateOrderFulfillment({
+  orderId,
+  orderNumber,
+  orderStatus,
+  trackingNumber,
+  courierName,
+  estimatedDelivery,
+  performedBy,
+  performedByEmail,
+  performedByRole,
+  note,
+}) {
   try {
     const payload = {
       ...(orderId ? { orderId } : { orderNumber }),
@@ -25,6 +36,10 @@ export async function updateOrderFulfillment({ orderId, orderNumber, orderStatus
       ...(trackingNumber !== undefined ? { trackingNumber } : {}),
       ...(courierName !== undefined ? { courierName } : {}),
       ...(estimatedDelivery !== undefined ? { estimatedDelivery } : {}),
+      ...(performedBy ? { performedBy } : {}),
+      ...(performedByEmail ? { performedByEmail } : {}),
+      ...(performedByRole ? { performedByRole } : {}),
+      ...(note ? { note } : {}),
     };
 
     const res = await apiPatch("/orders", payload);

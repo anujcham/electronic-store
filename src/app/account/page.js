@@ -350,6 +350,10 @@ export default function AccountPage() {
                                   trackingNumber={order.trackingNumber}
                                   courierName={order.courierName}
                                   estimatedDelivery={order.estimatedDelivery}
+                                  createdAt={order.createdAt}
+                                  updatedAt={order.updatedAt}
+                                  activityLog={order.activityLog || []}
+                                  showTimestamps={true}
                                 />
                               </div>
 
