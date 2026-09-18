@@ -3,14 +3,9 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import {
   X,
   SlidersHorizontal,
-  ShieldCheck,
-  Award,
-  Battery,
-  ShoppingCart,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -18,11 +13,11 @@ import {
 
 import { getProducts } from "../../services/productService";
 import { ProductGrid } from "../product/ProductGrid";
+import { ProductListCard } from "../product/ProductListCard";
 import { ProductSkeletonGrid } from "../product/ProductSkeletonGrid";
 import { Button, Container } from "../ui";
 import { ShopFilters } from "./ShopFilters";
 import { ShopToolbar } from "./ShopToolbar";
-import { useCart } from "../../features/cart/useCart";
 
 const toggleMultiSelection = (values, value) =>
   values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
@@ -37,7 +32,6 @@ export function ShopPage({
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { addItem } = useCart();
   const isFirstMount = useRef(true);
 
   // States initialized from initial search params
@@ -246,87 +240,10 @@ export function ShopPage({
                   /* Horizontal List View Mode */
                   <div className="d-flex flex-column gap-3">
                     {products.map((product) => (
-                      <div
+                      <ProductListCard
                         key={product.id || product._id || product.slug}
-                        className="card border rounded-4 shadow-sm overflow-hidden hover-shadow transition-all bg-white"
-                        style={{ contentVisibility: "auto", containIntrinsicSize: "200px" }}
-                      >
-                        <div className="row g-0 align-items-center">
-                          {/* Thumbnail Image */}
-                          <div className="col-12 col-sm-4 col-md-3 p-3 text-center bg-light">
-                            <div className="position-relative mx-auto" style={{ width: "140px", height: "140px" }}>
-                              <Image
-                                src={product.images?.[0] || "https://placehold.co/800x800/EEF2F7/0F172A?text=Phone"}
-                                alt={product.name}
-                                fill
-                                sizes="140px"
-                                style={{ objectFit: "contain" }}
-                                unoptimized
-                              />
-                            </div>
-                          </div>
-
-                          {/* Specs & Info */}
-                          <div className="col-12 col-sm-8 col-md-6 p-4 border-end-md">
-                            <div className="d-flex align-items-center gap-2 mb-1">
-                              <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-0.5">
-                                {product.brand}
-                              </span>
-                              {product.condition && (
-                                <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-0.5">
-                                  {product.condition} Grade
-                                </span>
-                              )}
-                            </div>
-
-                            <h5 className="fw-bold text-dark mb-1">
-                              <Link href={`/product/${product.slug}`} className="text-dark text-decoration-none hover-primary">
-                                {product.name}
-                              </Link>
-                            </h5>
-
-                            <p className="small text-muted mb-2 line-clamp-2" style={{ fontSize: "0.85rem" }}>
-                              {product.shortDescription || "50-Point diagnostic checked refurbished phone with full warranty."}
-                            </p>
-
-                            <div className="d-flex flex-wrap gap-2 text-muted small" style={{ fontSize: "0.78rem" }}>
-                              <span className="d-flex align-items-center gap-1 text-dark fw-medium">
-                                <Battery size={13} className="text-success" /> 85%+ Battery Health
-                              </span>
-                              <span>•</span>
-                              <span className="d-flex align-items-center gap-1 text-dark fw-medium">
-                                <ShieldCheck size={13} className="text-primary" /> 12-Mo Warranty
-                              </span>
-                              <span>•</span>
-                              <span className="d-flex align-items-center gap-1 text-dark fw-medium">
-                                <Award size={13} className="text-warning" /> 50-Pt Checked
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Pricing & CTA */}
-                          <div className="col-12 col-md-3 p-4 bg-light bg-opacity-50 h-100 d-flex flex-column justify-content-center text-md-end border-top border-top-md-0">
-                            <div className="mb-2">
-                              <div className="fw-extrabold text-primary display-7">
-                                £{product.price}
-                              </div>
-                              {product.originalPrice > product.price && (
-                                <small className="text-muted text-decoration-line-through d-block" style={{ fontSize: "0.78rem" }}>
-                                  RRP £{product.originalPrice}
-                                </small>
-                              )}
-                            </div>
-
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-sm rounded-pill fw-bold py-2 shadow-sm d-flex align-items-center justify-content-center gap-1.5 w-100"
-                              onClick={(e) => handleAddToCart(product, e)}
-                            >
-                              <ShoppingCart size={15} /> Add to Cart
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                        product={product}
+                      />
                     ))}
                   </div>
                 )}
