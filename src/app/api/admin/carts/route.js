@@ -125,10 +125,24 @@ export async function GET(request) {
       });
     }
 
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? Math.max(1, parseInt(limitParam, 10)) : 0;
+
+    const totalCarts = formattedCarts.length;
+    const totalPages = limit > 0 ? Math.ceil(totalCarts / limit) || 1 : 1;
+
+    const paginatedCarts = limit > 0
+      ? formattedCarts.slice((page - 1) * limit, page * limit)
+      : formattedCarts;
+
     return NextResponse.json({
       success: true,
-      count: formattedCarts.length,
-      carts: formattedCarts,
+      count: paginatedCarts.length,
+      totalCarts,
+      page,
+      totalPages,
+      carts: paginatedCarts,
     });
   } catch (error) {
     console.error('Error fetching admin carts:', error);

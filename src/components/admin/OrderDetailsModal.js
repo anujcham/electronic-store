@@ -145,7 +145,7 @@ export function OrderDetailsModal({
         </div>
 
         {/* Modal Body - Scrollable Content */}
-        <div className="p-4 overflow-y-auto flex-grow-1" style={{ fontSize: "0.9rem" }}>
+        <div className="p-4 overflow-y-auto flex-grow-1 no-scrollbar hide-scrollbar" style={{ fontSize: "0.9rem", scrollbarWidth: "none", msOverflowStyle: "none" }}>
           {/* 1. Live Fulfillment Timeline with Exact Timestamps */}
           <div className="bg-light border rounded-4 p-3 mb-4 shadow-xs">
             <OrderProgressBar
@@ -204,7 +204,7 @@ export function OrderDetailsModal({
 
                   return (
                     <div
-                      key={item._id || item.id || idx}
+                      key={item._id || item.id || item.itemKey || `${order?.orderNumber || "ord"}-${item.slug || item.name}-${opts.storage || ""}-${opts.color || ""}-${opts.condition || ""}`}
                       className="list-group-item p-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3"
                     >
                       <div className="d-flex align-items-center gap-3">
@@ -219,6 +219,7 @@ export function OrderDetailsModal({
                               width={46}
                               height={46}
                               className="object-fit-contain"
+                              unoptimized
                             />
                           ) : (
                             <Smartphone size={24} className="text-muted" />

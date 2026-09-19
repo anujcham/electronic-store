@@ -8,7 +8,7 @@ import {
   SlidersHorizontal,
   Check,
 } from "lucide-react";
-import { Pagination } from "@heroui/react";
+import { CommonPagination } from "../common/CommonPagination";
 
 import { getProducts } from "../../services/productService";
 import { ProductGrid } from "../product/ProductGrid";
@@ -319,59 +319,19 @@ export function ShopPage({
                   </div>
                 )}
 
-                {/* Pagination Controls */}
-                {totalPages > 1 && (
-                  <div className="d-flex flex-column flex-md-row align-items-center justify-content-between bg-white border rounded-4 p-3 mt-4 shadow-sm gap-3">
-                    <span className="small text-muted fw-semibold">
-                      Showing page <strong>{page}</strong> of <strong>{totalPages}</strong> ({totalCount} total devices)
-                    </span>
-
-                    <Pagination className="justify-center">
-                      <Pagination.Content className="gap-1 rounded-xl bg-default p-1">
-                        <Pagination.Item>
-                          <Pagination.Previous
-                            className={linkClass}
-                            isDisabled={page <= 1}
-                            onPress={() => {
-                              setPage((p) => Math.max(1, p - 1));
-                              window.scrollTo({ top: 0, behavior: "smooth" });
-                            }}
-                          >
-                            <Pagination.PreviousIcon />
-                          </Pagination.Previous>
-                        </Pagination.Item>
-
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                          <Pagination.Item key={p}>
-                            <Pagination.Link
-                              className={p === Number(page) ? activeClass : linkClass}
-                              isActive={p === Number(page)}
-                              onPress={() => {
-                                setPage(p);
-                                window.scrollTo({ top: 0, behavior: "smooth" });
-                              }}
-                            >
-                              {p}
-                            </Pagination.Link>
-                          </Pagination.Item>
-                        ))}
-
-                        <Pagination.Item>
-                          <Pagination.Next
-                            className={linkClass}
-                            isDisabled={page >= totalPages}
-                            onPress={() => {
-                              setPage((p) => Math.min(totalPages, Number(page) + 1));
-                              window.scrollTo({ top: 0, behavior: "smooth" });
-                            }}
-                          >
-                            <Pagination.NextIcon />
-                          </Pagination.Next>
-                        </Pagination.Item>
-                      </Pagination.Content>
-                    </Pagination>
-                  </div>
-                )}
+                {/* Common Pagination Controls */}
+                <CommonPagination
+                  page={page}
+                  totalPages={totalPages}
+                  totalCount={totalCount}
+                  pageSize={12}
+                  itemName="devices"
+                  onPageChange={(newPage) => {
+                    setPage(newPage);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="mt-4 rounded-4"
+                />
               </>
             ) : (
               /* Empty Search Results State */

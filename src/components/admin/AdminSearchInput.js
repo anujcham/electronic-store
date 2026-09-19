@@ -37,13 +37,14 @@ export default function AdminSearchInput({
       }}
     >
       <div
-        className={`d-flex align-items-center gap-2 px-2.5 py-1.5 rounded-3 bg-white transition-all ${
+        className={`d-flex align-items-center gap-2 px-3 py-1.5 rounded-3 bg-white transition-all ${
           isFocused ? "border-primary shadow-xs" : "border-secondary-subtle"
         }`}
         style={{
-          border: isFocused ? "1px solid #3b82f6" : "1px solid #e2e8f0",
-          boxShadow: isFocused ? "0 0 0 3px rgba(59, 130, 246, 0.12)" : "0 1px 2px rgba(0, 0, 0, 0.04)",
-          minHeight: "36px",
+          border: isFocused ? "1px solid #2563eb" : "1px solid #cbd5e1",
+          boxShadow: isFocused ? "0 0 0 3px rgba(37, 99, 235, 0.12)" : "0 1px 2px rgba(0, 0, 0, 0.04)",
+          minHeight: "38px",
+          height: "38px",
           transition: "border-color 0.15s ease, box-shadow 0.15s ease",
         }}
       >

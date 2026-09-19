@@ -44,13 +44,22 @@ import {
   Palette,
   Layers,
   Cpu,
+  Loader2,
+  Upload,
+  Link2,
 } from "lucide-react";
 
 import { Container, Badge } from "../../components/ui";
 import { useToast } from "../../components/common/Toast";
 import { useDebounce } from "../../hooks/useDebounce";
 import AdminSearchInput from "../../components/admin/AdminSearchInput";
-import { OrderDetailsModal, OrderActivityModal } from "../../components/admin";
+import {
+  OrderDetailsModal,
+  OrderActivityModal,
+  CustomerDetailsModal,
+  CartDetailsModal,
+  CommonPagination,
+} from "../../components/admin";
 import {
   fetchAdminOrders,
   updateOrderFulfillment,
@@ -64,6 +73,7 @@ import {
   adminStaffLogout,
   fetchAdminStaffList,
   createAdminStaffAccount,
+  fetchAdminKpiStats,
 } from "../../services/adminService";
 
 const emptyProductForm = {
@@ -83,13 +93,18 @@ const emptyProductForm = {
   isHotDeal: false,
   colorVariants: [
     {
+      _id: "color_default_space_black",
       colorName: "Space Black",
       hexCode: "#1e293b",
+      images: [
+        "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+      ],
       imagesText: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
     },
   ],
   variantPricing: [
     {
+      _id: "variant_default_space_black_128gb_good",
       color: "Space Black",
       storage: "128GB",
       condition: "Good",
@@ -114,6 +129,42 @@ const emptyNewAdminForm = {
   email: "",
   password: "",
   phone: "",
+};
+
+/**
+ * Helper to compress and convert device-selected image files to lightweight Data URLs
+ * Resizes large phone photos (e.g. 12MP/48MP) to max 1200px at 82% quality (~70-100KB)
+ */
+const compressImageFile = (file, maxWidth = 1200, quality = 0.82) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = (err) => reject(err);
+    reader.onload = (e) => {
+      const img = document.createElement("img");
+      img.onerror = (err) => reject(err);
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxWidth || height > maxWidth) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxWidth) / height);
+            height = maxWidth;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(dataUrl);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 };
 
 export default function StaffPortalPage() {
@@ -181,6 +232,14 @@ export default function StaffPortalPage() {
   const debouncedStaffSearch = useDebounce(staffSearch, 350);
   const debouncedCartSearch = useDebounce(cartSearch, 350);
 
+  // Pagination states (Requirement: 15 rows default per page)
+  const PAGE_SIZE = 15;
+  const [orderPagination, setOrderPagination] = useState({ page: 1, totalPages: 1, totalCount: 0 });
+  const [productPagination, setProductPagination] = useState({ page: 1, totalPages: 1, totalCount: 0 });
+  const [customerPagination, setCustomerPagination] = useState({ page: 1, totalPages: 1, totalCount: 0 });
+  const [staffPagination, setStaffPagination] = useState({ page: 1, totalPages: 1, totalCount: 0 });
+  const [cartPagination, setCartPagination] = useState({ page: 1, totalPages: 1, totalCount: 0 });
+
   const isInitialLoaded = useRef(false);
 
   // Modals state
@@ -205,6 +264,8 @@ export default function StaffPortalPage() {
   const [viewingOrder, setViewingOrder] = useState(null);
   const [viewingOrderTimeline, setViewingOrderTimeline] = useState(null);
   const [viewingProduct, setViewingProduct] = useState(null);
+  const [productToDelete, setProductToDelete] = useState(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
   const [viewingCustomer, setViewingCustomer] = useState(null);
   const [viewingCart, setViewingCart] = useState(null);
   const [viewingStaff, setViewingStaff] = useState(null);
@@ -276,21 +337,62 @@ export default function StaffPortalPage() {
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      const [ordersRes, productsRes, usersRes, staffRes, cartsRes] = await Promise.all([
-        fetchAdminOrders(),
-        fetchAdminProducts(),
-        fetchAdminUsers(),
-        fetchAdminStaffList(),
-        fetchAdminCarts(),
+      const [kpiStats, ordersRes, productsRes, usersRes, staffRes, cartsRes] = await Promise.all([
+        fetchAdminKpiStats(),
+        fetchAdminOrders({ page: 1, limit: PAGE_SIZE }),
+        fetchAdminProducts({ page: 1, limit: PAGE_SIZE }),
+        fetchAdminUsers({ page: 1, limit: PAGE_SIZE }),
+        fetchAdminStaffList({ page: 1, limit: PAGE_SIZE }),
+        fetchAdminCarts({ page: 1, limit: PAGE_SIZE }),
       ]);
 
-      setOrders(ordersRes || []);
-      setProducts(productsRes || []);
-      setCustomers(usersRes || []);
-      setStaffMembers(staffRes || []);
-      setCarts(cartsRes || []);
+      if (kpiStats) {
+        setKpiMetrics(kpiStats);
+      } else {
+        updateGlobalKpiMetrics(
+          ordersRes?.orders || [],
+          productsRes?.products || [],
+          usersRes?.users || [],
+          staffRes?.staff || [],
+          cartsRes?.carts || []
+        );
+      }
 
-      updateGlobalKpiMetrics(ordersRes || [], productsRes || [], usersRes || [], staffRes || [], cartsRes || []);
+      setOrders(ordersRes?.orders || []);
+      setOrderPagination({
+        page: ordersRes?.page || 1,
+        totalPages: ordersRes?.totalPages || 1,
+        totalCount: ordersRes?.total || 0,
+      });
+
+      setProducts(productsRes?.products || []);
+      setProductPagination({
+        page: productsRes?.page || 1,
+        totalPages: productsRes?.totalPages || 1,
+        totalCount: productsRes?.total || 0,
+      });
+
+      setCustomers(usersRes?.users || []);
+      setCustomerPagination({
+        page: usersRes?.page || 1,
+        totalPages: usersRes?.totalPages || 1,
+        totalCount: usersRes?.total || 0,
+      });
+
+      setStaffMembers(staffRes?.staff || []);
+      setStaffPagination({
+        page: staffRes?.page || 1,
+        totalPages: staffRes?.totalPages || 1,
+        totalCount: staffRes?.total || 0,
+      });
+
+      setCarts(cartsRes?.carts || []);
+      setCartPagination({
+        page: cartsRes?.page || 1,
+        totalPages: cartsRes?.totalPages || 1,
+        totalCount: cartsRes?.total || 0,
+      });
+
       isInitialLoaded.current = true;
     } catch (err) {
       console.error("Admin data load error:", err);
@@ -306,7 +408,28 @@ export default function StaffPortalPage() {
     }
   }, [adminUser]);
 
-  // Backend API Filter: Orders (triggered on debounced search or status dropdown change)
+  // Reset page to 1 whenever search or filters change
+  useEffect(() => {
+    setOrderPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+  }, [debouncedOrderSearch, orderStatusFilter]);
+
+  useEffect(() => {
+    setProductPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+  }, [debouncedProductSearch, productBrandFilter]);
+
+  useEffect(() => {
+    setCustomerPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+  }, [debouncedCustomerSearch]);
+
+  useEffect(() => {
+    setStaffPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+  }, [debouncedStaffSearch]);
+
+  useEffect(() => {
+    setCartPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+  }, [debouncedCartSearch]);
+
+  // Backend API Filter: Orders
   useEffect(() => {
     if (!isInitialLoaded.current || !adminUser) return;
     let isCurrent = true;
@@ -315,9 +438,18 @@ export default function StaffPortalPage() {
     fetchAdminOrders({
       search: debouncedOrderSearch,
       status: orderStatusFilter,
+      page: orderPagination.page,
+      limit: PAGE_SIZE,
     })
       .then((res) => {
-        if (isCurrent) setOrders(res || []);
+        if (isCurrent && res) {
+          setOrders(res.orders || []);
+          setOrderPagination((prev) => ({
+            ...prev,
+            totalPages: res.totalPages || 1,
+            totalCount: res.total || 0,
+          }));
+        }
       })
       .catch((err) => console.error("Backend orders filter error:", err))
       .finally(() => {
@@ -327,9 +459,9 @@ export default function StaffPortalPage() {
     return () => {
       isCurrent = false;
     };
-  }, [debouncedOrderSearch, orderStatusFilter, adminUser]);
+  }, [debouncedOrderSearch, orderStatusFilter, orderPagination.page, adminUser]);
 
-  // Backend API Filter: Products (triggered on debounced search or brand dropdown change)
+  // Backend API Filter: Products
   useEffect(() => {
     if (!isInitialLoaded.current || !adminUser) return;
     let isCurrent = true;
@@ -338,10 +470,18 @@ export default function StaffPortalPage() {
     fetchAdminProducts({
       search: debouncedProductSearch,
       brand: productBrandFilter,
-      limit: 200,
+      page: productPagination.page,
+      limit: PAGE_SIZE,
     })
       .then((res) => {
-        if (isCurrent) setProducts(res || []);
+        if (isCurrent && res) {
+          setProducts(res.products || []);
+          setProductPagination((prev) => ({
+            ...prev,
+            totalPages: res.totalPages || 1,
+            totalCount: res.total || 0,
+          }));
+        }
       })
       .catch((err) => console.error("Backend products filter error:", err))
       .finally(() => {
@@ -351,9 +491,9 @@ export default function StaffPortalPage() {
     return () => {
       isCurrent = false;
     };
-  }, [debouncedProductSearch, productBrandFilter, adminUser]);
+  }, [debouncedProductSearch, productBrandFilter, productPagination.page, adminUser]);
 
-  // Backend API Filter: Customers (triggered on debounced search change)
+  // Backend API Filter: Customers
   useEffect(() => {
     if (!isInitialLoaded.current || !adminUser) return;
     let isCurrent = true;
@@ -361,9 +501,18 @@ export default function StaffPortalPage() {
 
     fetchAdminUsers({
       search: debouncedCustomerSearch,
+      page: customerPagination.page,
+      limit: PAGE_SIZE,
     })
       .then((res) => {
-        if (isCurrent) setCustomers(res || []);
+        if (isCurrent && res) {
+          setCustomers(res.users || []);
+          setCustomerPagination((prev) => ({
+            ...prev,
+            totalPages: res.totalPages || 1,
+            totalCount: res.total || 0,
+          }));
+        }
       })
       .catch((err) => console.error("Backend customers filter error:", err))
       .finally(() => {
@@ -373,9 +522,9 @@ export default function StaffPortalPage() {
     return () => {
       isCurrent = false;
     };
-  }, [debouncedCustomerSearch, adminUser]);
+  }, [debouncedCustomerSearch, customerPagination.page, adminUser]);
 
-  // Backend API Filter: Staff (triggered on debounced search change)
+  // Backend API Filter: Staff
   useEffect(() => {
     if (!isInitialLoaded.current || !adminUser) return;
     let isCurrent = true;
@@ -383,9 +532,18 @@ export default function StaffPortalPage() {
 
     fetchAdminStaffList({
       search: debouncedStaffSearch,
+      page: staffPagination.page,
+      limit: PAGE_SIZE,
     })
       .then((res) => {
-        if (isCurrent) setStaffMembers(res || []);
+        if (isCurrent && res) {
+          setStaffMembers(res.staff || []);
+          setStaffPagination((prev) => ({
+            ...prev,
+            totalPages: res.totalPages || 1,
+            totalCount: res.total || 0,
+          }));
+        }
       })
       .catch((err) => console.error("Backend staff filter error:", err))
       .finally(() => {
@@ -395,9 +553,9 @@ export default function StaffPortalPage() {
     return () => {
       isCurrent = false;
     };
-  }, [debouncedStaffSearch, adminUser]);
+  }, [debouncedStaffSearch, staffPagination.page, adminUser]);
 
-  // Backend API Filter: Carts (triggered on debounced search change)
+  // Backend API Filter: Carts
   useEffect(() => {
     if (!isInitialLoaded.current || !adminUser) return;
     let isCurrent = true;
@@ -405,9 +563,18 @@ export default function StaffPortalPage() {
 
     fetchAdminCarts({
       search: debouncedCartSearch,
+      page: cartPagination.page,
+      limit: PAGE_SIZE,
     })
       .then((res) => {
-        if (isCurrent) setCarts(res || []);
+        if (isCurrent && res) {
+          setCarts(res.carts || []);
+          setCartPagination((prev) => ({
+            ...prev,
+            totalPages: res.totalPages || 1,
+            totalCount: res.total || 0,
+          }));
+        }
       })
       .catch((err) => console.error("Backend carts filter error:", err))
       .finally(() => {
@@ -417,7 +584,7 @@ export default function StaffPortalPage() {
     return () => {
       isCurrent = false;
     };
-  }, [debouncedCartSearch, adminUser]);
+  }, [debouncedCartSearch, cartPagination.page, adminUser]);
 
   // Track Admin Inactivity (30 mins) and Absolute Session Lifetime (2 hours)
   useEffect(() => {
@@ -615,6 +782,9 @@ export default function StaffPortalPage() {
         {
           colorName: "Space Black",
           hexCode: "#1e293b",
+          images: [
+            "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+          ],
           imagesText: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
         },
       ],
@@ -638,21 +808,29 @@ export default function StaffPortalPage() {
     setProductModalTab("general");
 
     const colorVariants = Array.isArray(prod.colorVariants) && prod.colorVariants.length > 0
-      ? prod.colorVariants.map((c) => ({
-          colorName: c.colorName || "Standard",
-          hexCode: c.hexCode || "#1e293b",
-          imagesText: Array.isArray(c.images) ? c.images.join("\n") : c.images || "",
-        }))
+      ? prod.colorVariants.map((c, i) => {
+          const imgs = Array.isArray(c.images) ? c.images.filter(Boolean) : (c.images ? [c.images] : []);
+          return {
+            _id: c._id || c.id || `color_${c.colorName || i}_${Date.now()}`,
+            colorName: c.colorName || "Standard",
+            hexCode: c.hexCode || "#1e293b",
+            images: imgs,
+            imagesText: imgs.join("\n"),
+          };
+        })
       : [
           {
+            _id: `color_${prod.color || "standard"}`,
             colorName: prod.color || "Standard",
             hexCode: "#1e293b",
+            images: Array.isArray(prod.images) ? prod.images.filter(Boolean) : (prod.images ? [prod.images] : []),
             imagesText: Array.isArray(prod.images) ? prod.images.join("\n") : prod.images || "",
           },
         ];
 
     const variantPricing = Array.isArray(prod.variantPricing) && prod.variantPricing.length > 0
-      ? prod.variantPricing.map((v) => ({
+      ? prod.variantPricing.map((v, vi) => ({
+          _id: v._id || v.id || `var_${v.color || "c"}_${v.storage || "s"}_${v.condition || "q"}_${vi}`,
           color: v.color || prod.color || "Standard",
           storage: v.storage || prod.storage || "128GB",
           condition: v.condition || prod.condition || "Good",
@@ -662,6 +840,7 @@ export default function StaffPortalPage() {
         }))
       : [
           {
+            _id: `var_${prod.color || "c"}_${prod.storage || "s"}_${prod.condition || "q"}`,
             color: prod.color || "Standard",
             storage: prod.storage || "128GB",
             condition: prod.condition || "Good",
@@ -703,7 +882,13 @@ export default function StaffPortalPage() {
       ...prev,
       colorVariants: [
         ...prev.colorVariants,
-        { colorName: `Color ${(prev.colorVariants?.length || 0) + 1}`, hexCode: "#3b82f6", imagesText: "" },
+        {
+          _id: `color_new_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          colorName: `Color ${(prev.colorVariants?.length || 0) + 1}`,
+          hexCode: "#3b82f6",
+          images: [],
+          imagesText: "",
+        },
       ],
     }));
   };
@@ -723,6 +908,82 @@ export default function StaffPortalPage() {
     });
   };
 
+  // Device File Upload Handler (with fast client-side compression)
+  const handleDeviceFilesUpload = async (colorIdx, e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    try {
+      toast.info("Processing Photos", `Optimizing ${files.length} photo(s) from your device...`);
+      const compressedDataUrls = await Promise.all(
+        files.map((file) => compressImageFile(file))
+      );
+
+      setProductFormData((prev) => {
+        const updated = [...(prev.colorVariants || [])];
+        const existingImages = Array.isArray(updated[colorIdx]?.images)
+          ? [...updated[colorIdx].images]
+          : (updated[colorIdx]?.imagesText || "").split(/\r?\n/).map((u) => u.trim()).filter(Boolean);
+
+        const newImages = [...existingImages, ...compressedDataUrls];
+        updated[colorIdx] = {
+          ...updated[colorIdx],
+          images: newImages,
+          imagesText: newImages.join("\n"),
+        };
+        return { ...prev, colorVariants: updated };
+      });
+
+      toast.success("Photos Added", `Added ${compressedDataUrls.length} photo(s) to gallery.`);
+    } catch (err) {
+      console.error("Device image processing error:", err);
+      toast.error("Upload Error", "Could not process device photos. Please try another image.");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  // Add Image via Web URL
+  const handleAddImageUrl = (colorIdx, urlString) => {
+    const trimmed = (urlString || "").trim();
+    if (!trimmed) return;
+
+    setProductFormData((prev) => {
+      const updated = [...(prev.colorVariants || [])];
+      const existingImages = Array.isArray(updated[colorIdx]?.images)
+        ? [...updated[colorIdx].images]
+        : (updated[colorIdx]?.imagesText || "").split(/\r?\n/).map((u) => u.trim()).filter(Boolean);
+
+      const urlsToAdd = trimmed.split(/[\r\n,]+/).map((u) => u.trim()).filter(Boolean);
+      const newImages = [...existingImages, ...urlsToAdd];
+      updated[colorIdx] = {
+        ...updated[colorIdx],
+        images: newImages,
+        imagesText: newImages.join("\n"),
+      };
+      return { ...prev, colorVariants: updated };
+    });
+    toast.success("URL Added", "Photo URL added to gallery.");
+  };
+
+  // Remove individual photo from a Color Variant
+  const handleRemoveImage = (colorIdx, imageIdx) => {
+    setProductFormData((prev) => {
+      const updated = [...(prev.colorVariants || [])];
+      const existingImages = Array.isArray(updated[colorIdx]?.images)
+        ? [...updated[colorIdx].images]
+        : (updated[colorIdx]?.imagesText || "").split(/\r?\n/).map((u) => u.trim()).filter(Boolean);
+
+      const newImages = existingImages.filter((_, i) => i !== imageIdx);
+      updated[colorIdx] = {
+        ...updated[colorIdx],
+        images: newImages,
+        imagesText: newImages.join("\n"),
+      };
+      return { ...prev, colorVariants: updated };
+    });
+  };
+
   // Variant Matrix Helpers
   const handleAddVariantRow = () => {
     const firstColor = productFormData.colorVariants?.[0]?.colorName || "Standard";
@@ -731,6 +992,7 @@ export default function StaffPortalPage() {
       variantPricing: [
         ...prev.variantPricing,
         {
+          _id: `var_new_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           color: firstColor,
           storage: "128GB",
           condition: "Good",
@@ -757,54 +1019,23 @@ export default function StaffPortalPage() {
     });
   };
 
-  // Auto-Matrix Generator across Colors x Storages x Conditions
-  const handleGenerateMatrix = () => {
-    const colors = (productFormData.colorVariants || []).map((c) => c.colorName.trim()).filter(Boolean);
-    const storages = ["128GB", "256GB"];
-    const conditions = ["Good", "Excellent"];
 
-    if (colors.length === 0) {
-      toast.warning("Add Colors First", "Please add at least one color in the Colors & Photos tab.");
-      return;
-    }
-
-    const basePrice = Number(productFormData.price) || 499;
-    const baseRrp = Number(productFormData.originalPrice) || 799;
-
-    const generated = [];
-    colors.forEach((col) => {
-      storages.forEach((stg) => {
-        conditions.forEach((cond) => {
-          const stgOffset = stg === "256GB" ? 50 : 0;
-          const condOffset = cond === "Excellent" ? 40 : 0;
-          generated.push({
-            color: col,
-            storage: stg,
-            condition: cond,
-            price: (basePrice + stgOffset + condOffset).toFixed(2),
-            originalPrice: (baseRrp + stgOffset + condOffset).toFixed(2),
-            stock: 3,
-          });
-        });
-      });
-    });
-
-    setProductFormData((prev) => ({
-      ...prev,
-      variantPricing: generated,
-    }));
-    toast.success("Combinations Generated", `Generated ${generated.length} variant inventory rows.`);
-  };
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
 
     // 1. Sanitize Color Variants with dedicated image arrays
     const sanitizedColorVariants = (productFormData.colorVariants || []).map((cv) => {
-      const imgList = (cv.imagesText || "")
-        .split(/[\n,]+/)
-        .map((url) => url.trim())
-        .filter(Boolean);
+      let imgList = [];
+      if (Array.isArray(cv.images) && cv.images.length > 0) {
+        imgList = cv.images.filter(Boolean);
+      } else if (cv.imagesText) {
+        imgList = cv.imagesText
+          .split(/\r?\n/)
+          .map((url) => url.trim())
+          .filter(Boolean);
+      }
+
       return {
         colorName: cv.colorName.trim() || "Standard",
         hexCode: cv.hexCode || "#0f172a",
@@ -828,9 +1059,14 @@ export default function StaffPortalPage() {
       ? sanitizedVariants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
       : Number(productFormData.stock) || 10;
 
-    // 4. Auto-calculate starting price
+    // 4. Auto-calculate starting price and original RRP from variant matrix
     const variantPrices = sanitizedVariants.map((v) => Number(v.price)).filter((p) => p > 0);
     const computedBasePrice = variantPrices.length > 0 ? Math.min(...variantPrices) : Number(productFormData.price) || 0;
+
+    const variantOriginalPrices = sanitizedVariants.map((v) => Number(v.originalPrice)).filter((p) => p > 0);
+    const computedOriginalPrice = variantOriginalPrices.length > 0
+      ? Math.min(...variantOriginalPrices)
+      : Number(productFormData.originalPrice) || Math.round(computedBasePrice * 1.25);
 
     // 5. Aggregate all images for catalog card thumbnails
     const allImages = sanitizedColorVariants.flatMap((c) => c.images).filter(Boolean);
@@ -840,7 +1076,7 @@ export default function StaffPortalPage() {
       brand: productFormData.brand,
       category: productFormData.category || "Smartphones",
       price: computedBasePrice,
-      originalPrice: Number(productFormData.originalPrice || computedBasePrice * 1.2),
+      originalPrice: computedOriginalPrice,
       stock: computedTotalStock,
       condition: sanitizedVariants[0]?.condition || productFormData.condition || "Good",
       storage: sanitizedVariants[0]?.storage || productFormData.storage || "128GB",
@@ -898,26 +1134,26 @@ export default function StaffPortalPage() {
     }
   };
 
-  const handleQuickStockChange = async (prod, delta) => {
-    const newStock = Math.max(0, Number(prod.stock || 0) + delta);
-    const res = await updateAdminProduct(prod.slug, { stock: newStock });
-    if (res.success) {
-      setProducts((prev) =>
-        prev.map((p) => (p.slug === prod.slug ? { ...p, stock: newStock } : p))
-      );
-    }
+  const handleDeleteProduct = (prod) => {
+    setProductToDelete(prod);
   };
 
-  const handleDeleteProduct = async (prod) => {
-    if (!window.confirm(`Are you sure you want to delete "${prod.name}" from MongoDB Atlas?`)) {
-      return;
-    }
-    const res = await deleteAdminProduct(prod.slug);
-    if (res.success) {
-      toast.success("Product Deleted", `${prod.name} has been removed from inventory.`);
-      setProducts((prev) => prev.filter((p) => p.slug !== prod.slug));
-    } else {
-      toast.error("Delete Failed", res.error || "Failed to delete product.");
+  const confirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    setIsDeletingProduct(true);
+    try {
+      const res = await deleteAdminProduct(productToDelete.slug);
+      if (res.success) {
+        toast.success("Product Deleted", `${productToDelete.name} has been removed from inventory.`);
+        setProducts((prev) => prev.filter((p) => p.slug !== productToDelete.slug));
+        setProductToDelete(null);
+      } else {
+        toast.error("Delete Failed", res.error || "Failed to delete product.");
+      }
+    } catch (err) {
+      toast.error("Delete Failed", "An error occurred while deleting the product.");
+    } finally {
+      setIsDeletingProduct(false);
     }
   };
 
@@ -1497,8 +1733,12 @@ export default function StaffPortalPage() {
 
                               <td className="px-3">
                                 <div className="d-flex flex-column gap-1">
-                                  {order.items?.slice(0, 2).map((it, idx) => (
-                                    <div key={idx} className="small text-dark" style={{ fontSize: "0.8rem" }}>
+                                  {order.items?.slice(0, 2).map((it) => (
+                                    <div
+                                      key={it._id || it.id || it.itemKey || `${order._id || order.orderNumber}-${it.slug || it.name}-${it.selectedOptions?.storage || ""}-${it.selectedOptions?.color || ""}`}
+                                      className="small text-dark"
+                                      style={{ fontSize: "0.8rem" }}
+                                    >
                                       • <strong>{it.name}</strong> ({it.selectedOptions?.storage || "128GB"}) × {it.quantity || 1}
                                     </div>
                                   ))}
@@ -1619,6 +1859,15 @@ export default function StaffPortalPage() {
                     </table>
                   </div>
                 )}
+
+                <CommonPagination
+                  page={orderPagination.page}
+                  totalPages={orderPagination.totalPages}
+                  totalCount={orderPagination.totalCount}
+                  pageSize={PAGE_SIZE}
+                  itemName="orders"
+                  onPageChange={(p) => setOrderPagination((prev) => ({ ...prev, page: p }))}
+                />
               </div>
             )}
 
@@ -1632,17 +1881,18 @@ export default function StaffPortalPage() {
                     placeholder="Search model, brand, slug..."
                     isLoading={productsLoading}
                     id="product-search-input"
+                    maxWidth={360}
                   />
 
-                  <div className="d-flex align-items-center gap-2.5 justify-content-between justify-content-md-end flex-wrap">
+                  <div className="d-flex align-items-center gap-3 justify-content-between justify-content-md-end flex-wrap">
                     <div className="d-flex align-items-center gap-2">
-                      <label htmlFor="product-brand-filter" className="small text-muted fw-bold text-uppercase d-none d-sm-inline mb-0" style={{ fontSize: "0.72rem" }}>
+                      <label htmlFor="product-brand-filter" className="small text-muted fw-bold text-uppercase d-none d-sm-inline mb-0" style={{ fontSize: "0.74rem", letterSpacing: "0.5px" }}>
                         Brand:
                       </label>
                       <select
                         id="product-brand-filter"
-                        className="form-select form-select-sm bg-white shadow-xs"
-                        style={{ minWidth: "140px", maxWidth: "160px" }}
+                        className="form-select form-select-sm bg-white shadow-xs rounded-3 border-secondary-subtle"
+                        style={{ minWidth: "140px", maxWidth: "160px", height: "38px", fontSize: "0.85rem" }}
                         value={productBrandFilter}
                         onChange={(e) => setProductBrandFilter(e.target.value)}
                       >
@@ -1657,10 +1907,12 @@ export default function StaffPortalPage() {
 
                     <button
                       type="button"
-                      className="btn btn-primary btn-sm px-3 py-1.5 rounded-3 fw-bold d-flex align-items-center gap-1.5 shadow-sm"
+                      className="btn btn-primary btn-sm px-3 rounded-3 fw-bold d-flex align-items-center gap-2 shadow-sm"
+                      style={{ height: "38px", fontSize: "0.85rem" }}
                       onClick={handleOpenAddProductModal}
                     >
-                      <Plus size={16} /> Add New Handset Listing
+                      <Plus size={16} />
+                      <span>Add New Handset Listing</span>
                     </button>
                   </div>
                 </div>
@@ -1678,8 +1930,6 @@ export default function StaffPortalPage() {
                         <tr className="small text-uppercase text-muted" style={{ letterSpacing: "0.05em", fontSize: "0.72rem" }}>
                           <th className="py-3 px-3">Product Item</th>
                           <th className="py-3 px-3">Brand</th>
-                          <th className="py-3 px-3">Price</th>
-                          <th className="py-3 px-3">Condition</th>
                           <th className="py-3 px-3">Stock Units</th>
                           <th className="py-3 px-3">Featured &amp; Deals</th>
                           <th className="py-3 px-3 text-end">Actions</th>
@@ -1724,37 +1974,18 @@ export default function StaffPortalPage() {
                               </td>
 
                               <td className="px-3">
-                                <span className="fw-bold text-primary" style={{ fontSize: "0.92rem" }}>
-                                  £{Number(prod.price).toFixed(2)}
+                                <span
+                                  className={`badge font-monospace fw-bold px-2.5 py-1 ${
+                                    Number(prod.stock || 0) === 0
+                                      ? "bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25"
+                                      : isLowStock
+                                      ? "bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25"
+                                      : "bg-light text-dark border"
+                                  }`}
+                                  style={{ fontSize: "0.8rem" }}
+                                >
+                                  {prod.stock || 0} units
                                 </span>
-                              </td>
-
-                              <td className="px-3">
-                                <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-0.5" style={{ fontSize: "0.72rem" }}>
-                                  {prod.condition || "Good"}
-                                </span>
-                              </td>
-
-                              <td className="px-3">
-                                <div className="d-flex align-items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-light border p-0 px-1.5"
-                                    onClick={() => handleQuickStockChange(prod, -1)}
-                                  >
-                                    -
-                                  </button>
-                                  <span className={`fw-bold font-monospace px-1 ${isLowStock ? "text-danger" : "text-dark"}`}>
-                                    {prod.stock || 0}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-light border p-0 px-1.5"
-                                    onClick={() => handleQuickStockChange(prod, 1)}
-                                  >
-                                    +
-                                  </button>
-                                </div>
                               </td>
 
                               <td className="px-3">
@@ -1823,6 +2054,15 @@ export default function StaffPortalPage() {
                     </table>
                   </div>
                 )}
+
+                <CommonPagination
+                  page={productPagination.page}
+                  totalPages={productPagination.totalPages}
+                  totalCount={productPagination.totalCount}
+                  pageSize={PAGE_SIZE}
+                  itemName="products"
+                  onPageChange={(p) => setProductPagination((prev) => ({ ...prev, page: p }))}
+                />
               </div>
             )}
 
@@ -1838,7 +2078,7 @@ export default function StaffPortalPage() {
                     id="customer-search-input"
                   />
                   <span className="text-muted small text-md-end">
-                    Showing <strong className="text-dark">{customers.length}</strong> registered buyer{customers.length === 1 ? "" : "s"}
+                    Total <strong className="text-dark">{customerPagination.totalCount}</strong> registered buyer{customerPagination.totalCount === 1 ? "" : "s"}
                   </span>
                 </div>
 
@@ -1884,8 +2124,26 @@ export default function StaffPortalPage() {
                             <td className="px-3 text-end">
                               <button
                                 type="button"
-                                className="btn btn-sm btn-outline-primary rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1.5"
-                                onClick={() => setViewingCustomer(u)}
+                                className="btn btn-sm btn-outline-primary rounded-2 py-1 px-2.5 fw-semibold d-inline-flex align-items-center gap-1.5 shadow-xs"
+                                onClick={() => {
+                                  // Cross-reference customer with store orders for real-time consistency
+                                  const customerOrders = orders.filter(
+                                    (o) =>
+                                      (o.user && String(o.user) === String(u._id || u.id)) ||
+                                      (o.guestEmail && o.guestEmail.toLowerCase() === (u.email || "").toLowerCase()) ||
+                                      (o.shippingAddress?.email && o.shippingAddress.email.toLowerCase() === (u.email || "").toLowerCase())
+                                  );
+
+                                  const enrichedCustomer = {
+                                    ...u,
+                                    orders: customerOrders.length > 0 ? customerOrders : (u.orders || []),
+                                    totalOrders: customerOrders.length > 0 ? customerOrders.length : (u.totalOrders || 0),
+                                    totalSpent: customerOrders.length > 0
+                                      ? customerOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0)
+                                      : (u.totalSpent || 0),
+                                  };
+                                  setViewingCustomer(enrichedCustomer);
+                                }}
                                 title="View Customer Profile & History"
                                 style={{ fontSize: "0.76rem" }}
                               >
@@ -1899,6 +2157,15 @@ export default function StaffPortalPage() {
                     </table>
                   </div>
                 )}
+
+                <CommonPagination
+                  page={customerPagination.page}
+                  totalPages={customerPagination.totalPages}
+                  totalCount={customerPagination.totalCount}
+                  pageSize={PAGE_SIZE}
+                  itemName="customers"
+                  onPageChange={(p) => setCustomerPagination((prev) => ({ ...prev, page: p }))}
+                />
               </div>
             )}
 
@@ -1916,7 +2183,7 @@ export default function StaffPortalPage() {
 
                   <div className="d-flex align-items-center gap-2">
                     <span className="badge bg-warning bg-opacity-10 text-dark border border-warning px-3 py-2 rounded-3 fw-bold small">
-                      🛒 {carts.length} Active Carts (£{Number(carts.reduce((sum, c) => sum + (c.cartTotal || 0), 0)).toFixed(2)} in Cart Value)
+                      🛒 {cartPagination.totalCount} Active Carts (£{Number(kpiMetrics.cartPipelineValue || 0).toFixed(2)} in Cart Value)
                     </span>
                   </div>
                 </div>
@@ -1974,9 +2241,9 @@ export default function StaffPortalPage() {
 
                             <td className="px-3">
                               <div className="d-flex align-items-center gap-1.5 flex-wrap" style={{ maxWidth: "260px" }}>
-                                {(cart.items || []).slice(0, 3).map((it, idx) => (
+                                {(cart.items || []).slice(0, 3).map((it) => (
                                   <div
-                                    key={idx}
+                                    key={it._id || it.id || it.itemKey || `${cart._id || cart.id}-${it.slug || it.name}-${it.selectedStorage || it.selectedOptions?.storage || ""}-${it.selectedColor || it.selectedOptions?.color || ""}`}
                                     className="position-relative bg-light rounded-2 border flex-shrink-0"
                                     style={{ width: "36px", height: "36px" }}
                                     title={`${it.name} (x${it.quantity})`}
@@ -2035,6 +2302,15 @@ export default function StaffPortalPage() {
                     </table>
                   </div>
                 )}
+
+                <CommonPagination
+                  page={cartPagination.page}
+                  totalPages={cartPagination.totalPages}
+                  totalCount={cartPagination.totalCount}
+                  pageSize={PAGE_SIZE}
+                  itemName="active carts"
+                  onPageChange={(p) => setCartPagination((prev) => ({ ...prev, page: p }))}
+                />
               </div>
             )}
 
@@ -2135,6 +2411,15 @@ export default function StaffPortalPage() {
                     </table>
                   </div>
                 )}
+
+                <CommonPagination
+                  page={staffPagination.page}
+                  totalPages={staffPagination.totalPages}
+                  totalCount={staffPagination.totalCount}
+                  pageSize={PAGE_SIZE}
+                  itemName="staff accounts"
+                  onPageChange={(p) => setStaffPagination((prev) => ({ ...prev, page: p }))}
+                />
               </div>
             )}
           </div>
@@ -2165,6 +2450,57 @@ export default function StaffPortalPage() {
         order={viewingOrderTimeline}
         isOpen={Boolean(viewingOrderTimeline)}
         onClose={() => setViewingOrderTimeline(null)}
+      />
+
+      {/* VIEW CUSTOMER PROFILE & ORDER HISTORY MODAL */}
+      <CustomerDetailsModal
+        customer={viewingCustomer}
+        isOpen={Boolean(viewingCustomer)}
+        onClose={() => setViewingCustomer(null)}
+        onViewOrder={(orderIdentifier) => {
+          const found = orders.find(
+            (o) =>
+              o.orderNumber === orderIdentifier ||
+              String(o._id) === String(orderIdentifier) ||
+              String(o.id) === String(orderIdentifier)
+          );
+          if (found) {
+            setViewingCustomer(null);
+            setViewingOrder(found);
+          } else {
+            toast.info("Order Selected", `Order #${orderIdentifier}`);
+          }
+        }}
+      />
+
+      {/* VIEW SHOPPING CART DETAILS MODAL */}
+      <CartDetailsModal
+        cart={viewingCart}
+        isOpen={Boolean(viewingCart)}
+        onClose={() => setViewingCart(null)}
+        onViewCustomer={(user) => {
+          const foundCust = customers.find(
+            (c) =>
+              (user.id && String(c._id || c.id) === String(user.id)) ||
+              (user.email && (c.email || "").toLowerCase() === user.email.toLowerCase())
+          );
+          if (foundCust) {
+            setViewingCart(null);
+            setViewingCustomer(foundCust);
+          } else {
+            setViewingCart(null);
+            setViewingCustomer({
+              name: user.name,
+              email: user.email,
+              phone: user.phone,
+              role: user.role || "customer",
+              addresses: user.addresses || [],
+              orders: [],
+              totalOrders: 0,
+              totalSpent: 0,
+            });
+          }
+        }}
       />
 
       {/* MODAL 1: ORDER FULFILLMENT EDIT MODAL */}
@@ -2261,9 +2597,12 @@ export default function StaffPortalPage() {
             style={{ maxWidth: "940px", maxHeight: "92vh", display: "flex", flexDirection: "column" }}
           >
             {/* Modal Header */}
-            <div className="p-3.5 px-4 border-bottom bg-light d-flex align-items-center justify-content-between flex-shrink-0">
+            <div
+              className="border-bottom bg-light d-flex align-items-center justify-content-between flex-shrink-0"
+              style={{ padding: "18px 24px" }}
+            >
               <div>
-                <h5 className="fw-bold text-primary mb-0 d-flex align-items-center gap-2">
+                <h5 className="fw-bold text-primary mb-1 d-flex align-items-center gap-2">
                   <Smartphone size={20} />
                   <span>{editingProductSlug ? "Edit Handset Listing & Variants" : "Add New Handset Listing"}</span>
                 </h5>
@@ -2340,11 +2679,15 @@ export default function StaffPortalPage() {
             </div>
 
             {/* Form Body */}
-            <form onSubmit={handleSaveProduct} className="p-4 overflow-y-auto flex-grow-1">
+            <form
+              onSubmit={handleSaveProduct}
+              className="p-4 overflow-y-auto flex-grow-1 no-scrollbar hide-scrollbar"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
               {/* TAB 1: GENERAL INFO */}
               {productModalTab === "general" && (
                 <div className="row g-3">
-                  <div className="col-12 col-md-8">
+                  <div className="col-12 col-md-5">
                     <label className="form-label small fw-semibold text-dark">Phone Model / Product Name <span className="text-danger">*</span></label>
                     <input
                       type="text"
@@ -2356,7 +2699,7 @@ export default function StaffPortalPage() {
                     />
                   </div>
 
-                  <div className="col-12 col-md-4">
+                  <div className="col-12 col-md-3">
                     <label className="form-label small fw-semibold text-dark">Brand <span className="text-danger">*</span></label>
                     <select
                       className="form-select"
@@ -2380,36 +2723,6 @@ export default function StaffPortalPage() {
                       value={productFormData.category || "Smartphones"}
                       onChange={(e) => setProductFormData({ ...productFormData, category: e.target.value })}
                     />
-                  </div>
-
-                  <div className="col-12 col-md-4">
-                    <label className="form-label small fw-semibold text-dark">Base Price (£)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="form-control fw-bold"
-                      placeholder="499.00"
-                      value={productFormData.price}
-                      onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
-                    />
-                    <small className="text-muted" style={{ fontSize: "0.72rem" }}>
-                      Auto-overridden by lowest price in Inventory Matrix.
-                    </small>
-                  </div>
-
-                  <div className="col-12 col-md-4">
-                    <label className="form-label small fw-semibold text-dark">Original RRP (£)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="form-control"
-                      placeholder="799.00"
-                      value={productFormData.originalPrice}
-                      onChange={(e) => setProductFormData({ ...productFormData, originalPrice: e.target.value })}
-                    />
-                    <small className="text-muted" style={{ fontSize: "0.72rem" }}>
-                      Used to show strike-through savings.
-                    </small>
                   </div>
 
                   <div className="col-12 col-md-6">
@@ -2471,32 +2784,35 @@ export default function StaffPortalPage() {
               {/* TAB 2: COLOR VARIANTS & COLOR-SPECIFIC PHOTOS */}
               {productModalTab === "colors" && (
                 <div>
-                  <div className="d-flex align-items-center justify-content-between mb-3">
+                  <div className="d-flex align-items-center justify-content-between gap-3 mb-3 pb-2 border-bottom">
                     <div>
-                      <h6 className="fw-bold text-dark mb-0">Color Galleries</h6>
-                      <small className="text-muted">
+                      <h6 className="fw-bold text-dark mb-1">Color Galleries</h6>
+                      <small className="text-muted d-block">
                         Upload dedicated photos for each color. On the product page, clicking a color immediately displays its matching photos.
                       </small>
                     </div>
                     <button
                       type="button"
-                      className="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold d-flex align-items-center gap-1 shadow-xs"
+                      className="btn btn-outline-primary btn-sm rounded-pill px-3 py-1.5 fw-bold d-inline-flex align-items-center gap-1.5 shadow-xs text-nowrap flex-shrink-0"
                       onClick={handleAddColorVariant}
                     >
-                      <Plus size={14} /> Add Color Variant
+                      <Plus size={14} />
+                      <span>Add Color Variant</span>
                     </button>
                   </div>
 
                   <div className="d-flex flex-column gap-3">
                     {(productFormData.colorVariants || []).map((colorVar, idx) => {
-                      const imagePreviewList = (colorVar.imagesText || "")
-                        .split(/[\n,]+/)
-                        .map((u) => u.trim())
-                        .filter(Boolean);
+                      const imageList = Array.isArray(colorVar.images) && colorVar.images.length > 0
+                        ? colorVar.images
+                        : (colorVar.imagesText || "")
+                            .split(/\r?\n/)
+                            .map((u) => u.trim())
+                            .filter(Boolean);
 
                       return (
-                        <div key={idx} className="card border rounded-3 p-3 shadow-xs bg-light bg-opacity-25">
-                          <div className="row g-2 align-items-center mb-2">
+                        <div key={colorVar._id || colorVar.id || `color_item_${colorVar.colorName || idx}`} className="card border rounded-3 p-3 shadow-xs bg-light bg-opacity-25">
+                          <div className="row g-2 align-items-center mb-3">
                             <div className="col-auto">
                               <label className="small text-muted fw-bold text-uppercase d-block" style={{ fontSize: "0.68rem" }}>
                                 Swatch
@@ -2552,37 +2868,117 @@ export default function StaffPortalPage() {
                             </div>
                           </div>
 
-                          <div>
-                            <label className="small text-muted fw-bold text-uppercase d-block mb-1" style={{ fontSize: "0.68rem" }}>
-                              Photos for "{colorVar.colorName || `Color ${idx + 1}`}" (Paste image URLs, separated by comma or new line)
-                            </label>
-                            <textarea
-                              rows={2}
-                              className="form-control form-control-sm font-monospace"
-                              placeholder="https://images.unsplash.com/photo-1, https://images.unsplash.com/photo-2"
-                              value={colorVar.imagesText}
-                              onChange={(e) => handleColorVariantChange(idx, "imagesText", e.target.value)}
-                            />
+                          {/* Photos Section: Both Device Upload & Web URL */}
+                          <div className="bg-white p-3 rounded-3 border">
+                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                              <div className="d-flex align-items-center gap-2">
+                                <label className="small text-muted fw-bold text-uppercase mb-0" style={{ fontSize: "0.68rem" }}>
+                                  Photos for "{colorVar.colorName || `Color ${idx + 1}`}"
+                                </label>
+                                <span className="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2 py-0.5" style={{ fontSize: "0.68rem" }}>
+                                  {imageList.length} {imageList.length === 1 ? "photo" : "photos"}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Dual Option Controls: Device Upload + Web URL */}
+                            <div className="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2 mb-2.5">
+                              {/* Option 1: Upload from Device */}
+                              <label
+                                className="btn btn-sm btn-outline-primary rounded-3 fw-semibold d-inline-flex align-items-center justify-content-center gap-1.5 cursor-pointer mb-0 flex-shrink-0"
+                                style={{ height: "34px", fontSize: "0.82rem" }}
+                              >
+                                <Upload size={14} />
+                                <span>Upload from Device</span>
+                                <input
+                                  type="file"
+                                  multiple
+                                  accept="image/*"
+                                  className="d-none"
+                                  onChange={(e) => handleDeviceFilesUpload(idx, e)}
+                                />
+                              </label>
+
+                              {/* Option 2: Add by Web URL */}
+                              <div className="input-group input-group-sm flex-grow-1" style={{ height: "34px" }}>
+                                <span className="input-group-text bg-light text-muted border-end-0">
+                                  <Link2 size={13} />
+                                </span>
+                                <input
+                                  type="url"
+                                  className="form-control form-control-sm border-start-0 font-monospace"
+                                  placeholder="Paste image URL (https://...)"
+                                  style={{ fontSize: "0.8rem" }}
+                                  id={`color-url-input-${idx}`}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      const val = e.target.value.trim();
+                                      if (val) {
+                                        handleAddImageUrl(idx, val);
+                                        e.target.value = "";
+                                      }
+                                    }
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-light border btn-sm fw-semibold"
+                                  onClick={() => {
+                                    const input = document.getElementById(`color-url-input-${idx}`);
+                                    if (input && input.value.trim()) {
+                                      handleAddImageUrl(idx, input.value.trim());
+                                      input.value = "";
+                                    }
+                                  }}
+                                >
+                                  Add URL
+                                </button>
+                              </div>
+                            </div>
 
                             {/* Live Thumbnail Strip */}
-                            {imagePreviewList.length > 0 && (
-                              <div className="d-flex align-items-center gap-2 mt-2 overflow-x-auto py-1">
-                                {imagePreviewList.map((imgUrl, imgIdx) => (
+                            {imageList.length > 0 ? (
+                              <div className="d-flex align-items-center gap-2 overflow-x-auto py-1 px-0.5">
+                                {imageList.map((imgUrl, imgIdx) => (
                                   <div
-                                    key={imgIdx}
-                                    className="position-relative border rounded-2 overflow-hidden flex-shrink-0 bg-white shadow-xs"
-                                    style={{ width: "52px", height: "52px" }}
+                                    key={imgUrl || `img_thumb_${colorVar._id || colorVar.colorName}_${imgIdx}`}
+                                    className="position-relative border rounded-3 overflow-hidden flex-shrink-0 bg-white shadow-xs"
+                                    style={{ width: "62px", height: "62px" }}
                                   >
                                     <Image
                                       src={imgUrl}
-                                      alt={`${colorVar.colorName} preview ${imgIdx + 1}`}
+                                      alt={`${colorVar.colorName} photo ${imgIdx + 1}`}
                                       fill
-                                      sizes="52px"
+                                      sizes="62px"
                                       style={{ objectFit: "cover" }}
                                       unoptimized
                                     />
+                                    {imgIdx === 0 && (
+                                      <span
+                                        className="position-absolute top-0 start-0 bg-primary text-white px-1 py-0.2 fw-bold"
+                                        style={{ fontSize: "0.55rem", borderBottomRightRadius: "4px", lineHeight: "1.2" }}
+                                      >
+                                        Cover
+                                      </span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="btn btn-danger btn-sm p-0 position-absolute top-0 end-0 m-0.5 rounded-circle d-flex align-items-center justify-content-center shadow-xs"
+                                      style={{ width: "18px", height: "18px", zIndex: 2 }}
+                                      onClick={() => handleRemoveImage(idx, imgIdx)}
+                                      title="Remove photo"
+                                    >
+                                      <X size={11} className="text-white" />
+                                    </button>
                                   </div>
                                 ))}
+                              </div>
+                            ) : (
+                              <div className="p-2.5 rounded-2 border border-dashed text-center bg-light bg-opacity-50">
+                                <small className="text-muted" style={{ fontSize: "0.76rem" }}>
+                                  No photos yet. Click <strong>Upload from Device</strong> or paste a <strong>Web URL</strong> above.
+                                </small>
                               </div>
                             )}
                           </div>
@@ -2596,31 +2992,22 @@ export default function StaffPortalPage() {
               {/* TAB 3: INVENTORY VARIANT MATRIX */}
               {productModalTab === "inventory" && (
                 <div>
-                  <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                  <div className="d-flex align-items-center justify-content-between gap-3 mb-3 pb-2 border-bottom">
                     <div>
-                      <h6 className="fw-bold text-dark mb-0">Variant Inventory Matrix</h6>
-                      <small className="text-muted">
+                      <h6 className="fw-bold text-dark mb-1">Variant Inventory Matrix</h6>
+                      <small className="text-muted d-block">
                         Configure stock quantities and pricing for each Color × Storage × Grade combination.
                       </small>
                     </div>
 
-                    <div className="d-flex align-items-center gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold shadow-xs"
-                        onClick={handleGenerateMatrix}
-                        title="Auto-generate rows based on configured colors"
-                      >
-                        ⚡ Generate Combinations
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm rounded-pill px-3 fw-bold d-flex align-items-center gap-1 shadow-xs"
-                        onClick={handleAddVariantRow}
-                      >
-                        <Plus size={14} /> Add Variant Row
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm rounded-pill px-3 py-1.5 fw-bold d-inline-flex align-items-center gap-1.5 shadow-xs text-nowrap flex-shrink-0"
+                      onClick={handleAddVariantRow}
+                    >
+                      <Plus size={14} />
+                      <span>Add Variant Row</span>
+                    </button>
                   </div>
 
                   <div className="table-responsive border rounded-3 overflow-hidden mb-3">
@@ -2640,7 +3027,7 @@ export default function StaffPortalPage() {
                         {(productFormData.variantPricing || []).length === 0 ? (
                           <tr>
                             <td colSpan={7} className="text-center py-4 text-muted">
-                              No variants configured. Click <strong>"Generate Combinations"</strong> or <strong>"Add Variant Row"</strong> to set inventory.
+                              No variants configured. Click <strong>"+ Add Variant Row"</strong> to set inventory.
                             </td>
                           </tr>
                         ) : (
@@ -2648,7 +3035,7 @@ export default function StaffPortalPage() {
                             const availableColorOptions = (productFormData.colorVariants || []).map((c) => c.colorName);
 
                             return (
-                              <tr key={rIdx}>
+                              <tr key={row._id || row.id || `${row.color}-${row.storage}-${row.condition}`}>
                                 <td className="px-3">
                                   <select
                                     className="form-select form-select-sm fw-semibold"
@@ -2939,6 +3326,62 @@ export default function StaffPortalPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DELETE PRODUCT CONFIRMATION POPUP */}
+      {productToDelete && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex align-items-center justify-content-center p-3"
+          style={{ zIndex: 1090, backdropFilter: "blur(4px)" }}
+          onClick={() => !isDeletingProduct && setProductToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-4 shadow-lg overflow-hidden w-100"
+            style={{ maxWidth: "440px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 text-center">
+              <div
+                className="d-inline-flex align-items-center justify-content-center bg-danger bg-opacity-10 text-danger rounded-circle mb-3"
+                style={{ width: "56px", height: "56px" }}
+              >
+                <Trash2 size={26} />
+              </div>
+              <h5 className="fw-bold text-dark mb-2">Delete Product</h5>
+              <p className="text-secondary small mb-3">
+                Are you sure you want to delete <strong className="text-dark">{productToDelete.name}</strong>? This will permanently remove the handset and all variant inventory records.
+              </p>
+              <div className="d-flex align-items-center justify-content-center gap-2 pt-2">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary px-4 py-2 rounded-3 fw-semibold small"
+                  onClick={() => setProductToDelete(null)}
+                  disabled={isDeletingProduct}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger px-4 py-2 rounded-3 fw-bold small shadow-sm d-flex align-items-center gap-1.5"
+                  onClick={confirmDeleteProduct}
+                  disabled={isDeletingProduct}
+                >
+                  {isDeletingProduct ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={15} />
+                      <span>Delete Product</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

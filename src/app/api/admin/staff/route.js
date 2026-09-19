@@ -35,15 +35,29 @@ export async function GET(request) {
       });
     }
 
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? Math.max(1, parseInt(limitParam, 10)) : 0;
+
     const query = { $and: conditions };
 
-    const staffList = await User.find(query)
+    const totalStaff = await User.countDocuments(query);
+    const totalPages = limit > 0 ? Math.ceil(totalStaff / limit) || 1 : 1;
+
+    let staffQuery = User.find(query)
       .select('-password -otp')
       .sort({ createdAt: -1 });
+    if (limit > 0) {
+      staffQuery = staffQuery.skip((page - 1) * limit).limit(limit);
+    }
+    const staffList = await staffQuery;
 
     return NextResponse.json({
       success: true,
       count: staffList.length,
+      totalStaff,
+      page,
+      totalPages,
       staff: staffList,
     });
   } catch (error) {

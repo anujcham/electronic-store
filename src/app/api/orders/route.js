@@ -153,13 +153,27 @@ export async function GET(request) {
       });
     }
 
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? Math.max(1, parseInt(limitParam, 10)) : 0;
+
     const query = conditions.length > 0 ? { $and: conditions } : {};
 
-    const orders = await Order.find(query).sort({ createdAt: -1 });
+    const totalOrders = await Order.countDocuments(query);
+    const totalPages = limit > 0 ? Math.ceil(totalOrders / limit) || 1 : 1;
+
+    let ordersQuery = Order.find(query).sort({ createdAt: -1 });
+    if (limit > 0) {
+      ordersQuery = ordersQuery.skip((page - 1) * limit).limit(limit);
+    }
+    const orders = await ordersQuery;
 
     return NextResponse.json({
       success: true,
       count: orders.length,
+      totalOrders,
+      page,
+      totalPages,
       orders,
     });
   } catch (error) {

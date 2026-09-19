@@ -23,10 +23,26 @@ export async function GET(request) {
       });
     }
 
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? Math.max(1, parseInt(limitParam, 10)) : 0;
+
     const query = { $and: conditions };
 
-    const users = await User.find(query).select('-password').sort({ createdAt: -1 });
-    const orders = await Order.find({});
+    const totalUsers = await User.countDocuments(query);
+    const totalPages = limit > 0 ? Math.ceil(totalUsers / limit) || 1 : 1;
+
+    let userQuery = User.find(query).select('-password').sort({ createdAt: -1 });
+    if (limit > 0) {
+      userQuery = userQuery.skip((page - 1) * limit).limit(limit);
+    }
+    const users = await userQuery;
+
+    const userIds = users.map((u) => u._id);
+    const userEmails = users.map((u) => u.email).filter(Boolean);
+    const orders = await Order.find({
+      $or: [{ user: { $in: userIds } }, { guestEmail: { $in: userEmails } }],
+    });
 
     const formattedUsers = users.map((user) => {
       const userOrders = orders.filter(
@@ -57,6 +73,9 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       count: formattedUsers.length,
+      totalUsers,
+      page,
+      totalPages,
       users: formattedUsers,
     });
   } catch (error) {

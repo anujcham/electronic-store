@@ -132,7 +132,7 @@ export function OrderActivityModal({ order, isOpen, onClose }) {
         </div>
 
         {/* Timeline Content */}
-        <div className="p-4 overflow-y-auto flex-grow-1">
+        <div className="p-4 overflow-y-auto flex-grow-1 no-scrollbar hide-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
           <div className="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
             <span className="small text-muted">
               Total Logged Events: <strong>{sortedLogs.length}</strong>
@@ -181,7 +181,7 @@ export function OrderActivityModal({ order, isOpen, onClose }) {
                 const isCustomer = (log.performedByRole || "").toLowerCase() === "customer";
 
                 return (
-                  <div key={idx} className="d-flex align-items-start gap-3 position-relative">
+                  <div key={log._id || log.id || `${log.timestamp}-${log.activityType || log.status}-${log.performedByEmail || "log"}-${idx}`} className="d-flex align-items-start gap-3 position-relative">
                     {/* Circle Node on Timeline */}
                     <div
                       className={`rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm ${bg}`}

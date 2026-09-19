@@ -212,6 +212,7 @@ export function CartDrawer() {
                           fill
                           className="object-fit-contain p-1"
                           sizes="72px"
+                          unoptimized
                         />
                       ) : (
                         <span style={{ fontSize: "1.8rem" }}>📱</span>

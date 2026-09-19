@@ -5,16 +5,28 @@ export async function fetchAdminOrders(params = {}) {
     const query = new URLSearchParams();
     if (params.search && params.search.trim()) query.set("search", params.search.trim());
     if (params.status && params.status !== "all") query.set("status", params.status);
+    if (params.page !== undefined) {
+      query.set("page", params.page || "1");
+      query.set("limit", params.limit || "15");
+    }
     const queryString = query.toString();
     const endpoint = queryString ? `/orders?${queryString}` : "/orders";
     const res = await apiGet(endpoint);
     if (res?.success && Array.isArray(res.orders)) {
+      if (params.page !== undefined) {
+        return {
+          orders: res.orders,
+          total: res.totalOrders || res.count || res.orders.length,
+          page: res.page || Number(params.page) || 1,
+          totalPages: res.totalPages || 1,
+        };
+      }
       return res.orders;
     }
   } catch (err) {
     console.error("Error fetching admin orders:", err);
   }
-  return [];
+  return params.page !== undefined ? { orders: [], total: 0, page: 1, totalPages: 1 } : [];
 }
 
 export async function updateOrderFulfillment({
@@ -55,18 +67,31 @@ export async function updateOrderFulfillment({
 export async function fetchAdminProducts(params = {}) {
   try {
     const query = new URLSearchParams();
-    query.set("limit", params.limit || "200");
+    if (params.page !== undefined) {
+      query.set("page", params.page || "1");
+      query.set("limit", params.limit || "15");
+    } else {
+      query.set("limit", params.limit || "200");
+    }
     if (params.search && params.search.trim()) query.set("search", params.search.trim());
     if (params.brand && params.brand !== "all") query.set("brand", params.brand);
     const queryString = query.toString();
     const res = await apiGet(`/products?${queryString}`);
     if (res?.success && Array.isArray(res.products)) {
+      if (params.page !== undefined) {
+        return {
+          products: res.products,
+          total: res.total || res.count || res.products.length,
+          page: res.page || Number(params.page) || 1,
+          totalPages: res.totalPages || 1,
+        };
+      }
       return res.products;
     }
   } catch (err) {
     console.error("Error fetching admin products:", err);
   }
-  return [];
+  return params.page !== undefined ? { products: [], total: 0, page: 1, totalPages: 1 } : [];
 }
 
 export async function createAdminProduct(productData) {
@@ -109,16 +134,28 @@ export async function fetchAdminUsers(params = {}) {
   try {
     const query = new URLSearchParams();
     if (params.search && params.search.trim()) query.set("search", params.search.trim());
+    if (params.page !== undefined) {
+      query.set("page", params.page || "1");
+      query.set("limit", params.limit || "15");
+    }
     const queryString = query.toString();
     const endpoint = queryString ? `/admin/users?${queryString}` : "/admin/users";
     const res = await apiGet(endpoint);
     if (res?.success && Array.isArray(res.users)) {
+      if (params.page !== undefined) {
+        return {
+          users: res.users,
+          total: res.totalUsers || res.count || res.users.length,
+          page: res.page || Number(params.page) || 1,
+          totalPages: res.totalPages || 1,
+        };
+      }
       return res.users;
     }
   } catch (err) {
     console.error("Error fetching admin users:", err);
   }
-  return [];
+  return params.page !== undefined ? { users: [], total: 0, page: 1, totalPages: 1 } : [];
 }
 
 export async function adminStaffLogin({ email, password }) {
@@ -165,16 +202,28 @@ export async function fetchAdminStaffList(params = {}) {
   try {
     const query = new URLSearchParams();
     if (params.search && params.search.trim()) query.set("search", params.search.trim());
+    if (params.page !== undefined) {
+      query.set("page", params.page || "1");
+      query.set("limit", params.limit || "15");
+    }
     const queryString = query.toString();
     const endpoint = queryString ? `/admin/staff?${queryString}` : "/admin/staff";
     const res = await apiGet(endpoint);
     if (res?.success && Array.isArray(res.staff)) {
+      if (params.page !== undefined) {
+        return {
+          staff: res.staff,
+          total: res.totalStaff || res.count || res.staff.length,
+          page: res.page || Number(params.page) || 1,
+          totalPages: res.totalPages || 1,
+        };
+      }
       return res.staff;
     }
   } catch (err) {
     console.error("Error fetching admin staff list:", err);
   }
-  return [];
+  return params.page !== undefined ? { staff: [], total: 0, page: 1, totalPages: 1 } : [];
 }
 
 export async function createAdminStaffAccount({ name, email, password, phone, requesterEmail }) {
@@ -193,15 +242,40 @@ export async function fetchAdminCarts(params = {}) {
   try {
     const query = new URLSearchParams();
     if (params.search && params.search.trim()) query.set("search", params.search.trim());
+    if (params.page !== undefined) {
+      query.set("page", params.page || "1");
+      query.set("limit", params.limit || "15");
+    }
     const queryString = query.toString();
     const endpoint = queryString ? `/admin/carts?${queryString}` : "/admin/carts";
     const res = await apiGet(endpoint);
     if (res?.success && Array.isArray(res.carts)) {
+      if (params.page !== undefined) {
+        return {
+          carts: res.carts,
+          total: res.totalCarts || res.count || res.carts.length,
+          page: res.page || Number(params.page) || 1,
+          totalPages: res.totalPages || 1,
+        };
+      }
       return res.carts;
     }
   } catch (err) {
     console.error("Error fetching admin carts:", err);
   }
-  return [];
+  return params.page !== undefined ? { carts: [], total: 0, page: 1, totalPages: 1 } : [];
 }
+
+export async function fetchAdminKpiStats() {
+  try {
+    const res = await apiGet("/admin/stats");
+    if (res?.success && res.stats) {
+      return res.stats;
+    }
+  } catch (err) {
+    console.error("Error fetching admin KPI stats:", err);
+  }
+  return null;
+}
+
 

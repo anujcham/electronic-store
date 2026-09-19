@@ -37,3 +37,4 @@ export async function getHotDealsDirect() {
     .filter((p) => p.isHotDeal || (p.price && p.originalPrice && p.price < p.originalPrice))
     .map((p) => ({ ...p, id: p._id || p.id }));
 }
+
