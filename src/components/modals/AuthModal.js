@@ -11,11 +11,14 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
   // Modal Step: "identifier" | "otp" | "profile"
   const [step, setStep] = useState("identifier");
 
-  // Tab for identifier: "phone" | "email"
-  const [authMethod, setAuthMethod] = useState("phone");
+  // Tab for identifier: "email" | "phone"
+  const [authMethod, setAuthMethod] = useState("email");
   const [countryCode] = useState("+44");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
+
+  // Demo Code Hint (active when SMTP is not configured or in phone demo mode)
+  const [demoCodeHint, setDemoCodeHint] = useState("");
 
   // OTP State
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
@@ -48,10 +51,11 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
   useEffect(() => {
     if (isOpen) {
       setStep("identifier");
-      setAuthMethod("phone");
+      setAuthMethod("email");
       setPhoneNumber("");
       setEmail("");
       setOtpDigits(["", "", "", "", "", ""]);
+      setDemoCodeHint("");
       setFirstName("");
       setLastName("");
       setLoading(false);
@@ -150,10 +154,28 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
     if (res.success) {
       setStep("otp");
       setOtpDigits(["", "", "", "", "", ""]);
-      toast.success(
-        "Verification Code Sent",
-        `A 6-digit OTP code has been sent to ${authMethod === "phone" ? getFullPhone() : email}.`
-      );
+      if (res.demoOtp) {
+        setDemoCodeHint(res.demoOtp);
+      } else {
+        setDemoCodeHint("");
+      }
+
+      if (authMethod === "email" && res.deliveryStatus === "delivered") {
+        toast.success(
+          "Verification Code Sent",
+          `A 6-digit verification code has been delivered to ${email}. Please check your inbox!`
+        );
+      } else if (res.demoOtp) {
+        toast.success(
+          "Verification Code Generated",
+          `Demo mode: verification code is ${res.demoOtp}. You can also use the auto-fill button.`
+        );
+      } else {
+        toast.success(
+          "Verification Code Sent",
+          `A 6-digit OTP code has been sent to ${authMethod === "phone" ? getFullPhone() : email}.`
+        );
+      }
       setTimeout(() => inputRefs.current[0]?.focus(), 150);
     } else {
       toast.error("Send Failed", res.error || "Could not send OTP code. Please try again.");
@@ -170,11 +192,29 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
 
     if (res.success) {
       setOtpDigits(["", "", "", "", "", ""]);
+      if (res.demoOtp) {
+        setDemoCodeHint(res.demoOtp);
+      } else {
+        setDemoCodeHint("");
+      }
       startTimer();
-      toast.success(
-        "New OTP Sent",
-        `A fresh code was sent to ${authMethod === "phone" ? getFullPhone() : email}. Previous code is now invalid.`
-      );
+
+      if (authMethod === "email" && res.deliveryStatus === "delivered") {
+        toast.success(
+          "New Code Sent",
+          `A fresh verification code was sent to ${email}. Please check your inbox!`
+        );
+      } else if (res.demoOtp) {
+        toast.success(
+          "New Code Generated",
+          `Demo mode: new code is ${res.demoOtp}. Previous code is now invalid.`
+        );
+      } else {
+        toast.success(
+          "New OTP Sent",
+          `A fresh code was sent to ${authMethod === "phone" ? getFullPhone() : email}. Previous code is now invalid.`
+        );
+      }
       inputRefs.current[0]?.focus();
     } else {
       toast.error("Resend Failed", res.error || "Failed to resend OTP.");
@@ -352,20 +392,6 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                 <button
                   type="button"
                   className={`btn flex-fill py-2 fw-semibold rounded-2 border-0 transition-all d-inline-flex align-items-center justify-content-center gap-2 ${
-                    authMethod === "phone"
-                      ? "btn-primary shadow-sm"
-                      : "text-muted hover:text-dark"
-                  }`}
-                  style={{ fontSize: "0.85rem" }}
-                  onClick={() => setAuthMethod("phone")}
-                  suppressHydrationWarning
-                >
-                  <Phone size={15} />
-                  <span>Phone Number</span>
-                </button>
-                <button
-                  type="button"
-                  className={`btn flex-fill py-2 fw-semibold rounded-2 border-0 transition-all d-inline-flex align-items-center justify-content-center gap-2 ${
                     authMethod === "email"
                       ? "btn-primary shadow-sm"
                       : "text-muted hover:text-dark"
@@ -375,9 +401,49 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   suppressHydrationWarning
                 >
                   <Mail size={15} />
-                  <span>Email Address</span>
+                  <span>Email Address (Free OTP)</span>
+                </button>
+                <button
+                  type="button"
+                  className={`btn flex-fill py-2 fw-semibold rounded-2 border-0 transition-all d-inline-flex align-items-center justify-content-center gap-2 ${
+                    authMethod === "phone"
+                      ? "btn-primary shadow-sm"
+                      : "text-muted hover:text-dark"
+                  }`}
+                  style={{ fontSize: "0.85rem" }}
+                  onClick={() => setAuthMethod("phone")}
+                  suppressHydrationWarning
+                >
+                  <Phone size={15} />
+                  <span>Phone Number (Demo)</span>
                 </button>
               </div>
+
+              {/* Email Input View (Default) */}
+              {authMethod === "email" && (
+                <div className="mb-3">
+                  <label className="form-label small fw-semibold text-dark mb-1">
+                    Email Address <span className="text-danger">*</span>
+                  </label>
+                  <div className="input-group input-group-underline">
+                    <span className="input-group-text text-muted px-3">
+                      <Mail size={18} />
+                    </span>
+                    <input
+                      type="email"
+                      className="form-control form-control-lg fs-6 py-2.5"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoFocus
+                      required
+                    />
+                  </div>
+                  <small className="text-muted mt-1.5 d-block" style={{ fontSize: "0.75rem" }}>
+                    We will send a 6-digit verification code to your email.
+                  </small>
+                </div>
+              )}
 
               {/* Phone Input View */}
               {authMethod === "phone" && (
@@ -400,33 +466,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                     />
                   </div>
                   <small className="text-muted mt-1.5 d-block" style={{ fontSize: "0.75rem" }}>
-                    We will send a 6-digit verification code via SMS.
-                  </small>
-                </div>
-              )}
-
-              {/* Email Input View */}
-              {authMethod === "email" && (
-                <div className="mb-3">
-                  <label className="form-label small fw-semibold text-dark mb-1">
-                    Email Address <span className="text-danger">*</span>
-                  </label>
-                  <div className="input-group input-group-underline">
-                    <span className="input-group-text text-muted px-3">
-                      <Mail size={18} />
-                    </span>
-                    <input
-                      type="email"
-                      className="form-control form-control-lg fs-6 py-2.5"
-                      placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoFocus
-                      required
-                    />
-                  </div>
-                  <small className="text-muted mt-1.5 d-block" style={{ fontSize: "0.75rem" }}>
-                    We will send a 6-digit verification code to your email.
+                    Demo SMS mode: verification code will be displayed on screen for testing.
                   </small>
                 </div>
               )}
@@ -478,6 +518,37 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   Change
                 </button>
               </div>
+
+              {/* Demo Code Auto-fill Banner (shown when SMTP is not configured or in phone demo mode) */}
+              {demoCodeHint && (
+                <div
+                  className="alert alert-info py-2 px-3 mb-3 small d-flex align-items-center justify-content-between rounded-3 border-0 bg-primary-subtle text-primary"
+                  style={{ fontSize: "0.82rem" }}
+                >
+                  <div className="d-flex align-items-center gap-2">
+                    <span className="badge bg-primary text-white py-1 px-2">Demo OTP</span>
+                    <span className="font-monospace fw-bold fs-6">{demoCodeHint}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm py-1 px-2.5 rounded-2 fw-semibold"
+                    style={{ fontSize: "0.78rem" }}
+                    onClick={() => {
+                      const digits = demoCodeHint.split("").slice(0, 6);
+                      setOtpDigits(digits);
+                    }}
+                  >
+                    Auto-fill
+                  </button>
+                </div>
+              )}
+
+              {/* Live email delivery indicator */}
+              {!demoCodeHint && authMethod === "email" && (
+                <div className="text-center text-muted mb-3" style={{ fontSize: "0.8rem" }}>
+                  ✉️ Verification code sent to your inbox. Check spam if not received in a few moments.
+                </div>
+              )}
 
               {/* 6 Square Digit Inputs */}
               <div className="d-flex justify-content-center gap-2 mb-3" onPaste={handlePaste}>

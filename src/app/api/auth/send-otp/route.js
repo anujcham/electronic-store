@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/User';
 import Otp from '@/models/Otp';
+import { sendVerificationEmail } from '@/lib/email';
 
 export async function POST(request) {
   try {
@@ -56,12 +57,25 @@ export async function POST(request) {
       await existingUser.save();
     }
 
-    console.log(`📲 [OTP SENT] Sent code for ${identifier}: ${generatedOtp} (User Exists: ${!!existingUser})`);
+    // Dispatch verification via Real Email if email identifier was provided
+    let emailResult = null;
+    if (cleanEmail) {
+      emailResult = await sendVerificationEmail({ email: cleanEmail, otp: generatedOtp });
+    }
+
+    console.log(`📲 [OTP DISPATCH] Identifier: ${identifier}, Code: ${generatedOtp}, Email Sent: ${emailResult?.sent ?? false}, User Exists: ${!!existingUser}`);
 
     return NextResponse.json({
       success: true,
-      message: `A 6-digit verification code has been sent to ${email || phone}!`,
+      message: cleanEmail
+        ? (emailResult?.sent
+            ? `A 6-digit verification code has been sent to ${cleanEmail}!`
+            : `A 6-digit verification code has been generated for ${cleanEmail}!`)
+        : `A 6-digit verification code has been generated for ${cleanPhone}!`,
       isExistingUser: !!existingUser,
+      channel: cleanEmail ? 'email' : 'phone',
+      deliveryStatus: emailResult?.sent ? 'delivered' : 'demo',
+      demoOtp: emailResult?.sent ? undefined : generatedOtp,
     });
   } catch (error) {
     console.error('Error sending OTP:', error);
