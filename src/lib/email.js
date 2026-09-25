@@ -19,17 +19,33 @@ function getTransporter() {
     return null;
   }
 
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = Number(process.env.SMTP_PORT) || (host.includes("gmail") ? 465 : 587);
+  const rawHost = process.env.SMTP_HOST || "";
+  const host = rawHost.trim().toLowerCase();
+  const cleanUser = user.trim();
+  const cleanPass = pass.trim().replace(/\s+/g, ""); // automatically handle Google 16-digit space-separated passwords
+
+  // Gmail built-in preset only if host explicitly mentions gmail or no custom host was provided
+  const isGmail = host.includes("gmail") || (!rawHost && cleanUser.includes("@gmail.com"));
+  if (isGmail) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: cleanUser,
+        pass: cleanPass,
+      },
+    });
+  }
+
+  const port = Number(process.env.SMTP_PORT) || 587;
   const secure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : port === 465;
 
   return nodemailer.createTransport({
-    host,
+    host: rawHost || "smtp.gmail.com",
     port,
     secure,
     auth: {
-      user,
-      pass,
+      user: cleanUser,
+      pass: cleanPass,
     },
   });
 }
@@ -189,22 +205,48 @@ function getVerificationEmailHtml(otp, recipientEmail) {
  */
 export async function sendVerificationEmail({ email, otp }) {
   try {
+    // 1. Direct Resend API Support (if configured)
+    if (process.env.RESEND_API_KEY) {
+      const fromAddr = process.env.RESEND_FROM || "ElectroVault <onboarding@resend.dev>";
+      const resendResponse = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromAddr,
+          to: [email],
+          subject: `Your ElectroVault Verification Code: ${otp}`,
+          html: getVerificationEmailHtml(otp, email),
+          text: `Your ElectroVault verification code is ${otp}. It will expire in 10 minutes.`,
+        }),
+      });
+
+      const resendData = await resendResponse.json();
+      if (resendResponse.ok) {
+        console.log(`📧 [EMAIL OTP DELIVERED VIA RESEND] ID: ${resendData.id} to ${email}`);
+        return {
+          success: true,
+          sent: true,
+          messageId: resendData.id,
+        };
+      } else {
+        throw new Error(resendData.message || "Failed to deliver email via Resend API.");
+      }
+    }
+
+    // 2. SMTP / Gmail Transporter Support
     const transporter = getTransporter();
 
-    // Demo Mode Fallback if SMTP is not yet configured
+    // Check if SMTP is configured
     if (!transporter) {
-      console.log(`\n======================================================`);
-      console.log(`📧 [EMAIL OTP SIMULATION] (No SMTP credentials configured)`);
-      console.log(`To: ${email}`);
-      console.log(`Code: ${otp}`);
-      console.log(`Tip: Add SMTP_USER and SMTP_PASS in .env.local for real inbox delivery.`);
-      console.log(`======================================================\n`);
-
+      const err = "Email sending credentials (SMTP_USER / SMTP_PASS or RESEND_API_KEY) are not configured in .env.local.";
+      console.error(`❌ [EMAIL OTP ERROR] ${err}`);
       return {
-        success: true,
+        success: false,
         sent: false,
-        demoMode: true,
-        otp,
+        error: err,
       };
     }
 
@@ -225,18 +267,14 @@ export async function sendVerificationEmail({ email, otp }) {
     return {
       success: true,
       sent: true,
-      demoMode: false,
       messageId: info.messageId,
     };
   } catch (error) {
     console.error("❌ [EMAIL OTP ERROR] Failed to send email via SMTP:", error);
-    // Don't crash the user flow if SMTP fails; fallback to allowing verification
     return {
       success: false,
       sent: false,
-      demoMode: true,
-      error: error.message,
-      otp,
+      error: error.message || "Failed to dispatch email via SMTP server.",
     };
   }
 }

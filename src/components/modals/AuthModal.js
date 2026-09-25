@@ -17,9 +17,6 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
 
-  // Demo Code Hint (active when SMTP is not configured or in phone demo mode)
-  const [demoCodeHint, setDemoCodeHint] = useState("");
-
   // OTP State
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef([]);
@@ -55,7 +52,6 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       setPhoneNumber("");
       setEmail("");
       setOtpDigits(["", "", "", "", "", ""]);
-      setDemoCodeHint("");
       setFirstName("");
       setLastName("");
       setLoading(false);
@@ -154,28 +150,19 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
     if (res.success) {
       setStep("otp");
       setOtpDigits(["", "", "", "", "", ""]);
-      if (res.demoOtp) {
-        setDemoCodeHint(res.demoOtp);
-      } else {
-        setDemoCodeHint("");
+
+      // Log OTP directly to browser console for development/testing
+      if (res.otp) {
+        console.log(
+          `%c🔐 [ElectroVault OTP]: ${res.otp}`,
+          "background: #2563eb; color: #ffffff; font-size: 14px; font-weight: bold; padding: 4px 10px; border-radius: 6px;"
+        );
       }
 
-      if (authMethod === "email" && res.deliveryStatus === "delivered") {
-        toast.success(
-          "Verification Code Sent",
-          `A 6-digit verification code has been delivered to ${email}. Please check your inbox!`
-        );
-      } else if (res.demoOtp) {
-        toast.success(
-          "Verification Code Generated",
-          `Demo mode: verification code is ${res.demoOtp}. You can also use the auto-fill button.`
-        );
-      } else {
-        toast.success(
-          "Verification Code Sent",
-          `A 6-digit OTP code has been sent to ${authMethod === "phone" ? getFullPhone() : email}.`
-        );
-      }
+      toast.success(
+        "Verification Code Sent",
+        `A 6-digit verification code has been sent to ${authMethod === "phone" ? getFullPhone() : email}.`
+      );
       setTimeout(() => inputRefs.current[0]?.focus(), 150);
     } else {
       toast.error("Send Failed", res.error || "Could not send OTP code. Please try again.");
@@ -192,29 +179,20 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
 
     if (res.success) {
       setOtpDigits(["", "", "", "", "", ""]);
-      if (res.demoOtp) {
-        setDemoCodeHint(res.demoOtp);
-      } else {
-        setDemoCodeHint("");
-      }
       startTimer();
 
-      if (authMethod === "email" && res.deliveryStatus === "delivered") {
-        toast.success(
-          "New Code Sent",
-          `A fresh verification code was sent to ${email}. Please check your inbox!`
-        );
-      } else if (res.demoOtp) {
-        toast.success(
-          "New Code Generated",
-          `Demo mode: new code is ${res.demoOtp}. Previous code is now invalid.`
-        );
-      } else {
-        toast.success(
-          "New OTP Sent",
-          `A fresh code was sent to ${authMethod === "phone" ? getFullPhone() : email}. Previous code is now invalid.`
+      // Log fresh OTP to browser console for development/testing
+      if (res.otp) {
+        console.log(
+          `%c🔐 [ElectroVault OTP (Resent)]: ${res.otp}`,
+          "background: #2563eb; color: #ffffff; font-size: 14px; font-weight: bold; padding: 4px 10px; border-radius: 6px;"
         );
       }
+
+      toast.success(
+        "New Code Sent",
+        `A fresh verification code was sent to ${authMethod === "phone" ? getFullPhone() : email}.`
+      );
       inputRefs.current[0]?.focus();
     } else {
       toast.error("Resend Failed", res.error || "Failed to resend OTP.");
@@ -401,7 +379,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   suppressHydrationWarning
                 >
                   <Mail size={15} />
-                  <span>Email Address (Free OTP)</span>
+                  <span>Email Address</span>
                 </button>
                 <button
                   type="button"
@@ -415,7 +393,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   suppressHydrationWarning
                 >
                   <Phone size={15} />
-                  <span>Phone Number (Demo)</span>
+                  <span>Phone Number</span>
                 </button>
               </div>
 
@@ -466,7 +444,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                     />
                   </div>
                   <small className="text-muted mt-1.5 d-block" style={{ fontSize: "0.75rem" }}>
-                    Demo SMS mode: verification code will be displayed on screen for testing.
+                    We will send a 6-digit verification code via SMS.
                   </small>
                 </div>
               )}
@@ -519,36 +497,10 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                 </button>
               </div>
 
-              {/* Demo Code Auto-fill Banner (shown when SMTP is not configured or in phone demo mode) */}
-              {demoCodeHint && (
-                <div
-                  className="alert alert-info py-2 px-3 mb-3 small d-flex align-items-center justify-content-between rounded-3 border-0 bg-primary-subtle text-primary"
-                  style={{ fontSize: "0.82rem" }}
-                >
-                  <div className="d-flex align-items-center gap-2">
-                    <span className="badge bg-primary text-white py-1 px-2">Demo OTP</span>
-                    <span className="font-monospace fw-bold fs-6">{demoCodeHint}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm py-1 px-2.5 rounded-2 fw-semibold"
-                    style={{ fontSize: "0.78rem" }}
-                    onClick={() => {
-                      const digits = demoCodeHint.split("").slice(0, 6);
-                      setOtpDigits(digits);
-                    }}
-                  >
-                    Auto-fill
-                  </button>
-                </div>
-              )}
-
-              {/* Live email delivery indicator */}
-              {!demoCodeHint && authMethod === "email" && (
-                <div className="text-center text-muted mb-3" style={{ fontSize: "0.8rem" }}>
-                  ✉️ Verification code sent to your inbox. Check spam if not received in a few moments.
-                </div>
-              )}
+              {/* Helper text */}
+              <div className="text-center text-muted mb-3" style={{ fontSize: "0.82rem" }}>
+                Please enter the 6-digit verification code sent to your {authMethod === "email" ? "email" : "phone"}.
+              </div>
 
               {/* 6 Square Digit Inputs */}
               <div className="d-flex justify-content-center gap-2 mb-3" onPaste={handlePaste}>
@@ -618,7 +570,6 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }) {
           {step === "profile" && (
             <form onSubmit={handleCompleteSignup}>
               {/* Selected Identifier without background div (clean white border card) */}
-              {/* Selected Identifier Card */}
               <div className="d-flex align-items-center justify-content-between py-2 px-3 border rounded-3 mb-3 bg-white">
                 <div className="d-flex align-items-center gap-2 text-truncate">
                   {authMethod === "phone" ? (

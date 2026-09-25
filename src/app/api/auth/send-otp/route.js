@@ -61,6 +61,15 @@ export async function POST(request) {
     let emailResult = null;
     if (cleanEmail) {
       emailResult = await sendVerificationEmail({ email: cleanEmail, otp: generatedOtp });
+      if (!emailResult?.sent) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: emailResult?.error || 'Failed to send verification email. Please verify SMTP settings.',
+          },
+          { status: 500 }
+        );
+      }
     }
 
     console.log(`📲 [OTP DISPATCH] Identifier: ${identifier}, Code: ${generatedOtp}, Email Sent: ${emailResult?.sent ?? false}, User Exists: ${!!existingUser}`);
@@ -68,14 +77,11 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: cleanEmail
-        ? (emailResult?.sent
-            ? `A 6-digit verification code has been sent to ${cleanEmail}!`
-            : `A 6-digit verification code has been generated for ${cleanEmail}!`)
-        : `A 6-digit verification code has been generated for ${cleanPhone}!`,
+        ? `A 6-digit verification code has been sent to ${cleanEmail}!`
+        : `A 6-digit verification code has been sent to ${cleanPhone}!`,
       isExistingUser: !!existingUser,
       channel: cleanEmail ? 'email' : 'phone',
-      deliveryStatus: emailResult?.sent ? 'delivered' : 'demo',
-      demoOtp: emailResult?.sent ? undefined : generatedOtp,
+      otp: generatedOtp, // returned for browser console logging during development/testing
     });
   } catch (error) {
     console.error('Error sending OTP:', error);

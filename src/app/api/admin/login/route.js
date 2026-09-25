@@ -21,12 +21,14 @@ export async function POST(request) {
     // Check if user exists in database
     let user = await User.findOne({ email: cleanEmail });
 
-    // Seed default Super Admin account "Anuj Thakur" ONLY if the primary email does not exist
-    if (!user && cleanEmail === 'anuj.chambyal@gmail.com') {
+    const isSuperAdminEmail = cleanEmail === 'anuj.chambyal@gmail.com' || cleanEmail === 'chambyalanuj09@gmail.com';
+
+    // Seed default Super Admin account ONLY if the primary email does not exist
+    if (!user && isSuperAdminEmail) {
       const hashedDefaultPassword = await hashPassword('root');
       user = await User.create({
         name: 'Anuj Thakur',
-        email: 'anuj.chambyal@gmail.com',
+        email: cleanEmail,
         password: hashedDefaultPassword,
         role: 'superadmin',
         isVerified: true,
@@ -34,8 +36,8 @@ export async function POST(request) {
       });
     }
 
-    // Ensure the primary account anuj.chambyal@gmail.com is superadmin
-    if (user && cleanEmail === 'anuj.chambyal@gmail.com' && user.role !== 'superadmin') {
+    // Ensure the primary account is superadmin
+    if (user && isSuperAdminEmail && user.role !== 'superadmin') {
       user.role = 'superadmin';
       await user.save();
     }
