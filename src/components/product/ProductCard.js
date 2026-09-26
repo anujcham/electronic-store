@@ -166,6 +166,15 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
     };
   }, [product]);
 
+  const isOutOfStock = useMemo(() => {
+    if (product?.isAvailable === false) return true;
+    if (product?.stock !== undefined && Number(product.stock) <= 0) return true;
+    if (Array.isArray(product?.variantPricing) && product.variantPricing.length > 0) {
+      return !product.variantPricing.some((v) => Number(v.stock) > 0);
+    }
+    return Number(product?.stock ?? 1) <= 0;
+  }, [product]);
+
   const handleWishlistClick = (event) => {
     event.stopPropagation();
     if (onWishlistClick) {
@@ -251,6 +260,18 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
         >
           <Heart size={16} fill={isSaved ? "currentColor" : "none"} className={isSaved ? "text-danger" : "text-primary"} />
         </button>
+
+        {/* Out of Stock Badge */}
+        {isOutOfStock && (
+          <div className="position-absolute top-0 start-0 m-2.5" style={{ zIndex: 3 }}>
+            <span
+              className="badge bg-danger text-white fw-bold shadow-sm px-2.5 py-1.5 rounded-pill"
+              style={{ fontSize: "0.72rem", letterSpacing: "0.02em" }}
+            >
+              Out of Stock
+            </span>
+          </div>
+        )}
 
         {/* Badges Row (Same row on either sides with space between) */}
         {(product?.isHotDeal || product?.featured) && (
@@ -480,7 +501,17 @@ export const ProductCard = memo(function ProductCard({ product, onWishlistClick,
           )}
         </div>
 
-        {hasVariants ? (
+        {isOutOfStock ? (
+          <Button
+            variant="secondary"
+            className="w-100 mt-2 py-2 rounded-3 fw-bold opacity-75 d-flex align-items-center justify-content-center gap-1.5"
+            size="sm"
+            style={{ fontSize: "0.85rem", cursor: "not-allowed" }}
+            disabled
+          >
+            Out of Stock
+          </Button>
+        ) : hasVariants ? (
           <Button
             variant="primary"
             className="w-100 mt-2 py-2 rounded-3 fw-bold shadow-xs d-flex align-items-center justify-content-center gap-1.5"

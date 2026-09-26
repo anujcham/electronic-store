@@ -81,13 +81,74 @@ export async function POST(request) {
       ],
     });
 
-    // 1. Decrement product stock in MongoDB Atlas
+    // 1. Decrement product & variant stock in MongoDB Atlas
     for (const item of items) {
       if (item.slug) {
-        await Product.findOneAndUpdate(
-          { slug: item.slug },
-          { $inc: { stock: -Math.max(1, item.quantity || 1) } }
-        ).catch(() => null);
+        try {
+          const product = await Product.findOne({ slug: item.slug });
+          if (product) {
+            const qty = Math.max(1, Number(item.quantity) || 1);
+
+            if (Array.isArray(product.variantPricing) && product.variantPricing.length > 0) {
+              const optStorage = (item.selectedOptions?.storage || item.storage || "").toLowerCase().trim();
+              const optColor = (item.selectedOptions?.color || item.color || "").toLowerCase().trim();
+              const optCondition = (item.selectedOptions?.condition || item.condition || "").toLowerCase().trim();
+
+              // Exact 3-way match
+              let matchedIdx = product.variantPricing.findIndex((v) => {
+                const matchStorage = !optStorage || !v.storage || v.storage.toLowerCase().trim() === optStorage;
+                const matchColor = !optColor || !v.color || v.color.toLowerCase().trim() === optColor;
+                const matchCondition = !optCondition || !v.condition || v.condition.toLowerCase().trim() === optCondition;
+                return matchStorage && matchColor && matchCondition;
+              });
+
+              // Fallback match
+              if (matchedIdx === -1) {
+                matchedIdx = product.variantPricing.findIndex((v) => {
+                  const matchStorage = optStorage && v.storage && v.storage.toLowerCase().trim() === optStorage;
+                  const matchColor = optColor && v.color && v.color.toLowerCase().trim() === optColor;
+                  return matchStorage || matchColor;
+                });
+              }
+
+              // Fallback if only 1 variant in product matrix
+              if (matchedIdx === -1 && product.variantPricing.length === 1) {
+                matchedIdx = 0;
+              }
+
+              if (matchedIdx !== -1) {
+                const currentVStock = Math.max(0, Number(product.variantPricing[matchedIdx].stock || 0));
+                const newVStock = Math.max(0, currentVStock - qty);
+                product.variantPricing[matchedIdx].stock = newVStock;
+                if (newVStock === 0) {
+                  product.variantPricing[matchedIdx].isAvailable = false;
+                }
+              }
+
+              // Recalculate total product stock from variants
+              const totalStock = product.variantPricing.reduce(
+                (sum, v) => sum + Math.max(0, Number(v.stock) || 0),
+                0
+              );
+              product.stock = totalStock;
+              if (totalStock === 0) {
+                product.isAvailable = false;
+              }
+              product.markModified('variantPricing');
+            } else {
+              const currentStock = Math.max(0, Number(product.stock || 0));
+              const newStock = Math.max(0, currentStock - qty);
+              product.stock = newStock;
+              if (newStock === 0) {
+                product.isAvailable = false;
+              }
+            }
+
+            await product.save();
+          }
+        } catch (stockErr) {
+          console.error(`Error decrementing stock for item ${item.slug}:`, stockErr);
+        }
       }
     }
 

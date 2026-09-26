@@ -229,7 +229,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
         (product?.originalPrice && product?.price
           ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
           : 0),
-      stock: Number(product?.stock ?? 10),
+      stock: product?.isAvailable === false || (product?.stock !== undefined && Number(product.stock) <= 0) ? 0 : Number(product?.stock ?? 10),
       deliveryRange: product?.deliveryRange || "2-4 working days",
       warrantyMonths: product?.warrantyMonths || 12,
       shippingIncluded: product?.shippingIncluded ?? true,
@@ -257,7 +257,15 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
         };
       }
 
-      const variantStock = Number(matchedVariant.stock ?? 0);
+      let variantStock = Number(matchedVariant.stock ?? 0);
+      if (
+        product?.isAvailable === false ||
+        matchedVariant.isAvailable === false ||
+        (product?.stock !== undefined && Number(product.stock) <= 0)
+      ) {
+        variantStock = 0;
+      }
+
       const variantPrice = Number(matchedVariant.price ?? baseProduct.price);
       const variantOrigPrice = Number(matchedVariant.originalPrice ?? baseProduct.originalPrice);
 

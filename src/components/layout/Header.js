@@ -99,6 +99,8 @@ const getMinPrice = (product) => {
 };
 
 const isProductInStock = (product) => {
+  if (product?.isAvailable === false) return false;
+  if (product?.stock !== undefined && Number(product.stock) <= 0) return false;
   if (Array.isArray(product?.variantPricing) && product.variantPricing.length > 0) {
     return product.variantPricing.some((v) => Number(v.stock) > 0);
   }
