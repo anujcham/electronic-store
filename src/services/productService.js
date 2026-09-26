@@ -3,8 +3,10 @@ import { products as fallbackProducts, featuredProducts as fallbackFeatured } fr
 // Base API URL helper for server and client side fetching
 const getBaseUrl = () => {
   if (typeof window !== "undefined") return ""; // Browser uses relative path
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (process.env.NODE_ENV === "development") return "http://localhost:3000";
+  return "https://electronic-store-lac.vercel.app";
 };
 
 export async function getProducts(params = {}) {
