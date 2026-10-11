@@ -22,7 +22,7 @@ export function ConditionBannerSection() {
             Understand Our Condition Tiers
           </h2>
           <p className="text-secondary mx-auto mb-0" style={{ maxWidth: "40rem" }}>
-            Every single phone is <strong>100% fully functional</strong> with a 50-point diagnostic pass. You choose how much you want to save based on cosmetic wear.
+            Every single phone is <strong>100% fully functional</strong> with a 100-point diagnostic pass. You choose how much you want to save based on cosmetic wear.
           </p>
         </div>
 

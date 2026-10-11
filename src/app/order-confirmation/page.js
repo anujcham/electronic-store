@@ -134,7 +134,7 @@ export default function OrderConfirmationPage() {
                 <h5 className="fw-bold text-white mb-0">Official Digital Quality Certificate Generated</h5>
               </div>
               <p className="text-white-50 mb-3 small" style={{ maxWidth: "36rem" }}>
-                Your order includes a master technician verified <strong>50-Point Inspection Certificate</strong> with IMEI clean status and battery capacity guarantee.
+                Your order includes a master technician verified <strong>100-Point Inspection Certificate</strong> with IMEI clean status and battery capacity guarantee.
               </p>
               <div className="d-flex flex-wrap gap-2">
                 {order.items?.map((item, idx) => (

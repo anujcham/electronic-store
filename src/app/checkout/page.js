@@ -96,7 +96,7 @@ const warrantyOptions = [
     subtitle: "Included with every device at no extra charge",
     badge: "Free Included",
     price: 0,
-    features: ["Covers all hardware faults", "50-point quality certified", "Free courier returns"],
+    features: ["Covers all hardware faults", "100-point quality certified", "Free courier returns"],
   },
   {
     id: "extended-24",
@@ -1433,7 +1433,7 @@ export default function CheckoutPage() {
                           Grade: <strong className="text-primary">{item.condition || "Excellent"}</strong> • {item.storage || "128GB"} • Qty: {item.quantity || 1}
                         </div>
                         <div className="text-success" style={{ fontSize: "0.75rem" }}>
-                          ✓ Passed 50-Point Diagnostic Check
+                          ✓ Passed 100-Point Diagnostic Check
                         </div>
                       </div>
                       <div className="fw-bold text-primary text-end small">
@@ -1502,7 +1502,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="d-flex align-items-center gap-2">
                       <ShieldCheck size={15} className="text-primary flex-shrink-0" />
-                      <span><strong>Certified Diagnostic</strong> — complete 50-point inspection card</span>
+                      <span><strong>Certified Diagnostic</strong> — complete 100-point inspection card</span>
                     </div>
                     <div className="d-flex align-items-center gap-2">
                       <Truck size={15} className="text-dark flex-shrink-0" />

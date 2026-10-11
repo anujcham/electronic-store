@@ -183,6 +183,7 @@ export async function POST(request) {
       colorVariants,
       variantPricing,
       specifications,
+      masterImages,
     } = body;
 
     if (!name || !brand || (!price && (!variantPricing || variantPricing.length === 0))) {
@@ -196,10 +197,15 @@ export async function POST(request) {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const slug = `${baseSlug}-${randomSuffix}`;
 
-    // Auto-derive primary image array from colorVariants if not explicitly passed
+    const masterImagesClean = Array.isArray(masterImages) ? masterImages.filter(Boolean) : [];
+
+    // Auto-derive primary image array from colorVariants and masterImages if not explicitly passed
     let derivedImages = Array.isArray(images) && images.length > 0 ? images : [];
     if (derivedImages.length === 0 && Array.isArray(colorVariants) && colorVariants.length > 0) {
       derivedImages = colorVariants.flatMap((cv) => cv.images || []).filter(Boolean);
+    }
+    if (masterImagesClean.length > 0) {
+      derivedImages = [...new Set([...masterImagesClean, ...derivedImages])];
     }
     if (derivedImages.length === 0) {
       derivedImages = ['https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80'];
@@ -249,9 +255,10 @@ export async function POST(request) {
       stock: computedStock,
       storage: storage || derivedStorage[0] || '128GB',
       color: color || derivedColors[0] || 'Standard',
+      masterImages: masterImagesClean,
       images: derivedImages,
       shortDescription: shortDescription || `${name} (${condition || 'Good'}) - Certified Refurbished with 12-Month Seller Warranty`,
-      description: description || `${name} pre-owned handset. 50-point diagnostic inspection completed.`,
+      description: description || `${name} pre-owned handset. 100-point diagnostic inspection completed.`,
       featured: Boolean(featured),
       isHotDeal: Boolean(isHotDeal),
       availableStorage: derivedStorage,

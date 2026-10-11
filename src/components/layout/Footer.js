@@ -34,7 +34,7 @@ const conditionGrades = [
 ];
 
 const customerSupport = [
-  { label: "50-Point Inspection Guide", href: "#info-condition" },
+  { label: "100-Point Inspection Guide", href: "#info-condition" },
   { label: "Warranty & Repair Guarantee", href: "/warranty" },
   { label: "Track Your Order", href: "/order-confirmation" },
   { label: "Returns & 30-Day Money Back", href: "/returns" },
@@ -69,7 +69,7 @@ export function Footer({ brandName = "ElectroStore Refurbished" }) {
                   <Award size={24} />
                 </div>
                 <div>
-                  <h6 className="fw-bold text-white mb-0">50-Point Quality Checked</h6>
+                  <h6 className="fw-bold text-white mb-0">100-Point Quality Checked</h6>
                   <small className="text-white-50">Master technician certified</small>
                 </div>
               </div>
@@ -125,7 +125,7 @@ export function Footer({ brandName = "ElectroStore Refurbished" }) {
               </div>
 
               <p className="text-white-50 small mb-4" style={{ lineHeight: 1.6 }}>
-                Your trusted destination for certified refurbished smartphones. Every handset undergoes a 50-point diagnostic check, features an 85%+ battery health guarantee, and comes backed by our 12-month warranty.
+                Your trusted destination for certified refurbished smartphones. Every handset undergoes a 100-point diagnostic check, features an 85%+ battery health guarantee, and comes backed by our 12-month warranty.
               </p>
 
               <div className="d-flex align-items-center gap-2 text-success small mb-4 bg-success bg-opacity-10 border border-success border-opacity-25 p-2.5 rounded-3">

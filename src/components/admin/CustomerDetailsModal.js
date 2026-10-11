@@ -61,11 +61,12 @@ export function CustomerDetailsModal({
           icon: <Truck size={12} className="me-1" />,
           label: "Dispatched",
         };
+      case "100-Point Checked":
       case "50-Point Checked":
         return {
           bg: "bg-info bg-opacity-10 text-info border border-info border-opacity-25",
           icon: <ShieldCheck size={12} className="me-1" />,
-          label: "50-Pt Checked",
+          label: "100-Pt Checked",
         };
       case "Cancelled":
         return {

@@ -134,7 +134,7 @@ export function OrderConfirmedModal({ isOpen, onClose, order }) {
 
           <h3 className="fw-bold text-dark mb-1">Order Confirmed!</h3>
           <p className="text-secondary small mb-4">
-            Thank you, <strong className="text-dark">{customerName}</strong>! Your order has been secured and registered for 50-point diagnostic quality testing.
+            Thank you, <strong className="text-dark">{customerName}</strong>! Your order has been secured and registered for 100-point diagnostic quality testing.
           </p>
 
           {/* Reference Pill */}

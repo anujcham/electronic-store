@@ -95,35 +95,47 @@ export const ProductListCard = memo(function ProductListCard({ product, onWishli
     return [];
   }, [product]);
 
-  const [selectedColor, setSelectedColor] = useState(colorsList[0]?.name || product?.color || "");
+  const hasMasterImages = useMemo(() => {
+    return Array.isArray(product?.masterImages) && product.masterImages.filter(Boolean).length > 0;
+  }, [product]);
+
+  const [selectedColor, setSelectedColor] = useState(
+    hasMasterImages ? "" : (colorsList[0]?.name || product?.color || "")
+  );
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   // Synchronize when product or color options change
   useEffect(() => {
-    setSelectedColor(colorsList[0]?.name || product?.color || "");
+    setSelectedColor(hasMasterImages ? "" : (colorsList[0]?.name || product?.color || ""));
     setActiveImageIndex(0);
-  }, [product, colorsList]);
+  }, [product, colorsList, hasMasterImages]);
 
   // Find active color object
   const activeColorObj = useMemo(() => {
-    if (!colorsList.length) return null;
+    if (!colorsList.length || !selectedColor) return null;
     return (
       colorsList.find(
         (c) => (c.name || "").toLowerCase().trim() === (selectedColor || "").toLowerCase().trim()
-      ) || colorsList[0]
+      ) || null
     );
   }, [colorsList, selectedColor]);
 
-  // Available images for currently selected color
+  // Available images: Master showcase photos first if no color selected, then color-specific photos, then fallback
   const currentImages = useMemo(() => {
+    if (!selectedColor && hasMasterImages) {
+      return product.masterImages.filter(Boolean);
+    }
     if (activeColorObj?.images && activeColorObj.images.length > 0) {
       return activeColorObj.images;
+    }
+    if (hasMasterImages) {
+      return product.masterImages.filter(Boolean);
     }
     if (Array.isArray(product?.images) && product.images.length > 0) {
       return product.images;
     }
     return [product?.image || "https://placehold.co/800x800/EEF2F7/0F172A?text=Product"];
-  }, [activeColorObj, product]);
+  }, [activeColorObj, hasMasterImages, product, selectedColor]);
 
   const displayedImage = currentImages[activeImageIndex] || currentImages[0];
 
@@ -436,7 +448,7 @@ export const ProductListCard = memo(function ProductListCard({ product, onWishli
             </h5>
 
             <p className="small text-muted mb-2.5 line-clamp-2" style={{ fontSize: "0.85rem", lineHeight: 1.45 }}>
-              {product.shortDescription || "50-Point diagnostic checked refurbished phone with full warranty."}
+              {product.shortDescription || "100-Point diagnostic checked refurbished phone with full warranty."}
             </p>
 
             {/* Round Color Swatches */}
@@ -450,7 +462,7 @@ export const ProductListCard = memo(function ProductListCard({ product, onWishli
                   Colors:
                 </span>
                 {colorsList.map((col, idx) => {
-                  const isSelected = (selectedColor || "").toLowerCase().trim() === col.name.toLowerCase().trim();
+                  const isSelected = Boolean(selectedColor && selectedColor.toLowerCase().trim() === col.name.toLowerCase().trim());
                   return (
                     <button
                       key={col.name || idx}
@@ -473,7 +485,7 @@ export const ProductListCard = memo(function ProductListCard({ product, onWishli
                   );
                 })}
                 <span className="text-muted ms-1 small text-truncate" style={{ fontSize: "0.74rem", maxWidth: "150px" }}>
-                  {selectedColor || colorsList[0]?.name}
+                  {selectedColor || (colorsList.length > 1 ? `${colorsList.length} Colours` : "")}
                 </span>
               </div>
             )}
@@ -490,7 +502,7 @@ export const ProductListCard = memo(function ProductListCard({ product, onWishli
             </span>
             <span>•</span>
             <span className="d-flex align-items-center gap-1 text-dark fw-medium">
-              <Award size={13} className="text-warning" /> 50-Pt Checked
+              <Award size={13} className="text-warning" /> 100-Pt Checked
             </span>
           </div>
         </div>

@@ -29,9 +29,9 @@ const FAQ_CATEGORIES = [
 const FAQS = [
   {
     category: "quality",
-    question: "What is a 50-Point Diagnostic Inspection?",
+    question: "What is a 100-Point Diagnostic Inspection?",
     answer:
-      "Every single refurbished phone undergoes 50+ rigorous hardware and software tests performed by master technicians. We test multi-touch screen response, battery charging capacity, camera optics, optical image stabilization, noise-cancelling microphones, stereo speakers, Face ID/Touch ID biometrics, Wi-Fi/5G antennas, and verify 100% clean IMEI carrier status.",
+      "Every single refurbished phone undergoes 100 rigorous hardware and software tests performed by master technicians. We test multi-touch screen response, battery charging capacity, camera optics, optical image stabilization, noise-cancelling microphones, stereo speakers, Face ID/Touch ID biometrics, Wi-Fi/5G antennas, and verify 100% clean IMEI carrier status.",
   },
   {
     category: "quality",
@@ -126,7 +126,7 @@ export default function SupportPage() {
           </span>
           <h1 className="display-5 fw-bold text-primary mb-2">How Can We Help You Today?</h1>
           <p className="text-secondary mx-auto mb-4" style={{ maxWidth: "42rem" }}>
-            Find answers about our 50-point quality checks, 12-month seller warranty, battery health guarantees, shipping, and returns.
+            Find answers about our 100-point quality checks, 12-month seller warranty, battery health guarantees, shipping, and returns.
           </p>
 
           {/* Search Box */}

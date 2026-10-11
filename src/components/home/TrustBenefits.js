@@ -13,9 +13,9 @@ import { Container } from "../ui";
 
 const defaultBenefits = [
   {
-    title: "50-Point Diagnostic Check",
+    title: "100-Point Diagnostic Check",
     description:
-      "Every phone passes 50+ rigorous hardware and software diagnostic tests before being certified for sale.",
+      "Every phone passes 100 rigorous hardware and software diagnostic tests before being certified for sale.",
     icon: ShieldCheck,
   },
   {

@@ -29,10 +29,10 @@ export function InspectionReportModal({ isOpen, onClose, productName, serialOrIm
               </div>
               <div>
                 <div className="d-flex align-items-center gap-2">
-                  <h5 className="modal-title fw-bold mb-0 text-white">50-Point Inspection Certificate</h5>
+                  <h5 className="modal-title fw-bold mb-0 text-white">100-Point Inspection Certificate</h5>
                   <span className="badge bg-success">VERIFIED & PASSED</span>
                 </div>
-                <p className="small text-white-50 mb-0">Certified by Master Technicians • Diagnostic Report</p>
+                <p className="small text-white-50 mb-0">Certified by Master Technicians • 100-Point Diagnostic Report</p>
               </div>
             </div>
             <button

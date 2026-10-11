@@ -38,7 +38,7 @@ export function ConditionGuideModal({ isOpen, onClose, selectedCondition }) {
             <div className="alert alert-primary border-0 rounded-3 mb-4 d-flex align-items-center gap-2">
               <CheckCircle2 size={20} className="flex-shrink-0 text-primary" />
               <span className="small">
-                <strong>100% Functionality Guarantee:</strong> Every single phone — regardless of cosmetic grade — undergoes our rigorous 50-point diagnostic check and is guaranteed to work like new.
+                <strong>100% Functionality Guarantee:</strong> Every single phone — regardless of cosmetic grade — undergoes our rigorous 100-point diagnostic check and is guaranteed to work like new.
               </span>
             </div>
 

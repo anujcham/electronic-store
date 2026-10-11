@@ -91,6 +91,7 @@ const emptyProductForm = {
   description: "",
   featured: false,
   isHotDeal: false,
+  masterImages: [],
   colorVariants: [
     {
       _id: "color_default_space_black",
@@ -778,6 +779,7 @@ export default function StaffPortalPage() {
     setProductModalTab("general");
     setProductFormData({
       ...emptyProductForm,
+      masterImages: [],
       colorVariants: [
         {
           colorName: "Space Black",
@@ -806,6 +808,10 @@ export default function StaffPortalPage() {
   const handleOpenEditProductModal = (prod) => {
     setEditingProductSlug(prod.slug);
     setProductModalTab("general");
+
+    const masterImages = Array.isArray(prod.masterImages)
+      ? prod.masterImages.filter(Boolean)
+      : [];
 
     const colorVariants = Array.isArray(prod.colorVariants) && prod.colorVariants.length > 0
       ? prod.colorVariants.map((c, i) => {
@@ -869,6 +875,7 @@ export default function StaffPortalPage() {
       description: prod.description || "",
       featured: Boolean(prod.featured),
       isHotDeal: Boolean(prod.isHotDeal),
+      masterImages,
       colorVariants,
       variantPricing,
       specifications,
@@ -906,6 +913,50 @@ export default function StaffPortalPage() {
       updated[index] = { ...updated[index], [field]: value };
       return { ...prev, colorVariants: updated };
     });
+  };
+
+  // Master Showcase Image Handlers
+  const handleDeviceMasterFilesUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    try {
+      toast.info("Processing Photos", `Optimizing ${files.length} master photo(s) from your device...`);
+      const compressedDataUrls = await Promise.all(
+        files.map((file) => compressImageFile(file))
+      );
+
+      setProductFormData((prev) => ({
+        ...prev,
+        masterImages: [...(prev.masterImages || []), ...compressedDataUrls],
+      }));
+
+      toast.success("Photos Added", `Added ${compressedDataUrls.length} master showcase photo(s).`);
+    } catch (err) {
+      console.error("Master image upload error:", err);
+      toast.error("Upload Error", "Could not process device photos. Please try another image.");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const handleAddMasterImageUrl = (urlString) => {
+    const trimmed = (urlString || "").trim();
+    if (!trimmed) return;
+
+    const urlsToAdd = trimmed.split(/[\r\n,]+/).map((u) => u.trim()).filter(Boolean);
+    setProductFormData((prev) => ({
+      ...prev,
+      masterImages: [...(prev.masterImages || []), ...urlsToAdd],
+    }));
+    toast.success("URL Added", "Master showcase photo URL added.");
+  };
+
+  const handleRemoveMasterImage = (imageIdx) => {
+    setProductFormData((prev) => ({
+      ...prev,
+      masterImages: (prev.masterImages || []).filter((_, i) => i !== imageIdx),
+    }));
   };
 
   // Device File Upload Handler (with fast client-side compression)
@@ -1082,8 +1133,9 @@ export default function StaffPortalPage() {
       storage: sanitizedVariants[0]?.storage || productFormData.storage || "128GB",
       color: sanitizedColorVariants[0]?.colorName || productFormData.color || "Standard",
       images: allImages.length > 0 ? allImages : ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"],
+      masterImages: (productFormData.masterImages || []).filter(Boolean),
       shortDescription: productFormData.shortDescription || `${productFormData.name} - Certified Refurbished with 12-Month Seller Warranty`,
-      description: productFormData.description || `${productFormData.name} refurbished handset. 50-point diagnostic inspection completed.`,
+      description: productFormData.description || `${productFormData.name} refurbished handset. 100-point diagnostic inspection completed.`,
       featured: Boolean(productFormData.featured),
       isHotDeal: Boolean(productFormData.isHotDeal),
       colorVariants: sanitizedColorVariants,
@@ -1672,7 +1724,7 @@ export default function StaffPortalPage() {
                     >
                       <option value="all">All Orders</option>
                       <option value="Processing">Processing</option>
-                      <option value="50-Point Checked">50-Point Checked</option>
+                      <option value="100-Point Checked">100-Point Checked</option>
                       <option value="Dispatched">Dispatched</option>
                       <option value="Delivered">Delivered</option>
                       <option value="Cancelled">Cancelled</option>
@@ -1765,9 +1817,9 @@ export default function StaffPortalPage() {
                                     🚚 Dispatched
                                   </span>
                                 )}
-                                {status === "50-Point Checked" && (
+                                {(status === "100-Point Checked" || status === "50-Point Checked") && (
                                   <span className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2.5 py-1">
-                                    🛡️ 50-Pt Checked
+                                    🛡️ 100-Pt Checked
                                   </span>
                                 )}
                                 {(status === "Processing" || status === "Placed") && (
@@ -1795,12 +1847,12 @@ export default function StaffPortalPage() {
                                       type="button"
                                       className="btn btn-sm btn-outline-info rounded-2 py-1 px-2 fw-semibold"
                                       style={{ fontSize: "0.75rem" }}
-                                      onClick={() => handleQuickAdvanceStatus(order, "50-Point Checked")}
+                                      onClick={() => handleQuickAdvanceStatus(order, "100-Point Checked")}
                                     >
-                                      Mark 50-Pt Check
+                                      Mark 100-Pt Check
                                     </button>
                                   )}
-                                  {status === "50-Point Checked" && (
+                                  {(status === "100-Point Checked" || status === "50-Point Checked") && (
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-primary rounded-2 py-1 px-2 fw-semibold"
@@ -2539,7 +2591,7 @@ export default function StaffPortalPage() {
                     onChange={(e) => setOrderModalData({ ...orderModalData, orderStatus: e.target.value })}
                   >
                     <option value="Processing">1. Processing (Order Placed)</option>
-                    <option value="50-Point Checked">2. 50-Point Quality Checked</option>
+                    <option value="100-Point Checked">2. 100-Point Quality Checked</option>
                     <option value="Dispatched">3. Dispatched / Shipped</option>
                     <option value="Delivered">4. Delivered to Customer</option>
                     <option value="Cancelled">✕ Cancelled</option>
@@ -2762,7 +2814,7 @@ export default function StaffPortalPage() {
                     <input
                       type="text"
                       className="form-control"
-                      placeholder="e.g. 6.1-inch Super Retina display with 12MP camera and 50-point diagnostic check."
+                      placeholder="e.g. 6.1-inch Super Retina display with 12MP camera and 100-point diagnostic check."
                       value={productFormData.shortDescription}
                       onChange={(e) => setProductFormData({ ...productFormData, shortDescription: e.target.value })}
                     />
@@ -2784,6 +2836,122 @@ export default function StaffPortalPage() {
               {/* TAB 2: COLOR VARIANTS & COLOR-SPECIFIC PHOTOS */}
               {productModalTab === "colors" && (
                 <div>
+                  {/* MASTER SHOWCASE PHOTOS (DEFAULT CARD IMAGES) */}
+                  <div className="card border-primary border-opacity-25 rounded-3 p-3 shadow-xs bg-light bg-opacity-25 mb-4">
+                    <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                      <div>
+                        <div className="d-flex align-items-center gap-2">
+                          <h6 className="fw-bold text-dark mb-0">Master Showcase Photos (Default Card Images)</h6>
+                          <span className="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2 py-0.5" style={{ fontSize: "0.68rem" }}>
+                            {(productFormData.masterImages || []).length} {((productFormData.masterImages || []).length === 1) ? "photo" : "photos"}
+                          </span>
+                        </div>
+                        <small className="text-muted d-block mt-0.5">
+                          Shown first on the catalog card & product page before any color is chosen. When set, no color circle will be selected by default.
+                        </small>
+                      </div>
+                    </div>
+
+                    {/* Dual Option Controls: Device Upload + Web URL */}
+                    <div className="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2 mb-2.5">
+                      <label
+                        className="btn btn-sm btn-outline-primary rounded-3 fw-semibold d-inline-flex align-items-center justify-content-center gap-1.5 cursor-pointer mb-0 flex-shrink-0"
+                        style={{ height: "34px", fontSize: "0.82rem" }}
+                      >
+                        <Upload size={14} />
+                        <span>Upload from Device</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          className="d-none"
+                          onChange={handleDeviceMasterFilesUpload}
+                        />
+                      </label>
+
+                      <div className="input-group input-group-sm flex-grow-1" style={{ height: "34px" }}>
+                        <span className="input-group-text bg-light text-muted border-end-0">
+                          <Link2 size={13} />
+                        </span>
+                        <input
+                          type="url"
+                          className="form-control form-control-sm border-start-0 font-monospace"
+                          placeholder="Paste master image URL (https://...)"
+                          style={{ fontSize: "0.8rem" }}
+                          id="master-image-url-input"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const val = e.target.value.trim();
+                              if (val) {
+                                handleAddMasterImageUrl(val);
+                                e.target.value = "";
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-light border btn-sm fw-semibold"
+                          onClick={() => {
+                            const input = document.getElementById("master-image-url-input");
+                            if (input && input.value.trim()) {
+                              handleAddMasterImageUrl(input.value.trim());
+                              input.value = "";
+                            }
+                          }}
+                        >
+                          Add URL
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Live Thumbnail Strip */}
+                    {(productFormData.masterImages || []).length > 0 ? (
+                      <div className="d-flex align-items-center gap-2 overflow-x-auto py-1 px-0.5">
+                        {productFormData.masterImages.map((imgUrl, mIdx) => (
+                          <div
+                            key={imgUrl || `master_img_${mIdx}`}
+                            className="position-relative border rounded-3 overflow-hidden flex-shrink-0 bg-white shadow-xs"
+                            style={{ width: "62px", height: "62px" }}
+                          >
+                            <Image
+                              src={imgUrl}
+                              alt={`Master photo ${mIdx + 1}`}
+                              fill
+                              sizes="62px"
+                              style={{ objectFit: "cover" }}
+                              unoptimized
+                            />
+                            {mIdx === 0 && (
+                              <span
+                                className="position-absolute top-0 start-0 bg-primary text-white px-1 py-0.2 fw-bold"
+                                style={{ fontSize: "0.55rem", borderBottomRightRadius: "4px", lineHeight: "1.2" }}
+                              >
+                                Card Cover
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-sm p-0 position-absolute top-0 end-0 m-0.5 rounded-circle d-flex align-items-center justify-content-center shadow-xs"
+                              style={{ width: "18px", height: "18px", zIndex: 2 }}
+                              onClick={() => handleRemoveMasterImage(mIdx)}
+                              title="Remove master photo"
+                            >
+                              <X size={11} className="text-white" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-2 border border-dashed text-center bg-white">
+                        <small className="text-muted" style={{ fontSize: "0.76rem" }}>
+                          No master showcase photos yet (optional). If empty, the first color variant photos will be used as the default cover.
+                        </small>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="d-flex align-items-center justify-content-between gap-3 mb-3 pb-2 border-bottom">
                     <div>
                       <h6 className="fw-bold text-dark mb-1">Color Galleries</h6>

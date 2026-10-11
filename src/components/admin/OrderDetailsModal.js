@@ -64,11 +64,12 @@ export function OrderDetailsModal({
           icon: <Truck size={14} className="me-1" />,
           label: "Dispatched",
         };
+      case "100-Point Checked":
       case "50-Point Checked":
         return {
           bg: "bg-info bg-opacity-10 text-info border border-info border-opacity-25",
           icon: <ShieldCheck size={14} className="me-1" />,
-          label: "50-Point Checked",
+          label: "100-Point Checked",
         };
       case "Cancelled":
         return {
@@ -447,13 +448,13 @@ export function OrderDetailsModal({
               <button
                 type="button"
                 className="btn btn-sm btn-outline-info rounded-3 py-1.5 px-3 fw-semibold d-flex align-items-center gap-1.5"
-                onClick={() => onQuickAdvance(order, "50-Point Checked")}
+                onClick={() => onQuickAdvance(order, "100-Point Checked")}
               >
                 <ShieldCheck size={14} />
-                <span>Mark 50-Point Checked</span>
+                <span>Mark 100-Point Checked</span>
               </button>
             )}
-            {status === "50-Point Checked" && onQuickAdvance && (
+            {(status === "100-Point Checked" || status === "50-Point Checked") && onQuickAdvance && (
               <button
                 type="button"
                 className="btn btn-sm btn-outline-primary rounded-3 py-1.5 px-3 fw-semibold d-flex align-items-center gap-1.5"

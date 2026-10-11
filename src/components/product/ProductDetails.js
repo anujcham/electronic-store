@@ -125,12 +125,19 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
   const [selectedStorage, setSelectedStorage] = useState(
     storageOptions[0] || product?.storage || "128GB"
   );
+  const hasMasterImages = useMemo(() => {
+    return Array.isArray(product?.masterImages) && product.masterImages.filter(Boolean).length > 0;
+  }, [product]);
+
   const [selectedColor, setSelectedColor] = useState(() => {
     if (initialColor) {
       const match = colorOptions.find(
         (c) => c.toLowerCase().trim() === initialColor.toLowerCase().trim()
       );
       if (match) return match;
+    }
+    if (Array.isArray(product?.masterImages) && product.masterImages.filter(Boolean).length > 0) {
+      return "";
     }
     return colorOptions[0] || product?.color || "Midnight";
   });
@@ -159,11 +166,11 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
 
   // Active color variant object (for hexCode and color-specific photos)
   const activeColorVariant = useMemo(() => {
-    if (!colorVariantsList.length) return null;
+    if (!colorVariantsList.length || !selectedColor) return null;
     return (
       colorVariantsList.find(
         (c) => c.colorName?.toLowerCase().trim() === (selectedColor || "").toLowerCase().trim()
-      ) || colorVariantsList[0]
+      ) || null
     );
   }, [colorVariantsList, selectedColor]);
 
@@ -172,8 +179,14 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
     setActiveImageIndex(0);
   }, [selectedColor]);
 
-  // Dynamic Images list: Color-specific photos have top priority, falling back to product.images
+  // Dynamic Images list: Color-specific photos when color chosen, masterImages first if available, falling back to product.images
   const imagesList = useMemo(() => {
+    if (selectedColor && activeColorVariant?.images && activeColorVariant.images.length > 0) {
+      return activeColorVariant.images;
+    }
+    if (hasMasterImages) {
+      return product.masterImages.filter(Boolean);
+    }
     if (activeColorVariant?.images && activeColorVariant.images.length > 0) {
       return activeColorVariant.images;
     }
@@ -181,7 +194,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
       return product.images;
     }
     return ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80"];
-  }, [activeColorVariant, product]);
+  }, [activeColorVariant, hasMasterImages, product, selectedColor]);
 
   // Reviews State (MongoDB Atlas API Sync)
   const initialReviews = Array.isArray(product?.reviews) ? product.reviews : [];
@@ -242,12 +255,21 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
 
     // If exact variant pricing matrix is defined by admin
     if (Array.isArray(product?.variantPricing) && product.variantPricing.length > 0) {
-      const matchedVariant = product.variantPricing.find((v) => {
-        const matchColor = !v.color || v.color.toLowerCase().trim() === (selectedColor || "").toLowerCase().trim();
-        const matchStorage = !v.storage || v.storage.toLowerCase().trim() === (selectedStorage || "").toLowerCase().trim();
-        const matchCondition = !v.condition || v.condition.toLowerCase().trim() === (selectedCondition || "").toLowerCase().trim();
-        return matchColor && matchStorage && matchCondition;
-      });
+      const effectiveColor = selectedColor || colorOptions[0] || product?.color || "";
+      const matchedVariant =
+        product.variantPricing.find((v) => {
+          const matchColor = !selectedColor
+            ? (v.color?.toLowerCase().trim() === effectiveColor.toLowerCase().trim() || !v.color)
+            : (!v.color || v.color.toLowerCase().trim() === selectedColor.toLowerCase().trim());
+          const matchStorage = !v.storage || v.storage.toLowerCase().trim() === (selectedStorage || "").toLowerCase().trim();
+          const matchCondition = !v.condition || v.condition.toLowerCase().trim() === (selectedCondition || "").toLowerCase().trim();
+          return matchColor && matchStorage && matchCondition;
+        }) ||
+        product.variantPricing.find((v) => {
+          const matchStorage = !v.storage || v.storage.toLowerCase().trim() === (selectedStorage || "").toLowerCase().trim();
+          const matchCondition = !v.condition || v.condition.toLowerCase().trim() === (selectedCondition || "").toLowerCase().trim();
+          return matchStorage && matchCondition;
+        });
 
       if (!matchedVariant) {
         // Combination not stocked in matrix
@@ -358,13 +380,14 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
 
   const handleAddToCart = () => {
     if (!inStock) return;
+    const effectiveColor = selectedColor || colorOptions[0] || product?.color || "Standard";
     addItem(
       product,
       {
         condition: selectedCondition,
         battery: selectedBattery,
         storage: selectedStorage,
-        color: selectedColor,
+        color: effectiveColor,
         sim: selectedSim,
         stock: activeVariant.stock,
         price: activeVariant.price,
@@ -386,6 +409,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
 
   const handleBuyNow = () => {
     if (!inStock) return;
+    const effectiveColor = selectedColor || colorOptions[0] || product?.color || "Standard";
 
     const directItem = {
       id: product?.id,
@@ -402,7 +426,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
       condition: selectedCondition,
       battery: selectedBattery,
       storage: selectedStorage,
-      color: selectedColor,
+      color: effectiveColor,
       sim: selectedSim,
       deliveryRange: activeVariant.deliveryRange || "2-4 working days",
       warrantyMonths: activeVariant.warrantyMonths || 12,
@@ -410,7 +434,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
       selectedOptions: {
         condition: selectedCondition,
         storage: selectedStorage,
-        color: selectedColor,
+        color: effectiveColor,
         battery: selectedBattery,
         sim: selectedSim,
       },
@@ -733,11 +757,11 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
               {colorOptions.length > 0 && (
                 <div className="mb-4">
                   <label className="fw-bold text-dark small mb-2 d-block">
-                    3. Select Colour: <strong className="text-primary">{selectedColor}</strong>
+                    3. Select Colour: <strong className="text-primary">{selectedColor || "Choose a colour"}</strong>
                   </label>
                   <div className="d-flex flex-wrap gap-2">
                     {colorOptions.map((option) => {
-                      const isSelected = (selectedColor || "").toLowerCase().trim() === option.toLowerCase().trim();
+                      const isSelected = Boolean(selectedColor && selectedColor.toLowerCase().trim() === option.toLowerCase().trim());
                       const matchedColorVar = colorVariantsList.find(
                         (c) => c.colorName?.toLowerCase().trim() === option.toLowerCase().trim()
                       );
@@ -894,7 +918,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
                 }`}
                 onClick={() => setActiveTab("inspection")}
               >
-                🔬 50-Point Inspection Cert
+                🔬 100-Point Inspection Cert
               </button>
             </li>
 
@@ -1033,7 +1057,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
           {activeTab === "inspection" && (
             <div>
               <div className="d-flex align-items-center justify-content-between mb-3">
-                <h4 className="fw-bold text-primary mb-0">50-Point Quality Diagnostic Inspection</h4>
+                <h4 className="fw-bold text-primary mb-0">100-Point Quality Diagnostic Inspection</h4>
                 <button type="button" className="btn btn-success btn-sm rounded-pill px-3" onClick={() => setIsInspectionModalOpen(true)}>
                   Open Official Certificate
                 </button>

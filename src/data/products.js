@@ -221,7 +221,7 @@ export const products = [
     ],
     shortDescription: "Grade A+ pristine condition iPhone 15 Pro Max with titanium finish and 5x optical zoom camera.",
     description:
-      "A flagship pre-owned iPhone 15 Pro Max in pristine condition. Passes 50-point diagnostics with 95%+ battery health guaranteed. Includes 12-month seller warranty and original USB-C cable.",
+      "A flagship pre-owned iPhone 15 Pro Max in pristine condition. Passes 100-point diagnostics with 95%+ battery health guaranteed. Includes 12-month seller warranty and original USB-C cable.",
     storage: "256GB",
     color: "Natural Titanium",
     availableStorage: ["256GB", "512GB", "1TB"],
@@ -505,7 +505,7 @@ export const products = [
     originalPrice: 499,
     condition: PRODUCT_CONDITIONS.VERY_GOOD,shortDescription: "Ultra-affordable 5G iPhone with flat aerospace-aluminum edges and crisp OLED display.",
     description:
-      "Refurbished iPhone 12 in Very Good cosmetic condition. Tested with our comprehensive 50-point diagnostic check. Reliable performance and MagSafe compatibility.",
+      "Refurbished iPhone 12 in Very Good cosmetic condition. Tested with our comprehensive 100-point diagnostic check. Reliable performance and MagSafe compatibility.",
     storage: "64GB",
     color: "Black",
     availableStorage: ["64GB", "128GB", "256GB"],

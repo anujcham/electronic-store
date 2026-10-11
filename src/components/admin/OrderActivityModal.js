@@ -68,7 +68,7 @@ export function OrderActivityModal({ order, isOpen, onClose }) {
         bg: "bg-primary",
       };
     }
-    if (act.includes("50-point") || act.includes("check") || act.includes("inspect")) {
+    if (act.includes("100-point") || act.includes("50-point") || act.includes("check") || act.includes("inspect")) {
       return {
         icon: <ShieldCheck size={16} className="text-white" />,
         bg: "bg-info",

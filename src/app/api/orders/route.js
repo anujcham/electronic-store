@@ -75,7 +75,7 @@ export async function POST(request) {
           performedBy: shippingAddress?.fullName || 'Customer',
           performedByEmail: shippingAddress?.email || guestEmail || '',
           performedByRole: 'customer',
-          note: `Initial order created with ${paymentMethod || 'Credit / Debit Card'}. Awaiting 50-point diagnostic inspection.`,
+          note: `Initial order created with ${paymentMethod || 'Credit / Debit Card'}. Awaiting 100-point diagnostic inspection.`,
           timestamp: new Date(),
         },
       ],

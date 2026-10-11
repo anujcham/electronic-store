@@ -13,13 +13,13 @@ const HERO_SLIDES = [
     badgeIcon: ShieldCheck,
     title: "Like-New Smartphones Up To 40% Less",
     subtitle:
-      "Explore master-certified refurbished iPhones, Samsung Galaxy & Google Pixel handsets. Passed 50-point quality diagnostic check with 12-month seller warranty.",
+      "Explore master-certified refurbished iPhones, Samsung Galaxy & Google Pixel handsets. Passed 100-point quality diagnostic check with 12-month seller warranty.",
     primaryCta: { text: "Shop Refurbished Phones", link: "/shop" },
     secondaryCta: { text: "View Condition Tiers", link: "#info-condition" },
     bgImage:
       "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1920&q=80",
     stats: [
-      { value: "50-Point", label: "Diagnostic Check" },
+      { value: "100-Point", label: "Diagnostic Check" },
       { value: "12-Month", label: "Seller Warranty" },
       { value: "85%+", label: "Battery Guaranteed" },
     ],

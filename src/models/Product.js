@@ -23,6 +23,7 @@ const ProductSchema = new mongoose.Schema(
     condition: { type: String, default: 'Good' },
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
+    masterImages: [{ type: String }],
     images: [{ type: String }],
     shortDescription: { type: String },
     description: { type: String },

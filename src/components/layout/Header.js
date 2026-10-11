@@ -325,7 +325,7 @@ export function Header({
               </span>
               <span className="d-none d-lg-inline text-white-50">•</span>
               <span className="d-none d-lg-flex align-items-center gap-1.5 text-white">
-                <Award size={14} className="text-warning" /> 50-Point Quality Checked
+                <Award size={14} className="text-warning" /> 100-Point Quality Checked
               </span>
             </div>
 

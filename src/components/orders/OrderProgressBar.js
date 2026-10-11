@@ -31,7 +31,7 @@ export function getOrderTimelineInfo(orderStatus = "Processing", estimatedDelive
         },
         {
           id: 2,
-          name: "2. 50-Point Checked",
+          name: "2. 100-Point Checked",
           badge: "Cancelled",
           badgeClass: "bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25",
           desc: "Inspection halted",
@@ -81,7 +81,7 @@ export function getOrderTimelineInfo(orderStatus = "Processing", estimatedDelive
         },
         {
           id: 2,
-          name: "2. 50-Point Checked",
+          name: "2. 100-Point Checked",
           badge: "✓ Passed",
           badgeClass: "bg-success bg-opacity-10 text-success border border-success border-opacity-25",
           desc: "Verified & Certified",
@@ -131,7 +131,7 @@ export function getOrderTimelineInfo(orderStatus = "Processing", estimatedDelive
         },
         {
           id: 2,
-          name: "2. 50-Point Checked",
+          name: "2. 100-Point Checked",
           badge: "✓ Passed",
           badgeClass: "bg-success bg-opacity-10 text-success border border-success border-opacity-25",
           desc: "Verified & Certified",
@@ -160,12 +160,12 @@ export function getOrderTimelineInfo(orderStatus = "Processing", estimatedDelive
     };
   }
 
-  // 4. 50-POINT CHECKED
-  if (norm === "50-point checked" || norm === "checked" || norm === "inspected") {
+  // 4. 100-POINT CHECKED (with backward compatibility for 50-point)
+  if (norm === "100-point checked" || norm === "50-point checked" || norm === "checked" || norm === "inspected") {
     return {
-      statusKey: "50-point checked",
+      statusKey: "100-point checked",
       topBadgeClass: "bg-info text-dark fw-bold border border-info border-opacity-50",
-      topBadgeText: "🛡️ 50-Point Checked",
+      topBadgeText: "🛡️ 100-Point Checked",
       progressPercent: 45,
       isCancelled: false,
       activeStep: 2,
@@ -181,7 +181,7 @@ export function getOrderTimelineInfo(orderStatus = "Processing", estimatedDelive
         },
         {
           id: 2,
-          name: "2. 50-Point Checked",
+          name: "2. 100-Point Checked",
           badge: "✓ Passed",
           badgeClass: "bg-success bg-opacity-10 text-success border border-success border-opacity-25",
           desc: "Verified & Certified",
@@ -230,7 +230,7 @@ export function getOrderTimelineInfo(orderStatus = "Processing", estimatedDelive
       },
       {
         id: 2,
-        name: "2. 50-Point Checked",
+        name: "2. 100-Point Checked",
         badge: "In Progress",
         badgeClass: "bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25",
         desc: "Quality Diagnostics",
@@ -310,7 +310,7 @@ export default function OrderProgressBar({
       return formatTime(createdAt) || findLogTime(["placed", "confirmed"]);
     }
     if (stageId === 2) {
-      return findLogTime(["50-point", "checked", "inspect"]);
+      return findLogTime(["100-point", "50-point", "checked", "inspect"]);
     }
     if (stageId === 3) {
       return (

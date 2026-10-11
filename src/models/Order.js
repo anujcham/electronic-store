@@ -46,7 +46,7 @@ const OrderSchema = new mongoose.Schema(
     paymentStatus: { type: String, enum: ['Pending', 'Paid', 'Failed'], default: 'Paid' },
     orderStatus: {
       type: String,
-      enum: ['Placed', 'Processing', '50-Point Checked', 'Dispatched', 'Shipped', 'Delivered', 'Cancelled'],
+      enum: ['Placed', 'Processing', '50-Point Checked', '100-Point Checked', 'Dispatched', 'Shipped', 'Delivered', 'Cancelled'],
       default: 'Processing',
     },
     subtotal: { type: Number, required: true },
