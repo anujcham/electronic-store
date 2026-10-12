@@ -5,6 +5,7 @@ import { Header } from "../components/layout/Header";
 import { CartProvider } from "../features/cart/CartContext";
 import { WishlistProvider } from "../features/wishlist/WishlistContext";
 import { ToastProvider } from "../components/common/Toast";
+import { RouteProgressBar } from "../components/common/RouteProgressBar";
 
 export const metadata = {
   title: "Electronics Store",
@@ -15,6 +16,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
+        <RouteProgressBar />
         <ToastProvider>
           <WishlistProvider>
             <CartProvider>
