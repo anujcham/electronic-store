@@ -91,15 +91,6 @@ const SPEC_KEY_LABELS = {
   cameraType: "Camera Type",
   simCard: "SIM card",
   carrierCompatibility: "Carrier compatibility",
-  waterproofNotice: "Waterproof Seal Notice",
-  // Legacy keys
-  display: "Display & Screen",
-  processor: "Processor / Chipset",
-  camera: "Camera Optics",
-  battery: "Battery & Power",
-  batterySpec: "Battery & Power",
-  network: "Network & Connectivity",
-  waterResistance: "Water & Dust Protection",
 };
 
 export function ProductDetails({ product, relatedProducts = [], initialColor = null }) {
@@ -370,17 +361,15 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
       activeColorVariant?.colorName ||
       selectedColor ||
       product?.color ||
-      specs.colourOfficial ||
-      specs.colour ||
       "";
-    const currentColor = selectedColor || product?.color || specs.colour || "";
-    const currentStorage = selectedStorage || product?.storage || specs.storage || "";
-    const brandName = product?.brand || specs.brand || "";
-    const modelName = product?.name || specs.model || "";
+    const currentColor = selectedColor || product?.color || "";
+    const currentStorage = selectedStorage || product?.storage || "";
+    const brandName = product?.brand || "";
+    const modelName = product?.name || "";
 
     const orderedDefinition = [
       { key: "compatibleWithLatestUpdate", label: "Compatible with latest Update", value: specs.compatibleWithLatestUpdate },
-      { key: "mobileNetwork", label: "Mobile network", value: specs.mobileNetwork || specs.network },
+      { key: "mobileNetwork", label: "Mobile network", value: specs.mobileNetwork },
       { key: "screenSize", label: "Screen size (in)", value: specs.screenSize },
       { key: "serie", label: "Serie", value: specs.serie },
       { key: "weight", label: "Weight", value: specs.weight },
@@ -389,7 +378,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
       { key: "storage", label: "Storage", value: currentStorage, isDynamic: true },
       { key: "connector", label: "Connector", value: specs.connector },
       { key: "colour", label: "Colour", value: currentColor, isDynamic: true },
-      { key: "screenType", label: "Screen type", value: specs.screenType || specs.display },
+      { key: "screenType", label: "Screen type", value: specs.screenType },
       { key: "yearOfRelease", label: "Year of Release", value: specs.yearOfRelease },
       { key: "resolution", label: "Resolution", value: specs.resolution },
       { key: "colourOfficial", label: "Colour (official name)", value: officialColor, isDynamic: true },
@@ -398,26 +387,15 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
       { key: "os", label: "OS", value: specs.os },
       { key: "model", label: "Model", value: modelName, isDynamic: true },
       { key: "memory", label: "Memory (GB)", value: specs.memory },
-      { key: "mainCamera", label: "Main camera", value: specs.mainCamera || specs.camera },
+      { key: "mainCamera", label: "Main camera", value: specs.mainCamera },
       { key: "cameraType", label: "Camera Type", value: specs.cameraType },
       { key: "simCard", label: "SIM card", value: specs.simCard || selectedSim },
       { key: "carrierCompatibility", label: "Carrier compatibility", value: specs.carrierCompatibility || "Unlocked" },
     ];
 
-    const definedKeys = new Set(orderedDefinition.map((d) => d.key));
-    const result = orderedDefinition.filter(
+    return orderedDefinition.filter(
       (item) => item.value !== undefined && item.value !== null && String(item.value).trim() !== ""
     );
-
-    // Any extra custom keys present in specs
-    Object.entries(specs).forEach(([k, v]) => {
-      if (!definedKeys.has(k) && k !== "waterproofNotice" && v !== undefined && v !== null && String(v).trim() !== "") {
-        const label = SPEC_KEY_LABELS[k] || k.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
-        result.push({ key: k, label, value: v, isDynamic: false });
-      }
-    });
-
-    return result;
   }, [product, selectedColor, selectedStorage, selectedSim, activeColorVariant]);
 
   // Fetch real reviews from MongoDB Atlas backend API

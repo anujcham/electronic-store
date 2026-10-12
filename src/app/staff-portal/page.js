@@ -893,9 +893,6 @@ export default function StaffPortalPage() {
       ? {
           ...emptySpecifications,
           ...prod.specifications,
-          mobileNetwork: prod.specifications.mobileNetwork || prod.specifications.network || "",
-          screenType: prod.specifications.screenType || prod.specifications.display || "",
-          mainCamera: prod.specifications.mainCamera || prod.specifications.camera || "",
         }
       : { ...emptySpecifications };
 
