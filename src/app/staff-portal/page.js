@@ -76,16 +76,70 @@ import {
   fetchAdminKpiStats,
 } from "../../services/adminService";
 
+const emptySpecifications = {
+  compatibleWithLatestUpdate: "",
+  mobileNetwork: "",
+  screenSize: "",
+  serie: "",
+  weight: "",
+  sarHead: "",
+  sdCardSlot: "",
+  storage: "",
+  connector: "",
+  colour: "",
+  screenType: "",
+  yearOfRelease: "",
+  resolution: "",
+  colourOfficial: "",
+  brand: "",
+  foldable: "",
+  os: "",
+  model: "",
+  memory: "",
+  mainCamera: "",
+  cameraType: "",
+  simCard: "",
+  carrierCompatibility: "",
+  waterproofNotice: "",
+};
+
+const SPEC_FIELDS = [
+  { key: "compatibleWithLatestUpdate", label: "Compatible with latest Update", placeholder: "e.g. No or Yes", col: "col-12 col-md-4" },
+  { key: "mobileNetwork", label: "Mobile network", placeholder: "e.g. 5G", col: "col-12 col-md-4" },
+  { key: "screenSize", label: "Screen size (in)", placeholder: "e.g. 6.82", col: "col-12 col-md-4" },
+  { key: "serie", label: "Serie", placeholder: "e.g. Other, Pro Series, Galaxy S", col: "col-12 col-md-4" },
+  { key: "weight", label: "Weight", placeholder: "e.g. 210 g", col: "col-12 col-md-4" },
+  { key: "sarHead", label: "SAR head", placeholder: "e.g. 1.13", col: "col-12 col-md-4" },
+  { key: "sdCardSlot", label: "SD Card Slot", placeholder: "e.g. No or Yes", col: "col-12 col-md-4" },
+  { key: "storage", label: "Storage", placeholder: "e.g. 512 GB", col: "col-12 col-md-4" },
+  { key: "connector", label: "Connector", placeholder: "e.g. USB-C", col: "col-12 col-md-4" },
+  { key: "colour", label: "Colour", placeholder: "e.g. Blue", col: "col-12 col-md-4" },
+  { key: "screenType", label: "Screen type", placeholder: "e.g. LTPO 4.1 AMOLED", col: "col-12 col-md-4" },
+  { key: "yearOfRelease", label: "Year of Release", placeholder: "e.g. 2024", col: "col-12 col-md-4" },
+  { key: "resolution", label: "Resolution", placeholder: "e.g. 1440x3168", col: "col-12 col-md-4" },
+  { key: "colourOfficial", label: "Colour (official name)", placeholder: "e.g. Midnight Ocean", col: "col-12 col-md-4" },
+  { key: "brand", label: "Brand", placeholder: "e.g. OnePlus, Apple, Samsung", col: "col-12 col-md-4" },
+  { key: "foldable", label: "Foldable", placeholder: "e.g. No or Yes", col: "col-12 col-md-4" },
+  { key: "os", label: "OS", placeholder: "e.g. Android or iOS", col: "col-12 col-md-4" },
+  { key: "model", label: "Model", placeholder: "e.g. OnePlus 13", col: "col-12 col-md-4" },
+  { key: "memory", label: "Memory (GB)", placeholder: "e.g. 12 GB", col: "col-12 col-md-4" },
+  { key: "mainCamera", label: "Main camera", placeholder: "e.g. 50 megapixels", col: "col-12 col-md-4" },
+  { key: "cameraType", label: "Camera Type", placeholder: "e.g. Triple (3x)", col: "col-12 col-md-4" },
+  { key: "simCard", label: "SIM card", placeholder: "e.g. Dual Physical SIM", col: "col-12 col-md-4" },
+  { key: "carrierCompatibility", label: "Carrier compatibility", placeholder: "e.g. Unlocked", col: "col-12 col-md-4" },
+  { key: "waterproofNotice", label: "Waterproof Seal Notice", placeholder: "e.g. Refurbished phones are not guaranteed to maintain their waterproof seal.", col: "col-12" },
+];
+
 const emptyProductForm = {
   name: "",
-  brand: "Apple",
+  brand: "",
   category: "Smartphones",
   price: "",
   originalPrice: "",
-  stock: 10,
+  stock: "",
   condition: "Good",
-  storage: "128GB",
-  color: "Space Black",
+  storage: "",
+  color: "",
   images: "",
   shortDescription: "",
   description: "",
@@ -94,35 +148,25 @@ const emptyProductForm = {
   masterImages: [],
   colorVariants: [
     {
-      _id: "color_default_space_black",
-      colorName: "Space Black",
-      hexCode: "#1e293b",
-      images: [
-        "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
-      ],
-      imagesText: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+      _id: "color_default_1",
+      colorName: "",
+      hexCode: "#0f172a",
+      images: [],
+      imagesText: "",
     },
   ],
   variantPricing: [
     {
-      _id: "variant_default_space_black_128gb_good",
-      color: "Space Black",
-      storage: "128GB",
+      _id: "variant_default_1",
+      color: "",
+      storage: "",
       condition: "Good",
-      price: "499.00",
-      originalPrice: "799.00",
-      stock: 5,
+      price: "",
+      originalPrice: "",
+      stock: "",
     },
   ],
-  specifications: {
-    display: "6.1-inch Super Retina XDR OLED, 2556 x 1179 pixels",
-    processor: "Apple A16 Bionic / High performance chipset",
-    camera: "48MP Main | 12MP Ultra Wide with Photonic Engine",
-    batterySpec: "85%+ Battery health guaranteed with fast wireless charging",
-    os: "Latest mobile OS supported",
-    network: "5G Ultra Wideband, Wi-Fi 6, Bluetooth 5.3",
-    waterResistance: "IP68 rated (maximum depth of 6m up to 30 minutes)",
-  },
+  specifications: { ...emptySpecifications },
 };
 
 const emptyNewAdminForm = {
@@ -783,25 +827,25 @@ export default function StaffPortalPage() {
       masterImages: [],
       colorVariants: [
         {
-          colorName: "Space Black",
-          hexCode: "#1e293b",
-          images: [
-            "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
-          ],
-          imagesText: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+          _id: `color_default_${Date.now()}`,
+          colorName: "",
+          hexCode: "#0f172a",
+          images: [],
+          imagesText: "",
         },
       ],
       variantPricing: [
         {
-          color: "Space Black",
-          storage: "128GB",
+          _id: `var_default_${Date.now()}`,
+          color: "",
+          storage: "",
           condition: "Good",
-          price: "499.00",
-          originalPrice: "799.00",
-          stock: 5,
+          price: "",
+          originalPrice: "",
+          stock: "",
         },
       ],
-      specifications: { ...emptyProductForm.specifications },
+      specifications: { ...emptySpecifications },
     });
     setIsProductModalOpen(true);
   };
@@ -858,12 +902,19 @@ export default function StaffPortalPage() {
         ];
 
     const specifications = prod.specifications && Object.keys(prod.specifications).length > 0
-      ? { ...emptyProductForm.specifications, ...prod.specifications }
-      : { ...emptyProductForm.specifications };
+      ? {
+          ...emptySpecifications,
+          ...prod.specifications,
+          mobileNetwork: prod.specifications.mobileNetwork || prod.specifications.network || "",
+          waterproofNotice: prod.specifications.waterproofNotice || prod.specifications.waterResistance || "",
+          screenType: prod.specifications.screenType || prod.specifications.display || "",
+          mainCamera: prod.specifications.mainCamera || prod.specifications.camera || "",
+        }
+      : { ...emptySpecifications };
 
     setProductFormData({
       name: prod.name || "",
-      brand: prod.brand || "Apple",
+      brand: prod.brand || "",
       category: prod.category || "Smartphones",
       price: prod.price || "",
       originalPrice: prod.originalPrice || "",
@@ -1072,6 +1123,16 @@ export default function StaffPortalPage() {
   };
 
 
+
+  const handleSpecChange = (field, value) => {
+    setProductFormData((prev) => ({
+      ...prev,
+      specifications: {
+        ...(prev.specifications || {}),
+        [field]: value,
+      },
+    }));
+  };
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
@@ -2770,7 +2831,9 @@ export default function StaffPortalPage() {
                       className="form-select"
                       value={productFormData.brand}
                       onChange={(e) => setProductFormData({ ...productFormData, brand: e.target.value })}
+                      required
                     >
+                      <option value="">Select Brand...</option>
                       <option value="Apple">Apple</option>
                       <option value="Samsung">Samsung</option>
                       <option value="Google">Google</option>
@@ -3339,125 +3402,43 @@ export default function StaffPortalPage() {
               {/* TAB 4: TECHNICAL SPECIFICATIONS */}
               {productModalTab === "specs" && (
                 <div>
-                  <div className="mb-3">
-                    <h6 className="fw-bold text-dark mb-0">Hardware Specifications</h6>
-                    <small className="text-muted">
-                      Displayed on the product specifications tab.
-                    </small>
+                  <div className="mb-3 pb-2 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div>
+                      <h6 className="fw-bold text-dark mb-0">Technical Specifications</h6>
+                      <small className="text-muted">
+                        Enter handset hardware specifications. All fields are manual and start empty.
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary btn-sm rounded-pill px-3 py-1 fw-semibold"
+                      style={{ fontSize: "0.75rem" }}
+                      onClick={() =>
+                        setProductFormData((prev) => ({
+                          ...prev,
+                          specifications: { ...emptySpecifications },
+                        }))
+                      }
+                    >
+                      Clear All Specs
+                    </button>
                   </div>
 
                   <div className="row g-3">
-                    <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-dark">Display &amp; Screen</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="6.1-inch Super Retina XDR OLED, 2556 x 1179 pixels"
-                        value={productFormData.specifications?.display || ""}
-                        onChange={(e) =>
-                          setProductFormData({
-                            ...productFormData,
-                            specifications: { ...productFormData.specifications, display: e.target.value },
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-dark">Processor / Chipset</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="A16 Bionic chip, 6-core CPU, 5-core GPU"
-                        value={productFormData.specifications?.processor || ""}
-                        onChange={(e) =>
-                          setProductFormData({
-                            ...productFormData,
-                            specifications: { ...productFormData.specifications, processor: e.target.value },
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-dark">Camera Optics</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="48MP Main | 12MP Ultra Wide | 2x Telephoto optical zoom"
-                        value={productFormData.specifications?.camera || ""}
-                        onChange={(e) =>
-                          setProductFormData({
-                            ...productFormData,
-                            specifications: { ...productFormData.specifications, camera: e.target.value },
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-dark">Battery &amp; Charging</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="85%+ Health Guaranteed, Up to 20h video playback, MagSafe"
-                        value={productFormData.specifications?.batterySpec || ""}
-                        onChange={(e) =>
-                          setProductFormData({
-                            ...productFormData,
-                            specifications: { ...productFormData.specifications, batterySpec: e.target.value },
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="col-12 col-md-4">
-                      <label className="form-label small fw-semibold text-dark">Operating System</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="iOS 17, upgradable"
-                        value={productFormData.specifications?.os || ""}
-                        onChange={(e) =>
-                          setProductFormData({
-                            ...productFormData,
-                            specifications: { ...productFormData.specifications, os: e.target.value },
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="col-12 col-md-4">
-                      <label className="form-label small fw-semibold text-dark">Network &amp; Connectivity</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="5G, Gigabit LTE, Wi-Fi 6, Bluetooth 5.3"
-                        value={productFormData.specifications?.network || ""}
-                        onChange={(e) =>
-                          setProductFormData({
-                            ...productFormData,
-                            specifications: { ...productFormData.specifications, network: e.target.value },
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="col-12 col-md-4">
-                      <label className="form-label small fw-semibold text-dark">Water &amp; Dust Protection</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="IP68 rated (up to 6m for 30 mins)"
-                        value={productFormData.specifications?.waterResistance || ""}
-                        onChange={(e) =>
-                          setProductFormData({
-                            ...productFormData,
-                            specifications: { ...productFormData.specifications, waterResistance: e.target.value },
-                          })
-                        }
-                      />
-                    </div>
+                    {SPEC_FIELDS.map((field) => (
+                      <div key={field.key} className={field.col}>
+                        <label className="form-label small fw-semibold text-dark mb-1 d-block" style={{ fontSize: "0.82rem" }}>
+                          {field.label}
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder={field.placeholder}
+                          value={productFormData.specifications?.[field.key] || ""}
+                          onChange={(e) => handleSpecChange(field.key, e.target.value)}
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

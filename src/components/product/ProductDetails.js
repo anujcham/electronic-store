@@ -68,12 +68,36 @@ const getConditionShortDesc = (cond) => {
 };
 
 const SPEC_KEY_LABELS = {
+  compatibleWithLatestUpdate: "Compatible with latest Update",
+  mobileNetwork: "Mobile network",
+  screenSize: "Screen size (in)",
+  serie: "Serie",
+  weight: "Weight",
+  sarHead: "SAR head",
+  sdCardSlot: "SD Card Slot",
+  storage: "Storage",
+  connector: "Connector",
+  colour: "Colour",
+  screenType: "Screen type",
+  yearOfRelease: "Year of Release",
+  resolution: "Resolution",
+  colourOfficial: "Colour (official name)",
+  brand: "Brand",
+  foldable: "Foldable",
+  os: "OS",
+  model: "Model",
+  memory: "Memory (GB)",
+  mainCamera: "Main camera",
+  cameraType: "Camera Type",
+  simCard: "SIM card",
+  carrierCompatibility: "Carrier compatibility",
+  waterproofNotice: "Waterproof Seal Notice",
+  // Legacy keys
   display: "Display & Screen",
   processor: "Processor / Chipset",
   camera: "Camera Optics",
   battery: "Battery & Power",
   batterySpec: "Battery & Power",
-  os: "Operating System",
   network: "Network & Connectivity",
   waterResistance: "Water & Dust Protection",
 };
@@ -342,16 +366,11 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
   // Dynamic Specifications object parsing
   const dynamicSpecs = useMemo(() => {
     if (product?.specifications && typeof product.specifications === "object") {
-      return Object.entries(product.specifications).filter(([_, val]) => Boolean(val));
+      return Object.entries(product.specifications).filter(
+        ([_, val]) => val !== undefined && val !== null && String(val).trim() !== ""
+      );
     }
-    return [
-      ["display", "Super Retina XDR OLED Display, 120Hz ProMotion"],
-      ["processor", `${product?.brand || "Flagship"} High-Performance Processor`],
-      ["camera", "Advanced Multi-Lens Camera System with Night Mode"],
-      ["batterySpec", "All-day battery life (85%+ guaranteed health)"],
-      ["network", "5G Data, Wi-Fi 6, Bluetooth 5.3, NFC"],
-      ["waterResistance", "IP68 Dust & Water Resistant"],
-    ];
+    return [];
   }, [product]);
 
   // Fetch real reviews from MongoDB Atlas backend API
@@ -1013,39 +1032,46 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
                   <tbody>
                     <tr>
                       <th className="bg-light w-25">Brand / Manufacturer</th>
-                      <td className="fw-bold text-dark">{product?.brand || "Apple"}</td>
+                      <td className="fw-bold text-dark">{product?.specifications?.brand || product?.brand || ""}</td>
                     </tr>
                     <tr>
                       <th className="bg-light">Device Model Name</th>
-                      <td className="fw-bold text-dark">{product?.name || "iPhone"}</td>
+                      <td className="fw-bold text-dark">{product?.specifications?.model || product?.name || ""}</td>
                     </tr>
                     <tr>
                       <th className="bg-light">Selected Storage Variant</th>
-                      <td className="fw-bold text-primary">{selectedStorage || product?.storage || "128GB"}</td>
+                      <td className="fw-bold text-primary">{selectedStorage || product?.specifications?.storage || product?.storage || ""}</td>
                     </tr>
                     <tr>
                       <th className="bg-light">Selected Colour Finish</th>
-                      <td className="fw-bold text-primary">{selectedColor || product?.color || "Midnight"}</td>
+                      <td className="fw-bold text-primary">{selectedColor || product?.specifications?.colourOfficial || product?.specifications?.colour || product?.color || ""}</td>
                     </tr>
 
                     {/* Dynamic Specifications Key-Value Rows from MongoDB */}
-                    {dynamicSpecs.map(([specKey, specVal]) => {
-                      const label = SPEC_KEY_LABELS[specKey] || specKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                      return (
-                        <tr key={specKey}>
-                          <th className="bg-light">{label}</th>
-                          <td>{String(specVal)}</td>
-                        </tr>
-                      );
-                    })}
+                    {dynamicSpecs
+                      .filter(([specKey]) => specKey !== "brand" && specKey !== "model")
+                      .map(([specKey, specVal]) => {
+                        const label = SPEC_KEY_LABELS[specKey] || specKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                        const isNotice = specKey === "waterproofNotice";
+                        return (
+                          <tr key={specKey} className={isNotice ? "table-warning bg-opacity-25" : ""}>
+                            <th className="bg-light">{label}</th>
+                            <td className={isNotice ? "text-dark fw-semibold small" : ""}>
+                              {isNotice ? `⚠️ ${String(specVal)}` : String(specVal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
 
-                    <tr>
-                      <th className="bg-light">SIM Compatibility</th>
-                      <td>{selectedSim || "Single Physical SIM + eSIM"}</td>
-                    </tr>
+                    {!product?.specifications?.simCard && selectedSim && (
+                      <tr>
+                        <th className="bg-light">SIM Compatibility</th>
+                        <td>{selectedSim}</td>
+                      </tr>
+                    )}
                     <tr>
                       <th className="bg-light">Seller Warranty Guarantee</th>
-                      <td>12 Months Full Hardware & Battery Replacement Warranty</td>
+                      <td>12 Months Full Hardware &amp; Battery Replacement Warranty</td>
                     </tr>
                   </tbody>
                 </table>

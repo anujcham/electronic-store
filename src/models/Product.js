@@ -42,13 +42,8 @@ const ProductSchema = new mongoose.Schema(
     deliveryRange: { type: String, default: '2-4 working days' },
     warrantyMonths: { type: Number, default: 12 },
     specifications: {
-      display: String,
-      processor: String,
-      camera: String,
-      batterySpec: String,
-      os: String,
-      network: String,
-      waterResistance: String,
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
     },
     colorVariants: [
       {
