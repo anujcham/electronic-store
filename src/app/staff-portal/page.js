@@ -254,6 +254,7 @@ export default function StaffPortalPage() {
   });
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [editingProductSlug, setEditingProductSlug] = useState(null);
   const [productModalTab, setProductModalTab] = useState("general");
   const [productFormData, setProductFormData] = useState(emptyProductForm);
@@ -1074,91 +1075,101 @@ export default function StaffPortalPage() {
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
+    if (isSavingProduct) return;
 
-    // 1. Sanitize Color Variants with dedicated image arrays
-    const sanitizedColorVariants = (productFormData.colorVariants || []).map((cv) => {
-      let imgList = [];
-      if (Array.isArray(cv.images) && cv.images.length > 0) {
-        imgList = cv.images.filter(Boolean);
-      } else if (cv.imagesText) {
-        imgList = cv.imagesText
-          .split(/\r?\n/)
-          .map((url) => url.trim())
-          .filter(Boolean);
+    setIsSavingProduct(true);
+    try {
+      // 1. Sanitize Color Variants with dedicated image arrays
+      const sanitizedColorVariants = (productFormData.colorVariants || []).map((cv) => {
+        let imgList = [];
+        if (Array.isArray(cv.images) && cv.images.length > 0) {
+          imgList = cv.images.filter(Boolean);
+        } else if (cv.imagesText) {
+          imgList = cv.imagesText
+            .split(/\r?\n/)
+            .map((url) => url.trim())
+            .filter(Boolean);
+        }
+
+        return {
+          colorName: cv.colorName.trim() || "Standard",
+          hexCode: cv.hexCode || "#0f172a",
+          images: imgList.length > 0 ? imgList : ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"],
+        };
+      });
+
+      // 2. Sanitize Variant Matrix
+      const sanitizedVariants = (productFormData.variantPricing || []).map((v) => ({
+        color: v.color?.trim() || "Standard",
+        storage: v.storage?.trim() || "128GB",
+        condition: v.condition?.trim() || "Good",
+        price: Number(v.price) || Number(productFormData.price) || 0,
+        originalPrice: Number(v.originalPrice) || Number(productFormData.originalPrice) || 0,
+        stock: Number(v.stock) || 0,
+        isAvailable: Number(v.stock) > 0,
+      }));
+
+      // 3. Auto-calculate aggregated stock
+      const computedTotalStock = sanitizedVariants.length > 0
+        ? sanitizedVariants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
+        : Number(productFormData.stock) || 10;
+
+      // 4. Auto-calculate starting price and original RRP from variant matrix
+      const variantPrices = sanitizedVariants.map((v) => Number(v.price)).filter((p) => p > 0);
+      const computedBasePrice = variantPrices.length > 0 ? Math.min(...variantPrices) : Number(productFormData.price) || 0;
+
+      const variantOriginalPrices = sanitizedVariants.map((v) => Number(v.originalPrice)).filter((p) => p > 0);
+      const computedOriginalPrice = variantOriginalPrices.length > 0
+        ? Math.min(...variantOriginalPrices)
+        : Number(productFormData.originalPrice) || Math.round(computedBasePrice * 1.25);
+
+      // 5. Aggregate all images for catalog card thumbnails
+      const allImages = sanitizedColorVariants.flatMap((c) => c.images).filter(Boolean);
+
+      const payload = {
+        name: productFormData.name,
+        brand: productFormData.brand,
+        category: productFormData.category || "Smartphones",
+        price: computedBasePrice,
+        originalPrice: computedOriginalPrice,
+        stock: computedTotalStock,
+        condition: sanitizedVariants[0]?.condition || productFormData.condition || "Good",
+        storage: sanitizedVariants[0]?.storage || productFormData.storage || "128GB",
+        color: sanitizedColorVariants[0]?.colorName || productFormData.color || "Standard",
+        images: allImages.length > 0 ? allImages : ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"],
+        masterImages: (productFormData.masterImages || []).filter(Boolean),
+        shortDescription: productFormData.shortDescription || `${productFormData.name} - Certified Refurbished with 12-Month Seller Warranty`,
+        description: productFormData.description || `${productFormData.name} refurbished handset. 100-point diagnostic inspection completed.`,
+        featured: Boolean(productFormData.featured),
+        isHotDeal: Boolean(productFormData.isHotDeal),
+        colorVariants: sanitizedColorVariants,
+        variantPricing: sanitizedVariants,
+        specifications: productFormData.specifications || {},
+        availableColors: [...new Set(sanitizedColorVariants.map((c) => c.colorName))],
+        availableStorage: [...new Set(sanitizedVariants.map((v) => v.storage))],
+        conditionOptions: [...new Set(sanitizedVariants.map((v) => v.condition))],
+      };
+
+      let res;
+      if (editingProductSlug) {
+        res = await updateAdminProduct(editingProductSlug, payload);
+      } else {
+        res = await createAdminProduct(payload);
       }
 
-      return {
-        colorName: cv.colorName.trim() || "Standard",
-        hexCode: cv.hexCode || "#0f172a",
-        images: imgList.length > 0 ? imgList : ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"],
-      };
-    });
-
-    // 2. Sanitize Variant Matrix
-    const sanitizedVariants = (productFormData.variantPricing || []).map((v) => ({
-      color: v.color?.trim() || "Standard",
-      storage: v.storage?.trim() || "128GB",
-      condition: v.condition?.trim() || "Good",
-      price: Number(v.price) || Number(productFormData.price) || 0,
-      originalPrice: Number(v.originalPrice) || Number(productFormData.originalPrice) || 0,
-      stock: Number(v.stock) || 0,
-      isAvailable: Number(v.stock) > 0,
-    }));
-
-    // 3. Auto-calculate aggregated stock
-    const computedTotalStock = sanitizedVariants.length > 0
-      ? sanitizedVariants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0)
-      : Number(productFormData.stock) || 10;
-
-    // 4. Auto-calculate starting price and original RRP from variant matrix
-    const variantPrices = sanitizedVariants.map((v) => Number(v.price)).filter((p) => p > 0);
-    const computedBasePrice = variantPrices.length > 0 ? Math.min(...variantPrices) : Number(productFormData.price) || 0;
-
-    const variantOriginalPrices = sanitizedVariants.map((v) => Number(v.originalPrice)).filter((p) => p > 0);
-    const computedOriginalPrice = variantOriginalPrices.length > 0
-      ? Math.min(...variantOriginalPrices)
-      : Number(productFormData.originalPrice) || Math.round(computedBasePrice * 1.25);
-
-    // 5. Aggregate all images for catalog card thumbnails
-    const allImages = sanitizedColorVariants.flatMap((c) => c.images).filter(Boolean);
-
-    const payload = {
-      name: productFormData.name,
-      brand: productFormData.brand,
-      category: productFormData.category || "Smartphones",
-      price: computedBasePrice,
-      originalPrice: computedOriginalPrice,
-      stock: computedTotalStock,
-      condition: sanitizedVariants[0]?.condition || productFormData.condition || "Good",
-      storage: sanitizedVariants[0]?.storage || productFormData.storage || "128GB",
-      color: sanitizedColorVariants[0]?.colorName || productFormData.color || "Standard",
-      images: allImages.length > 0 ? allImages : ["https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80"],
-      masterImages: (productFormData.masterImages || []).filter(Boolean),
-      shortDescription: productFormData.shortDescription || `${productFormData.name} - Certified Refurbished with 12-Month Seller Warranty`,
-      description: productFormData.description || `${productFormData.name} refurbished handset. 100-point diagnostic inspection completed.`,
-      featured: Boolean(productFormData.featured),
-      isHotDeal: Boolean(productFormData.isHotDeal),
-      colorVariants: sanitizedColorVariants,
-      variantPricing: sanitizedVariants,
-      specifications: productFormData.specifications || {},
-      availableColors: [...new Set(sanitizedColorVariants.map((c) => c.colorName))],
-      availableStorage: [...new Set(sanitizedVariants.map((v) => v.storage))],
-      conditionOptions: [...new Set(sanitizedVariants.map((v) => v.condition))],
-    };
-
-    let res;
-    if (editingProductSlug) {
-      res = await updateAdminProduct(editingProductSlug, payload);
-    } else {
-      res = await createAdminProduct(payload);
-    }
-
-    if (res.success) {
-      toast.success("Catalog Updated", editingProductSlug ? "Product updated successfully!" : "New product listing created!");
-      setIsProductModalOpen(false);
-      loadAdminData();
-    } else {
-      toast.error("Save Failed", res.error || "Failed to save product.");
+      if (res.success) {
+        toast.success("Catalog Updated", editingProductSlug ? "Product updated successfully!" : "New product listing created!");
+        setIsProductModalOpen(false);
+        setEditingProductSlug(null);
+        loadAdminData();
+      } else {
+        toast.error("Save Failed", res.error || "Failed to save product.");
+      }
+    } catch (err) {
+      console.error("Save product error:", err);
+      toast.error("Save Failed", err.message || "An unexpected error occurred while saving.");
+    } finally {
+      setIsSavingProduct(false);
     }
   };
 
@@ -2663,7 +2674,9 @@ export default function StaffPortalPage() {
               <button
                 type="button"
                 className="btn btn-light btn-sm rounded-circle p-2 border-0"
-                onClick={() => setIsProductModalOpen(false)}
+                onClick={() => !isSavingProduct && setIsProductModalOpen(false)}
+                disabled={isSavingProduct}
+                title="Close modal"
               >
                 <X size={18} />
               </button>
@@ -3455,6 +3468,7 @@ export default function StaffPortalPage() {
                   type="button"
                   className="btn btn-outline-secondary px-4 py-2 rounded-3 fw-semibold"
                   onClick={() => setIsProductModalOpen(false)}
+                  disabled={isSavingProduct}
                 >
                   Cancel
                 </button>
@@ -3469,6 +3483,7 @@ export default function StaffPortalPage() {
                         const curIdx = tabs.indexOf(productModalTab);
                         if (curIdx > 0) setProductModalTab(tabs[curIdx - 1]);
                       }}
+                      disabled={isSavingProduct}
                     >
                       ← Previous
                     </button>
@@ -3483,13 +3498,25 @@ export default function StaffPortalPage() {
                         const curIdx = tabs.indexOf(productModalTab);
                         if (curIdx < tabs.length - 1) setProductModalTab(tabs[curIdx + 1]);
                       }}
+                      disabled={isSavingProduct}
                     >
                       Next Step →
                     </button>
                   ) : null}
 
-                  <button type="submit" className="btn btn-primary px-4 py-2 rounded-3 fw-bold shadow-sm">
-                    {editingProductSlug ? "Save Listing & All Variants" : "Publish Handset Listing"}
+                  <button
+                    type="submit"
+                    className="btn btn-primary px-4 py-2 rounded-3 fw-bold shadow-sm d-inline-flex align-items-center gap-2"
+                    disabled={isSavingProduct}
+                  >
+                    {isSavingProduct ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>{editingProductSlug ? "Saving Changes..." : "Publishing Handset..."}</span>
+                      </>
+                    ) : (
+                      editingProductSlug ? "Save Listing & All Variants" : "Publish Handset Listing"
+                    )}
                   </button>
                 </div>
               </div>
