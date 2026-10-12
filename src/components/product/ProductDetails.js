@@ -363,15 +363,62 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
   const currentMainImage = imagesList[activeImageIndex] || imagesList[0];
   const safeQuantity = Math.max(1, Math.min(quantity, Math.max(1, stockLimit)));
 
-  // Dynamic Specifications object parsing
-  const dynamicSpecs = useMemo(() => {
-    if (product?.specifications && typeof product.specifications === "object") {
-      return Object.entries(product.specifications).filter(
-        ([_, val]) => val !== undefined && val !== null && String(val).trim() !== ""
-      );
-    }
-    return [];
-  }, [product]);
+  // Technical Specifications List in requested order, with dynamic runtime bindings
+  const technicalSpecsList = useMemo(() => {
+    const specs = product?.specifications || {};
+    const officialColor =
+      activeColorVariant?.colorName ||
+      selectedColor ||
+      product?.color ||
+      specs.colourOfficial ||
+      specs.colour ||
+      "";
+    const currentColor = selectedColor || product?.color || specs.colour || "";
+    const currentStorage = selectedStorage || product?.storage || specs.storage || "";
+    const brandName = product?.brand || specs.brand || "";
+    const modelName = product?.name || specs.model || "";
+
+    const orderedDefinition = [
+      { key: "compatibleWithLatestUpdate", label: "Compatible with latest Update", value: specs.compatibleWithLatestUpdate },
+      { key: "mobileNetwork", label: "Mobile network", value: specs.mobileNetwork || specs.network },
+      { key: "screenSize", label: "Screen size (in)", value: specs.screenSize },
+      { key: "serie", label: "Serie", value: specs.serie },
+      { key: "weight", label: "Weight", value: specs.weight },
+      { key: "sarHead", label: "SAR head", value: specs.sarHead },
+      { key: "sdCardSlot", label: "SD Card Slot", value: specs.sdCardSlot },
+      { key: "storage", label: "Storage", value: currentStorage, isDynamic: true },
+      { key: "connector", label: "Connector", value: specs.connector },
+      { key: "colour", label: "Colour", value: currentColor, isDynamic: true },
+      { key: "screenType", label: "Screen type", value: specs.screenType || specs.display },
+      { key: "yearOfRelease", label: "Year of Release", value: specs.yearOfRelease },
+      { key: "resolution", label: "Resolution", value: specs.resolution },
+      { key: "colourOfficial", label: "Colour (official name)", value: officialColor, isDynamic: true },
+      { key: "brand", label: "Brand", value: brandName, isDynamic: true },
+      { key: "foldable", label: "Foldable", value: specs.foldable },
+      { key: "os", label: "OS", value: specs.os },
+      { key: "model", label: "Model", value: modelName, isDynamic: true },
+      { key: "memory", label: "Memory (GB)", value: specs.memory },
+      { key: "mainCamera", label: "Main camera", value: specs.mainCamera || specs.camera },
+      { key: "cameraType", label: "Camera Type", value: specs.cameraType },
+      { key: "simCard", label: "SIM card", value: specs.simCard || selectedSim },
+      { key: "carrierCompatibility", label: "Carrier compatibility", value: specs.carrierCompatibility || "Unlocked" },
+    ];
+
+    const definedKeys = new Set(orderedDefinition.map((d) => d.key));
+    const result = orderedDefinition.filter(
+      (item) => item.value !== undefined && item.value !== null && String(item.value).trim() !== ""
+    );
+
+    // Any extra custom keys present in specs
+    Object.entries(specs).forEach(([k, v]) => {
+      if (!definedKeys.has(k) && k !== "waterproofNotice" && v !== undefined && v !== null && String(v).trim() !== "") {
+        const label = SPEC_KEY_LABELS[k] || k.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
+        result.push({ key: k, label, value: v, isDynamic: false });
+      }
+    });
+
+    return result;
+  }, [product, selectedColor, selectedStorage, selectedSim, activeColorVariant]);
 
   // Fetch real reviews from MongoDB Atlas backend API
   const fetchReviewsFromMongoDB = useCallback(async () => {
@@ -925,7 +972,7 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
                 }`}
                 onClick={() => setActiveTab("specs")}
               >
-                ⚙️ Dynamic Technical Specifications
+                ⚙️ Technical Specifications
               </button>
             </li>
 
@@ -1020,61 +1067,47 @@ export function ProductDetails({ product, relatedProducts = [], initialColor = n
             </div>
           )}
 
-          {/* Tab 2: Dynamic Specifications */}
+          {/* Tab 2: Technical Specifications */}
           {activeTab === "specs" && (
             <div>
-              <h4 className="fw-bold text-primary mb-3">Dynamic Hardware Specifications</h4>
-              <p className="text-muted small mb-3">
-                Entered and maintained dynamically in MongoDB Atlas backend for {product?.name}:
-              </p>
-              <div className="table-responsive">
-                <table className="table table-striped table-bordered align-middle">
+              <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                <div>
+                  <h4 className="fw-bold text-primary mb-1">Technical Specifications</h4>
+                  <p className="text-muted small mb-0">
+                    Full hardware details and dynamic variant configurations for {product?.name}:
+                  </p>
+                </div>
+              </div>
+
+              <div className="table-responsive rounded-3 border">
+                <table className="table table-striped table-hover align-middle mb-0">
                   <tbody>
-                    <tr>
-                      <th className="bg-light w-25">Brand / Manufacturer</th>
-                      <td className="fw-bold text-dark">{product?.specifications?.brand || product?.brand || ""}</td>
-                    </tr>
-                    <tr>
-                      <th className="bg-light">Device Model Name</th>
-                      <td className="fw-bold text-dark">{product?.specifications?.model || product?.name || ""}</td>
-                    </tr>
-                    <tr>
-                      <th className="bg-light">Selected Storage Variant</th>
-                      <td className="fw-bold text-primary">{selectedStorage || product?.specifications?.storage || product?.storage || ""}</td>
-                    </tr>
-                    <tr>
-                      <th className="bg-light">Selected Colour Finish</th>
-                      <td className="fw-bold text-primary">{selectedColor || product?.specifications?.colourOfficial || product?.specifications?.colour || product?.color || ""}</td>
-                    </tr>
-
-                    {/* Dynamic Specifications Key-Value Rows from MongoDB */}
-                    {dynamicSpecs
-                      .filter(([specKey]) => specKey !== "brand" && specKey !== "model")
-                      .map(([specKey, specVal]) => {
-                        const label = SPEC_KEY_LABELS[specKey] || specKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                        const isNotice = specKey === "waterproofNotice";
-                        return (
-                          <tr key={specKey} className={isNotice ? "table-warning bg-opacity-25" : ""}>
-                            <th className="bg-light">{label}</th>
-                            <td className={isNotice ? "text-dark fw-semibold small" : ""}>
-                              {isNotice ? `⚠️ ${String(specVal)}` : String(specVal)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-
-                    {!product?.specifications?.simCard && selectedSim && (
-                      <tr>
-                        <th className="bg-light">SIM Compatibility</th>
-                        <td>{selectedSim}</td>
+                    {technicalSpecsList.map((item) => (
+                      <tr key={item.key}>
+                        <th className="bg-light text-secondary py-3 px-3 w-50" style={{ maxWidth: "260px" }}>
+                          {item.label}
+                        </th>
+                        <td className={`py-3 px-3 ${item.isDynamic ? "fw-bold text-primary" : "text-dark"}`}>
+                          {String(item.value)}
+                        </td>
                       </tr>
-                    )}
+                    ))}
                     <tr>
-                      <th className="bg-light">Seller Warranty Guarantee</th>
-                      <td>12 Months Full Hardware &amp; Battery Replacement Warranty</td>
+                      <th className="bg-light text-secondary py-3 px-3">Warranty Guarantee</th>
+                      <td className="py-3 px-3 text-success fw-semibold">
+                        12 Months Full Hardware Warranty Included
+                      </td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              {/* Default Waterproof Seal Notice */}
+              <div className="alert alert-warning border-0 bg-warning bg-opacity-10 rounded-3 p-3 mt-3 d-flex align-items-center gap-2.5">
+                <AlertTriangle size={18} className="text-warning flex-shrink-0" />
+                <span className="small text-dark fw-medium">
+                  Refurbished phones are not guaranteed to maintain their waterproof seal.
+                </span>
               </div>
             </div>
           )}
